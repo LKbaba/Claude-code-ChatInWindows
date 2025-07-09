@@ -3,11 +3,11 @@
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Beautiful Claude Code Chat Interface designed specifically for Windows VS Code users",
   "version": "1.3.0",
-  "publisher": "loki-white",
-  "author": "Loki White",
+  "publisher": "lkbaba",
+  "author": "LKbaba",
   "repository": {
     "type": "git",
-    "url": "https://github.com/LokiWhite/claude-code-chatui"
+    "url": "https://github.com/LKbaba/Claude-code-ChatInWindows"
   },
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
