@@ -96,9 +96,20 @@ claude chat -m sonnet -p "hello"
 
 ### 🔹 第 3 步：安裝本擴充套件
 
-我們提供兩種安裝方式：**從原始碼建置**或**從 VSIX 檔案安裝**。
+#### 方式一：從 VS Code Marketplace 安裝 (最推薦)
 
-#### 方式一：從原始碼執行（適合開發者）
+1.  開啟 VS Code 或 Cursor。
+2.  點擊側邊欄的 **擴充功能** 圖示 (Extensions)。
+3.  在搜尋框中輸入 `Claude-Code ChatUI for Windows` 或擴充套件的唯一 ID `lkbaba.claude-code-chatui`。
+4.  找到本擴充套件，點擊 **安裝 (Install)**。
+
+您也可以直接造訪 [**➡️ Marketplace 擴充套件主頁**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui) 點擊安裝。
+
+#### 方式二：進階安裝選項 (適合開發者)
+
+如果您想從原始碼執行或手動打包，可以參考以下步驟。
+
+##### 從原始碼執行
 
 ```powershell
 # 複製專案到本機
@@ -106,14 +117,10 @@ git clone https://github.com/LKbaba/Claude-code-ChatInWindows.git
 cd Claude-code-ChatInWindows
 npm install  # 安裝依賴
 
-# 在 VS Code 或 Cursor 中按 F5 執行偵錯
-# 或執行以下命令進行即時編譯
-npm run watch
+# 在 VS Code 或 Cursor 中按 F5 即可進入偵錯模式
 ```
 
-#### 方式二：打包為 VSIX 並安裝（適合穩定使用）
-
-如果您想在不啟動偵錯的情況下使用本擴充套件，可以將其打包為 `.vsix` 檔案。
+##### 打包為 VSIX 並安裝
 
 ```powershell
 # 1. 確保您已在專案根目錄，並已執行 npm install
@@ -121,27 +128,21 @@ npm run watch
 # 2. 編譯並打包擴充套件
 npm run package
 
-#    此命令會自動先執行 `npm run compile` 編譯 TypeScript 程式碼，
-#    然後使用 vsce 工具打包成一個 .vsix 檔案，例如 claude-code-chatui-1.3.0.vsix
+#    此命令會自動編譯並打包成一個 .vsix 檔案
 ```
 
 **如何安裝 `.vsix` 檔案：**
 
-1. 開啟 VS Code 或 Cursor。
-2. 按下 `Ctrl+Shift+P` 開啟命令面板。
-3. 輸入 `Install from VSIX` 並選擇 **"擴充功能: 從 VSIX 安裝..."**。
-4. 找到並選擇剛剛產生的 `.vsix` 檔案，即可成功安裝。
-
-#### 方式三：從市集安裝（推薦）
-
-未來，您可以直接在 VS Code / Cursor 的擴充功能市集中搜尋 **"Claude-code-ChatInWindows"** 來一鍵安裝。
+1.  在 VS Code 或 Cursor 中，按下 `Ctrl+Shift+P` 開啟命令面板。
+2.  輸入 `Install from VSIX` 並選擇 **"擴充功能: 從 VSIX 安裝..."**。
+3.  選擇專案根目錄下產生的 `.vsix` 檔案進行安裝。
 
 ---
 
 ### 🎉 開始使用
 
-* **開啟聊天介面**：按快捷鍵 `Ctrl+Shift+C`
-* **個人化設定**：VS Code/Cursor 設定 → 搜尋 `claudeCodeChatUI`
+*   **開啟聊天介面**：按快捷鍵 `Ctrl+Shift+C`
+*   **個人化設定**：VS Code/Cursor 設定 → 搜尋 `claudeCodeChatUI`
 
 **設定範例：**
 

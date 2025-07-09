@@ -82,7 +82,7 @@ setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
 npm install -g @anthropic-ai/claude-code
 
 # 2. Ensure the npm global directory is in your system's Path environment variable
-#    The default path is usually: C:\\Users\\YourUsername\\AppData\\Roaming\\npm
+#    The default path is usually: C:\Users\YourUsername\AppData\Roaming\npm
 #    If you're unsure, add it manually to your system's "Path" variable.
 
 # 3. Log in to Claude Code for the first time
@@ -96,9 +96,20 @@ claude chat -m sonnet -p "hello"
 
 ### 🔹 Step 3: Install This Extension
 
-We offer two ways to install: **Build from Source** or **Install from VSIX**.
+#### Method 1: Install from VS Code Marketplace (Recommended)
 
-#### Method 1: Run from Source (for Developers)
+1.  Open VS Code or Cursor.
+2.  Click the **Extensions** icon in the Activity Bar on the side.
+3.  Search for `Claude-Code ChatUI for Windows` or the unique ID `lkbaba.claude-code-chatui`.
+4.  Find the extension and click **Install**.
+
+You can also install directly from the [**➡️ Marketplace Page**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui).
+
+#### Method 2: Advanced Installation (for Developers)
+
+If you want to run from source or package the extension manually, follow these steps.
+
+##### Run from Source
 
 ```powershell
 # Clone the project locally
@@ -106,14 +117,10 @@ git clone https://github.com/LKbaba/Claude-code-ChatInWindows.git
 cd Claude-code-ChatInWindows
 npm install  # Install dependencies
 
-# Press F5 in VS Code or Cursor to run in debug mode
-# Or run the following command for live-reloading
-npm run watch
+# Press F5 in VS Code or Cursor to start debugging
 ```
 
-#### Method 2: Package as VSIX and Install (for Stable Use)
-
-If you want to use the extension without running a debugger, you can package it into a `.vsix` file.
+##### Package as VSIX and Install
 
 ```powershell
 # 1. Make sure you are in the project root and have run npm install
@@ -121,27 +128,21 @@ If you want to use the extension without running a debugger, you can package it 
 # 2. Compile and package the extension
 npm run package
 
-#    This command first runs `npm run compile` to build the TypeScript code,
-#    then uses `vsce` to package it into a .vsix file, e.g., claude-code-chatui-1.3.0.vsix
+#    This command will automatically compile and package the extension into a .vsix file.
 ```
 
-**How to install a `.vsix` file:**
+**To install the `.vsix` file:**
 
-1. Open VS Code or Cursor.
-2. Press `Ctrl+Shift+P` to open the Command Palette.
-3. Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**.
-4. Locate and select the generated `.vsix` file to install the extension.
-
-#### Method 3: Install from Marketplace (Recommended)
-
-In the future, you will be able to search for **"Claude-code-ChatInWindows"** directly in the VS Code / Cursor Marketplace for a one-click install.
+1.  In VS Code or Cursor, press `Ctrl+Shift+P` to open the Command Palette.
+2.  Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**.
+3.  Select the generated `.vsix` file from the project root to install.
 
 ---
 
 ### 🎉 Getting Started
 
-* **Open Chat Panel**: Press `Ctrl+Shift+C`
-* **Customize Settings**: Go to VS Code/Cursor Settings → Search for `claudeCodeChatUI`
+*   **Open Chat Panel**: Press `Ctrl+Shift+C`
+*   **Customize Settings**: Go to VS Code/Cursor Settings → Search for `claudeCodeChatUI`
 
 **Example Configuration:**
 
