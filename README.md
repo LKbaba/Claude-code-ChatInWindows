@@ -1,194 +1,192 @@
-# Claude Code Chat in Windows 🎉
+# Claude Code Chat UI – for Windows (No WSL)
+
+> **A Native UI for Windows That Makes Claude Code Instantly Better! 🚀**
 
 <div align="center">
   <img src="icon.png" alt="Claude Code Chat Icon" width="128" height="128">
-  
-  <h3>Claude Code + Cursor + Windows = ❤️</h3>
-  
-  **Finally! Use Claude Code in Cursor on Windows without wrestling with the terminal!**
-  
-  [![VS Code Version](https://img.shields.io/badge/VS%20Code-%3E%3D1.94.0-blue)](https://code.visualstudio.com/)
-  [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-  [![Platform](https://img.shields.io/badge/platform-Windows-blue)](https://www.microsoft.com/windows)
-  [![Cursor Compatible](https://img.shields.io/badge/Cursor-Compatible-purple)](https://cursor.sh/)
-  [![Based on](https://img.shields.io/badge/Based%20on-claude--code--chat-orange)](https://github.com/andrepimenta/claude-code-chat)
+
+  <!-- Badges -->
+  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-Ready-purple" alt="Cursor Ready"></a> <a href="https://github.com/andrepimenta/claude-code-chat"><img src="https://img.shields.io/badge/Based%20on-claude--code--chat-orange" alt="Based on claude-code-chat"></a>
 </div>
 
-## 🎯 The Problem
-
-If you're a Windows user trying to use Claude Code in Cursor, you know the pain:
-
-- 😫 Terminal commands that don't work properly on Windows
-- 🤯 Path issues, permission errors, and Git Bash conflicts  
-- 😔 Watching Mac users enjoy seamless Claude Code integration
-- 🚫 No proper GUI - just a terminal interface
-
-**This project solves ALL of that!**
-
-## 🌟 My Story
-
-Hi! I'm what you might call a "vibe coder" - I code by intuition rather than deep technical knowledge. When I discovered Claude Code, I was blown away by its capabilities, but the terminal interface on Windows was a nightmare.
-
-Then I found [andrepimenta's claude-code-chat](https://github.com/andrepimenta/claude-code-chat) project - a beautiful GUI for Claude Code! But it wasn't optimized for Windows users like me.
-
-So what did I do? I asked Claude Code to help me modify it! 🤖 Together, we created this Windows-optimized version with enhanced features that make Claude Code a joy to use on Windows.
-
-## ✨ What's New & Improved
-
-### 🪟 Windows-Specific Optimizations
-
-- **Git Bash Integration**: Seamless integration with Git Bash for proper command execution
-- **Path Handling**: Intelligent Windows path conversion (no more `/c/Users` vs `C:\Users` confusion!)
-- **Permission Management**: Handles Windows-specific permission requirements
-- **Native Windows Feel**: UI and UX designed for Windows users
-
-### 📊 Enhanced Token Statistics
-
-- **Real-time Tracking**: See exactly how many tokens you're using
-- **Cost Estimation**: Know how much your conversations cost
-- **Usage Analytics**: Track patterns and optimize your Claude usage
-- **Visual Dashboard**: Beautiful charts and graphs for token usage
-
-### 🔧 Improved MCP (Model Context Protocol) Support
-
-- **Easy Configuration**: Simple UI for MCP server setup
-- **Multiple Servers**: Connect multiple MCP servers simultaneously  
-- **Windows-Friendly**: MCP servers work flawlessly on Windows
-- **Built-in Tools**: Pre-configured tools for common tasks
-
-### 🎨 UI Improvements
-
-- **Better Theme Integration**: Perfectly matches your Cursor theme
-- **Responsive Design**: Works great on any screen size
-- **Enhanced File References**: Improved `@file` mention system
-- **Smooth Animations**: Polished interactions throughout
-
-## 🚀 Quick Start for Cursor Users
-
-### Prerequisites
-
-1. **Windows 10/11** (obviously! 😄)
-2. **[Git for Windows](https://git-scm.com/)** (includes Git Bash)
-3. **[Node.js](https://nodejs.org/)** v18 or higher
-4. **[Cursor](https://cursor.sh/)** (or VS Code v1.94.0+)
-
-### Installation
-
-```bash
-# 1. Install Claude CLI globally
-npm install -g @anthropic-ai/claude-code
-
-# 2. Login to Claude (one-time setup)
-claude login
-
-# 3. Install this extension in Cursor
-# Method 1: From the provided VSIX file
-# - Download claude-code-chat-ui-windows.vsix from releases
-# - In Cursor: Ctrl+Shift+P → "Install from VSIX"
-
-# Method 2: Build from source
-git clone https://github.com/yourusername/Claude-code-ChatInWindows.git
-cd Claude-code-ChatInWindows
-npm install
-npm run package
-# Then install the generated VSIX file
-```
-
-### First Launch
-
-1. Press `Ctrl+Shift+C` to open Claude Chat
-2. Git Bash path is auto-detected (usually `C:\Program Files\Git\bin\bash.exe`)
-3. Start chatting with Claude! 🎉
-
-## 📸 Screenshots
-
-<div align="center">
-  <img src="docs/screenshots/main-interface.png" alt="Main Interface" width="600">
-  <p><em>Beautiful chat interface integrated in Cursor</em></p>
-  
-  <img src="docs/screenshots/token-stats.png" alt="Token Statistics" width="600">
-  <p><em>Real-time token tracking and cost estimation</em></p>
-  
-  <img src="docs/screenshots/mcp-config.png" alt="MCP Configuration" width="600">
-  <p><em>Easy MCP server configuration</em></p>
-</div>
-
-## 🎮 Usage Tips
-
-### For Fellow "Vibe Coders"
-
-- **Don't worry about the terminal!** Everything is GUI-based
-- **Use natural language** - Claude understands what you mean
-- **Reference files easily** - Just type `@` and select files
-- **Enable thinking mode** for complex problems
-- **Check token usage** to stay within limits
-
-### Power User Features
-
-- **Slash Commands**: Type `/` to see all available commands
-- **Thinking Modes**: From `think` to `ultrathink` for complex problems
-- **Plan Mode**: Let Claude plan before implementing
-- **Git Integration**: Automatic backups and easy restore
-- **MCP Tools**: Extend functionality with external tools
-
-## 📊 Feature Comparison
-
-| Feature | Original claude-code-chat | This Project |
-|---------|--------------------------|--------------|
-| Windows Support | Basic | **Fully Optimized** ✨ |
-| Git Bash Integration | No | **Yes** ✅ |
-| Token Statistics | Basic | **Advanced with Analytics** 📊 |
-| MCP Support | Limited | **Full Support** 🔧 |
-| Path Handling | Manual | **Automatic** 🎯 |
-| Cost Tracking | No | **Yes** 💰 |
-| Theme Integration | Good | **Perfect** 🎨 |
-
-## 🤝 Contributing
-
-Are you a fellow "vibe coder" who wants to help? Awesome! Here's how:
-
-1. **Report Issues**: If something doesn't work on your Windows setup, let us know!
-2. **Share Ideas**: Have a cool feature idea? Open a discussion!
-3. **Test & Feedback**: Try it out and tell us what you think
-4. **Code Contributions**: Even small improvements are welcome!
-
-```bash
-# Fork and clone
-git clone https://github.com/yourusername/Claude-code-ChatInWindows.git
-cd Claude-code-ChatInWindows
-
-# Install dependencies
-npm install
-
-# Make your changes
-# Test in Cursor with F5
-
-# Submit a PR!
-```
-
-## 🙏 Acknowledgments
-
-- **Huge thanks to [andrepimenta](https://github.com/andrepimenta)** for creating the original claude-code-chat project that inspired this fork
-- **[Anthropic](https://anthropic.com)** for creating Claude and Claude Code
-- **Claude Code itself** for helping me (a vibe coder) create this Windows-optimized version!
-- **The Windows developer community** for patience and feedback
-
-## 📝 License
-
-MIT License - because sharing is caring! See [LICENSE](LICENSE) for details.
-
-## 🌟 Support
-
-If this project helps you use Claude Code on Windows:
-
-- ⭐ **Star this repo** to help others find it
-- 🐛 **Report bugs** in the [Issues](https://github.com/yourusername/Claude-code-ChatInWindows/issues) section
-- 💡 **Share your ideas** in [Discussions](https://github.com/yourusername/Claude-code-ChatInWindows/discussions)
-- 📢 **Tell other Windows users** about it!
+**🌐 Languages: English | [简体中文](./README.zh-CN.md) | [繁體中文](./README.zh-TW.md)**
 
 ---
 
-<div align="center">
-  <h3>Made with ❤️ by a Windows user, for Windows users</h3>
-  <p>Special thanks to Claude for helping a "vibe coder" make this happen! 🤖</p>
-</div>
+## 🚩 Why You Need This Project
+
+* **No More WSL Hassle**:
+    Finally, run Claude Code with **100% native Windows support**. It just works!
+* **Say Goodbye to Path Errors**:
+    Seamlessly converts between `C:\` and `/usr/` paths to avoid wasting precious AI tokens.
+* **Ditch the Terminal**:
+    A full-featured GUI chat interface for easy copy-pasting and image drag-and-drop. No more window switching!
+
+---
+
+## 📸 Features at a Glance
+
+### **Main Chat Interface**
+
+![Main Interface](docs/assets/ui.png)
+
+### **Real-time Token Stats**
+
+![Token HUD](docs/assets/token.png)
+
+### **Modular Command Protocol (MCP)**
+
+![MCP](docs/assets/mcp.png)
+
+---
+
+## 🎯 Core Advantages
+
+* ✅ **Zero WSL Dependency**: Runs with just Git Bash and Node.js.
+* ✅ **Real-time Cost Tracking**: Instantly see token counts and costs.
+* ✅ **Windows Path Compatibility**: Automatically recognizes and handles paths for smooth cross-system interaction.
+* ✅ **MCP Modular Extensions**: Call external tools with a single click, making your Claude Code omnipotent.
+* ✅ **A Detail-Lover's Dream**: HiDPI icons, dynamic theme support, and fluid animations.
+* ✅ **Perfect for "Vibe Coding"**: A pure GUI experience for an ultra-comfortable coding environment.
+
+---
+
+## 🚀 Installation and Usage
+
+> This guide covers **Environment Setup**, **Extension Installation**, and **Packaging Instructions**.
+
+### 🔹 Step 1: Set Up Your Environment (One-Time Only)
+
+This core step resolves the `No suitable shell found` error on Windows.
+
+```powershell
+# 1. Install Git for Windows (includes Git Bash, which is required)
+# Download here: https://git-scm.com/
+
+# 2. Install Node.js (LTS version recommended, ≥ 18)
+# Download here: https://nodejs.org/
+
+# 3. Open PowerShell or CMD as an [Administrator] and run the following commands to set environment variables
+#    (This tells npm to ignore scripts and sets Git Bash as the shell, fixing the core issue)
+setx NPM_CONFIG_IGNORE_SCRIPTS true
+setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
+#    Note: If you installed Git in a different directory, update the path accordingly.
+
+# 4. [IMPORTANT] Completely close and restart your PowerShell/CMD window for the changes to take effect.
+```
+
+### 🔹 Step 2: Install and Verify Claude Code CLI
+
+```powershell
+# 1. In a [new] terminal window, globally install the Claude Code CLI
+npm install -g @anthropic-ai/claude-code
+
+# 2. Ensure the npm global directory is in your system's Path environment variable
+#    The default path is usually: C:\\Users\\YourUsername\\AppData\\Roaming\\npm
+#    If you're unsure, add it manually to your system's "Path" variable.
+
+# 3. Log in to Claude Code for the first time
+claude login
+#    A browser window will open for authorization → Log in and copy the token → Paste it back into the terminal.
+
+# 4. Quickly verify the installation
+claude chat -m sonnet -p "hello"
+#    If you see a reply from Claude, your environment is ready!
+```
+
+### 🔹 Step 3: Install This Extension
+
+We offer two ways to install: **Build from Source** or **Install from VSIX**.
+
+#### Method 1: Run from Source (for Developers)
+
+```powershell
+# Clone the project locally
+git clone https://github.com/LKbaba/Claude-code-ChatInWindows.git
+cd Claude-code-ChatInWindows
+npm install  # Install dependencies
+
+# Press F5 in VS Code or Cursor to run in debug mode
+# Or run the following command for live-reloading
+npm run watch
+```
+
+#### Method 2: Package as VSIX and Install (for Stable Use)
+
+If you want to use the extension without running a debugger, you can package it into a `.vsix` file.
+
+```powershell
+# 1. Make sure you are in the project root and have run npm install
+
+# 2. Compile and package the extension
+npm run package
+
+#    This command first runs `npm run compile` to build the TypeScript code,
+#    then uses `vsce` to package it into a .vsix file, e.g., claude-code-chatui-1.3.0.vsix
+```
+
+**How to install a `.vsix` file:**
+
+1. Open VS Code or Cursor.
+2. Press `Ctrl+Shift+P` to open the Command Palette.
+3. Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**.
+4. Locate and select the generated `.vsix` file to install the extension.
+
+#### Method 3: Install from Marketplace (Recommended)
+
+In the future, you will be able to search for **"Claude-code-ChatInWindows"** directly in the VS Code / Cursor Marketplace for a one-click install.
+
+---
+
+### 🎉 Getting Started
+
+* **Open Chat Panel**: Press `Ctrl+Shift+C`
+* **Customize Settings**: Go to VS Code/Cursor Settings → Search for `claudeCodeChatUI`
+
+**Example Configuration:**
+
+```jsonc
+{
+  // Claude's thinking intensity: think | think-hard | think-harder | ultrathink
+  "claudeCodeChatUI.thinking.intensity": "think-harder",
+
+  // Path to Git Bash (usually auto-detected, no changes needed)
+  "claudeCodeChatUI.windows.gitBashPath": "C:\\Program Files\\Git\\bin\\bash.exe",
+
+  // MCP Modular Extensions
+  "claudeCodeChatUI.mcp.enabled": true,
+  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"]
+}
+```
+
+---
+
+## 🤝 How to Contribute
+
+1. Fork the project and create a feature branch.
+2. Focus on a single new feature or pain point.
+3. Test thoroughly on a real Windows machine.
+4. Run `npm test` before submitting (if tests are available).
+5. Open a Pull Request with a clear description and screenshots.
+
+We welcome all AI engineers, developers, geeks, and vibe-coders on Windows to join in!
+
+---
+
+## 📝 License
+
+This project is licensed under the **MIT License**, consistent with the upstream project. See [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments and Inspiration
+
+Special thanks to:
+
+* **andrepimenta** – for the original [claude-code-chat](https://github.com/andrepimenta/claude-code-chat) project
+* **CCUsage** – for the inspiration on real-time token tracking
+* **Mrasxieyang (from linux.do community)** – for providing the core solution for the native Windows installation
+* **Anthropic** – for creating the powerful Claude and Claude Code
+* **All developers contributing to the Claude Code application ecosystem ❤️**
+
+---
