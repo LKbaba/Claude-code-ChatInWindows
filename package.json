@@ -1,0 +1,227 @@
+{
+  "name": "claude-code-chatui",
+  "displayName": "Claude-Code ChatUI for Windows",
+  "description": "Beautiful Claude Code Chat Interface designed specifically for Windows VS Code users",
+  "version": "1.3.0",
+  "publisher": "loki-white",
+  "author": "Loki White",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LokiWhite/claude-code-chatui"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "Other",
+    "AI",
+    "Chat",
+    "Machine Learning",
+    "Snippets",
+    "Programming Languages",
+    "Education",
+    "Testing",
+    "Formatters",
+    "Linters"
+  ],
+  "keywords": [
+    "claude code",
+    "code explanation",
+    "code generation",
+    "code summary",
+    "code transform",
+    "vibe coding",
+    "prompt language",
+    "copilot",
+    "claude",
+    "ai",
+    "assistant",
+    "chatbot",
+    "chat",
+    "anthropic",
+    "code",
+    "programming",
+    "development",
+    "productivity"
+  ],
+  "icon": "icon.png",
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "claude-code-chatui.openChat",
+        "title": "Open Claude Code Chat",
+        "category": "Claude Code Chat",
+        "icon": "icon.png"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "claude-code-chatui.openChat",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "claude-code-chatui.openChat"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "claude-code-chatui.openChat",
+          "group": "claude@1",
+          "when": "editorTextFocus"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "claude-code-chatui.openChat",
+          "group": "navigation@1",
+          "when": "true"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "claude-code-chatui.openChat",
+          "group": "claude@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "claude-code-chatui.openChat",
+          "group": "claude@1"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "claude-code-chatui.openChat",
+          "group": "navigation@1",
+          "when": "true"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "claude-code-chatui.openChat",
+          "group": "navigation@1",
+          "when": "view == workbench.explorer.fileView"
+        }
+      ],
+      "touchBar": [
+        {
+          "command": "claude-code-chatui.openChat",
+          "group": "editing",
+          "when": "true"
+        }
+      ],
+      "menuBar/file": [
+        {
+          "command": "claude-code-chatui.openChat",
+          "group": "1_new@1"
+        }
+      ]
+    },
+    "views": {
+      "claude-code-chatui": [
+        {
+          "id": "claude-code-chatui.chat",
+          "name": "Claude Code Chat",
+          "when": "true",
+          "icon": "icon.png",
+          "contextualTitle": "Claude Code Chat"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-code-chatui",
+          "title": "Claude Code Chat",
+          "icon": "icon.png"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Code Chat",
+      "properties": {
+        "claudeCodeChatUI.windows.gitBashPath": {
+          "type": "string",
+          "default": "C:\\Program Files\\Git\\bin\\bash.exe",
+          "description": "Path to git-bash.exe on Windows. This is required for non-WSL execution to provide a Posix-like shell environment for the Claude CLI."
+        },
+        "claudeCodeChatUI.thinking.intensity": {
+          "type": "string",
+          "enum": [
+            "think",
+            "think-hard",
+            "think-harder",
+            "ultrathink"
+          ],
+          "default": "think",
+          "description": "Thinking mode intensity level. Higher levels provide more detailed reasoning but consume more tokens."
+        },
+        "claudeCodeChatUI.mcp.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Model Context Protocol (MCP) integration"
+        },
+        "claudeCodeChatUI.mcp.servers": {
+          "type": "array",
+          "default": [],
+          "description": "MCP server configurations",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Server name"
+              },
+              "command": {
+                "type": "string",
+                "description": "Command to start the MCP server"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Command arguments"
+              },
+              "env": {
+                "type": "object",
+                "description": "Environment variables for the MCP server"
+              }
+            },
+            "required": ["name", "command"]
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.94.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.5.0",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3"
+  }
+}
