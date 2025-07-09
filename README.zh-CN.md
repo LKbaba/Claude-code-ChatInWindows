@@ -26,9 +26,14 @@
 
 ## 📸 功能一览
 
-| 聊天主界面                      | Token 实时统计                          | 模块化指令（MCP）                  |
-| -------------------------- | ----------------------------------- | --------------------------- |
-| ![主界面](docs/assets/ui.png) | ![Token HUD](docs/assets/token.png) | ![MCP](docs/assets/mcp.png) |
+### **聊天主界面**
+![主界面](docs/assets/ui.png)
+
+### **Token 实时统计**
+![Token HUD](docs/assets/token.png)
+
+### **模块化指令 (MCP)**
+![MCP](docs/assets/mcp.png)
 
 > *将你自己的截图命名并放入 `docs/assets` 即可。*
 
@@ -37,7 +42,6 @@
 ## 🎯 核心优势
 
 *   ✅ **零 WSL 依赖**：只用 Git Bash 和 Node 就能运行。
-*   ✅ **快捷键秒开面板**：`Ctrl+Shift+C` 一键呼出，随时随地。
 *   ✅ **实时费用统计**：Token 和费用实时显示，明明白白消费。
 *   ✅ **Windows 路径兼容**：自动识别路径，无痛跨系统交流。
 *   ✅ **MCP 模块化扩展**：一键调用外部工具，让你的 Claude Code 无所不能。
@@ -46,11 +50,13 @@
 
 ---
 
-## 🚀 三分钟安装教程（Windows 原生）
+## 🚀 安装与使用
 
-> 只需操作一次，永久免费受益。核心步骤解决了 Windows 环境下 `No suitable shell found` 的报错问题。
+> 本部分包含**环境准备**、**插件安装**与**打包方法**三部分。
 
-### 🔹 第 1 步：环境准备
+### 🔹 第 1 步：环境准备（仅需一次）
+
+核心步骤解决了 Windows 环境下 `No suitable shell found` 的报错问题。
 
 ```powershell
 # 1. 安装 Git for Windows（自带 Git Bash，务必安装）
@@ -87,9 +93,11 @@ claude chat -m sonnet -p "hello"
 #    如果看到 Claude 的回复，说明你的环境已准备就绪！
 ```
 
----
+### 🔹 第 3 步：安装本插件
 
-## 🔌 安装 Claude Code Chat UI 插件
+我们提供两种安装方式：**从源码构建**或**从 VSIX 文件安装**。
+
+#### 方式一：从源码运行（适合开发者）
 
 ```powershell
 # 克隆项目到本地
@@ -97,9 +105,36 @@ git clone https://github.com/LKbaba/Claude-code-ChatInWindows.git
 cd Claude-code-ChatInWindows
 npm install  # 安装依赖
 
-# 在 VS Code 或 Cursor 中运行调试
-npm run watch     # 或直接按 F5
+# 在 VS Code 或 Cursor 中按 F5 运行调试
+# 或执行以下命令进行实时编译
+npm run watch
 ```
+
+#### 方式二：打包为 VSIX 并安装（适合稳定使用）
+
+如果你想在不启动调试的情况下使用本插件，可以将其打包为 `.vsix` 文件。
+
+```powershell
+# 1. 确保你已在项目根目录，并已执行 npm install
+
+# 2. 编译并打包插件
+npm run package
+
+#    此命令会自动先执行 `npm run compile` 编译 TypeScript 代码，
+#    然后使用 vsce 工具打包成一个 .vsix 文件，例如 claude-code-chatui-1.3.0.vsix
+```
+
+**如何安装 `.vsix` 文件：**
+
+1.  打开 VS Code 或 Cursor。
+2.  按下 `Ctrl+Shift+P` 打开命令面板。
+3.  输入 `Install from VSIX` 并选择 **"扩展: 从 VSIX 安装..."**。
+4.  找到并选择刚刚生成的 `.vsix` 文件，插件即可安装成功。
+
+#### 方式三：从应用市场安装（推荐）
+未来，你可以直接在 VS Code / Cursor 的扩展市场中搜索 **"Claude-Code ChatUI for Windows"** 来一键安装。
+
+---
 
 ### 🎉 开始使用
 
@@ -153,9 +188,3 @@ npm run watch     # 或直接按 F5
 *   **所有为 Windows AI 应用生态添砖加瓦的开发者们 ❤️**
 
 ---
-
-<div align="center">
-⭐ 如果你喜欢本项目，请给颗星支持一下！<br>
-Made by vibe‑coding Windows user,<br>
-for vibe‑coding Windows users.
-</div>
