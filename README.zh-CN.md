@@ -1,6 +1,6 @@
-# Claude Code Chat UI – 纯 Windows 专用版
+# Claude Code Chat UI – Windows(No WSL)
 
-> **Windows 原生 GUI，让 Claude Code 一秒变好用！🚀**
+> **Windows 上的UI界面，让 Claude Code 一秒变好用！🚀**
 
 <div align="center">
   <img src="icon.png" alt="Claude Code Chat Icon" width="128" height="128">
@@ -9,7 +9,7 @@
   <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-兼容-purple" alt="Cursor 兼容"></a> <a href="https://github.com/andrepimenta/claude-code-chat"><img src="https://img.shields.io/badge/基于-claude--code--chat-orange" alt="基于 claude-code-chat"></a>
 </div>
 
-**🌐 语言: [English](./README.md) | 🇨🇳 简体中文 | [繁體中文](./README.zh-TW.md)**
+**🌐 语言: [English](./README.md) | 简体中文 | [繁體中文](./README.zh-TW.md)**
 
 ---
 
@@ -34,8 +34,6 @@
 
 ### **模块化指令 (MCP)**
 ![MCP](docs/assets/mcp.png)
-
-> *将你自己的截图命名并放入 `docs/assets` 即可。*
 
 ---
 
@@ -132,7 +130,7 @@ npm run package
 4.  找到并选择刚刚生成的 `.vsix` 文件，插件即可安装成功。
 
 #### 方式三：从应用市场安装（推荐）
-未来，你可以直接在 VS Code / Cursor 的扩展市场中搜索 **"Claude-Code ChatUI for Windows"** 来一键安装。
+未来，你可以直接在 VS Code / Cursor 的扩展市场中搜索 **"Claude-code-ChatInWindows"** 来一键安装。
 
 ---
 
@@ -185,6 +183,6 @@ npm run package
 *   **CCUsage** – Token 实时统计思路启发
 *   **Mrasxieyang (linux.do 社区)** – 提供了 Windows 原生安装的核心问题解决方案
 *   **Anthropic** – 创造出强大的 Claude 与 Claude Code
-*   **所有为 Windows AI 应用生态添砖加瓦的开发者们 ❤️**
+*   **所有为 Claude Code 应用生态添砖加瓦的开发者们 ❤️**
 
 ---
