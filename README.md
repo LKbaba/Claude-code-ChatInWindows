@@ -17,6 +17,7 @@
 ## 🎯 The Problem
 
 If you're a Windows user trying to use Claude Code in Cursor, you know the pain:
+
 - 😫 Terminal commands that don't work properly on Windows
 - 🤯 Path issues, permission errors, and Git Bash conflicts  
 - 😔 Watching Mac users enjoy seamless Claude Code integration
@@ -35,24 +36,28 @@ So what did I do? I asked Claude Code to help me modify it! 🤖 Together, we cr
 ## ✨ What's New & Improved
 
 ### 🪟 Windows-Specific Optimizations
+
 - **Git Bash Integration**: Seamless integration with Git Bash for proper command execution
 - **Path Handling**: Intelligent Windows path conversion (no more `/c/Users` vs `C:\Users` confusion!)
 - **Permission Management**: Handles Windows-specific permission requirements
 - **Native Windows Feel**: UI and UX designed for Windows users
 
 ### 📊 Enhanced Token Statistics
+
 - **Real-time Tracking**: See exactly how many tokens you're using
 - **Cost Estimation**: Know how much your conversations cost
 - **Usage Analytics**: Track patterns and optimize your Claude usage
 - **Visual Dashboard**: Beautiful charts and graphs for token usage
 
 ### 🔧 Improved MCP (Model Context Protocol) Support
+
 - **Easy Configuration**: Simple UI for MCP server setup
 - **Multiple Servers**: Connect multiple MCP servers simultaneously  
 - **Windows-Friendly**: MCP servers work flawlessly on Windows
 - **Built-in Tools**: Pre-configured tools for common tasks
 
 ### 🎨 UI Improvements
+
 - **Better Theme Integration**: Perfectly matches your Cursor theme
 - **Responsive Design**: Works great on any screen size
 - **Enhanced File References**: Improved `@file` mention system
@@ -61,6 +66,7 @@ So what did I do? I asked Claude Code to help me modify it! 🤖 Together, we cr
 ## 🚀 Quick Start for Cursor Users
 
 ### Prerequisites
+
 1. **Windows 10/11** (obviously! 😄)
 2. **[Git for Windows](https://git-scm.com/)** (includes Git Bash)
 3. **[Node.js](https://nodejs.org/)** v18 or higher
@@ -89,6 +95,7 @@ npm run package
 ```
 
 ### First Launch
+
 1. Press `Ctrl+Shift+C` to open Claude Chat
 2. Git Bash path is auto-detected (usually `C:\Program Files\Git\bin\bash.exe`)
 3. Start chatting with Claude! 🎉
@@ -109,6 +116,7 @@ npm run package
 ## 🎮 Usage Tips
 
 ### For Fellow "Vibe Coders"
+
 - **Don't worry about the terminal!** Everything is GUI-based
 - **Use natural language** - Claude understands what you mean
 - **Reference files easily** - Just type `@` and select files
@@ -116,6 +124,7 @@ npm run package
 - **Check token usage** to stay within limits
 
 ### Power User Features
+
 - **Slash Commands**: Type `/` to see all available commands
 - **Thinking Modes**: From `think` to `ultrathink` for complex problems
 - **Plan Mode**: Let Claude plan before implementing
@@ -171,6 +180,7 @@ MIT License - because sharing is caring! See [LICENSE](LICENSE) for details.
 ## 🌟 Support
 
 If this project helps you use Claude Code on Windows:
+
 - ⭐ **Star this repo** to help others find it
 - 🐛 **Report bugs** in the [Issues](https://github.com/yourusername/Claude-code-ChatInWindows/issues) section
 - 💡 **Share your ideas** in [Discussions](https://github.com/yourusername/Claude-code-ChatInWindows/discussions)

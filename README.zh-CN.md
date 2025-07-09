@@ -17,6 +17,7 @@
 ## 🎯 痛点问题
 
 如果你是一个想在 Cursor 中使用 Claude Code 的 Windows 用户，你一定体会过这些痛苦：
+
 - 😫 终端命令在 Windows 上总是出问题
 - 🤯 路径问题、权限错误、Git Bash 冲突层出不穷
 - 😔 看着 Mac 用户享受丝滑的 Claude Code 体验，自己却在踩坑
@@ -35,24 +36,28 @@
 ## ✨ 新增功能与改进
 
 ### 🪟 Windows 专属优化
+
 - **Git Bash 深度集成**：与 Git Bash 无缝集成，命令执行不再出错
 - **智能路径处理**：自动转换 Windows 路径（再也不用纠结 `/c/Users` 还是 `C:\Users`！）
 - **权限管理**：妥善处理 Windows 特有的权限需求
 - **原生体验**：为 Windows 用户量身定制的 UI 和交互
 
 ### 📊 增强的 Token 统计功能
+
 - **实时追踪**：精确显示你使用了多少 token
 - **费用估算**：实时了解对话成本
 - **使用分析**：追踪使用模式，优化 Claude 使用效率
 - **可视化仪表板**：漂亮的图表展示 token 使用情况
 
 ### 🔧 改进的 MCP（模型上下文协议）支持
+
 - **简单配置**：通过 UI 轻松设置 MCP 服务器
 - **多服务器支持**：同时连接多个 MCP 服务器
 - **Windows 友好**：MCP 服务器在 Windows 上完美运行
 - **内置工具**：预配置常用工具，开箱即用
 
 ### 🎨 UI 改进
+
 - **完美主题适配**：与你的 Cursor 主题完美融合
 - **响应式设计**：在任何屏幕尺寸上都表现出色
 - **增强的文件引用**：改进的 `@文件` 提及系统
@@ -61,6 +66,7 @@
 ## 🚀 Cursor 用户快速开始
 
 ### 前置要求
+
 1. **Windows 10/11**（这个显而易见！😄）
 2. **[Git for Windows](https://git-scm.com/)**（包含 Git Bash）
 3. **[Node.js](https://nodejs.org/)** v18 或更高版本
@@ -89,6 +95,7 @@ npm run package
 ```
 
 ### 首次启动
+
 1. 按 `Ctrl+Shift+C` 打开 Claude Chat
 2. Git Bash 路径会自动检测（通常是 `C:\Program Files\Git\bin\bash.exe`）
 3. 开始与 Claude 聊天吧！🎉
@@ -109,6 +116,7 @@ npm run package
 ## 🎮 使用技巧
 
 ### 给"感觉流程序员"的建议
+
 - **别担心终端！** 所有操作都是图形化的
 - **使用自然语言** - Claude 能理解你的意思
 - **轻松引用文件** - 输入 `@` 即可选择文件
@@ -116,6 +124,7 @@ npm run package
 - **关注 token 使用** 避免超出限制
 
 ### 高级功能
+
 - **斜杠命令**：输入 `/` 查看所有可用命令
 - **思考模式**：从 `think` 到 `ultrathink`，应对复杂问题
 - **计划模式**：让 Claude 先规划再实施
@@ -171,6 +180,7 @@ MIT 许可证 - 因为分享就是关爱！详见 [LICENSE](LICENSE) 文件。
 ## 🌟 支持项目
 
 如果这个项目帮助你在 Windows 上使用 Claude Code：
+
 - ⭐ **给项目加星** 帮助其他人发现它
 - 🐛 **报告 Bug** 在 [Issues](https://github.com/yourusername/Claude-code-ChatInWindows/issues) 板块
 - 💡 **分享想法** 在 [Discussions](https://github.com/yourusername/Claude-code-ChatInWindows/discussions)
