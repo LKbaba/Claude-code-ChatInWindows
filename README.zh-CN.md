@@ -118,7 +118,21 @@ claude chat -m sonnet -p "hello"
 
 ---
 
-#### 方式二：高级安装选项（适合开发者）
+#### 📦 方式二：从 GitHub Release 下载安装（离线安装）
+
+如果你无法访问 VS Code 市场，可以直接下载已打包好的插件文件：
+
+1. **[🔗 前往 Releases 页面](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)** 下载最新版本
+2. 下载 `Source code (zip)` 压缩包
+3. 解压后找到 `claude-code-chatinwindows-x.x.vsix` 文件
+4. 在 VS Code/Cursor 中按 `Ctrl+Shift+P`，选择 **"扩展: 从 VSIX 安装..."**
+5. 选择解压出的 `.vsix` 文件完成安装
+
+> **💡 提示**：这种方式适合网络受限或需要离线安装的用户。
+
+---
+
+#### 方式三：高级安装选项（适合开发者）
 
 如果你想从源码运行或手动打包，可以参考以下步骤。
 
