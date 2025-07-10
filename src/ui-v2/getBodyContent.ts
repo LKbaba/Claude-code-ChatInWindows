@@ -256,6 +256,38 @@ export function getBodyContent(): string {
 					</div>
 				</div>
 
+				<h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 14px; font-weight: 600;">API Configuration</h3>
+				<div>
+					<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
+						Configure custom API endpoint for Claude. Useful for third-party API services or enterprise deployments.
+					</p>
+				</div>
+				<div class="settings-group">
+					<div class="tool-item">
+						<input type="checkbox" id="api-useCustomAPI" onchange="toggleApiOptions()">
+						<label for="api-useCustomAPI">Use Custom API Endpoint</label>
+					</div>
+					
+					<div id="apiOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
+						<div style="margin-bottom: 12px;">
+							<label for="api-key" style="display: block; font-size: 12px; margin-bottom: 4px;">API Key</label>
+							<input type="password" id="api-key" placeholder="sk-ant-xxxxxxxxxx" style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;" onchange="updateSettings()">
+						</div>
+						<div style="margin-bottom: 12px;">
+							<label for="api-baseUrl" style="display: block; font-size: 12px; margin-bottom: 4px;">Base URL</label>
+							<input type="text" id="api-baseUrl" placeholder="https://api.tu-zi.com" value="https://api.anthropic.com" style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;" onchange="updateSettings()">
+						</div>
+						<div style="padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
+							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
+								🔒 Your API key will be stored securely in VS Code settings.
+							</p>
+							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
+								💡 Popular third-party services: tu-zi.com, openrouter.ai, etc.
+							</p>
+						</div>
+					</div>
+				</div>
+
 				<h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 14px; font-weight: 600;">Custom Slash Commands</h3>
 				<div>
 					<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">

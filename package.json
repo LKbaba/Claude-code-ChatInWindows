@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -201,6 +201,23 @@
             },
             "required": ["name", "command"]
           }
+        },
+        "claudeCodeChatUI.api.useCustomAPI": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use custom API endpoint instead of official Claude account"
+        },
+        "claudeCodeChatUI.api.key": {
+          "type": "string",
+          "default": "",
+          "description": "API key for custom API endpoint (e.g., sk-ant-xxxxxxxxxx)",
+          "markdownDescription": "API key for custom API endpoint. This will be stored securely."
+        },
+        "claudeCodeChatUI.api.baseUrl": {
+          "type": "string",
+          "default": "https://api.anthropic.com",
+          "description": "Base URL for custom API endpoint (e.g., https://api.tu-zi.com)",
+          "format": "uri"
         }
       }
     }

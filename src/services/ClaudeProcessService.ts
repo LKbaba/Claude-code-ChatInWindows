@@ -159,6 +159,20 @@ export class ClaudeProcessService {
             });
         }
 
+        // Add API configuration to environment variables if custom API is enabled
+        const apiConfig = this._configurationManager.getApiConfig();
+        if (apiConfig.useCustomAPI && apiConfig.key && apiConfig.baseUrl) {
+            execEnvironment.spawnOptions.env = {
+                ...execEnvironment.spawnOptions.env,
+                ANTHROPIC_API_KEY: apiConfig.key,
+                ANTHROPIC_BASE_URL: apiConfig.baseUrl
+            };
+            console.log('[ClaudeProcessService] Using custom API:', {
+                baseUrl: apiConfig.baseUrl,
+                hasKey: !!apiConfig.key
+            });
+        }
+
         return { execEnvironment, args };
     }
 

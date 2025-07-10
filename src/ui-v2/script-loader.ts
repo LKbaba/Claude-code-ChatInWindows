@@ -1958,6 +1958,12 @@ export const uiScript = `
 				mcpServers.forEach(server => {
 					addMcpServer(server);
 				});
+				
+				// Load API configuration
+				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
+				document.getElementById('api-key').value = message.data['api.key'] || '';
+				document.getElementById('api-baseUrl').value = message.data['api.baseUrl'] || 'https://api.anthropic.com';
+				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
 			}
 
 			if (message.type === 'platformInfo') {
@@ -2769,6 +2775,12 @@ export const uiScript = `
 			}
 		}
 
+		function toggleApiOptions() {
+			const useCustomAPI = document.getElementById('api-useCustomAPI').checked;
+			document.getElementById('apiOptions').style.display = useCustomAPI ? 'block' : 'none';
+			updateSettings();
+		}
+
 		function updateSettings() {
 			console.log('updateSettings called');
 			// Note: thinking intensity is now handled separately in the thinking intensity modal
@@ -2832,8 +2844,14 @@ export const uiScript = `
 				}
 			});
 
+			// Collect API configuration
+			const useCustomAPI = document.getElementById('api-useCustomAPI').checked;
+			const apiKey = document.getElementById('api-key').value;
+			const apiBaseUrl = document.getElementById('api-baseUrl').value;
+
 			// Send settings to VS Code immediately
 			console.log('Updating settings with MCP servers:', mcpServers);
+			console.log('Updating API settings:', { useCustomAPI, hasKey: !!apiKey, baseUrl: apiBaseUrl });
 			
 			// Only send MCP settings since WSL elements don't exist in the UI
 			if (mcpEnabledCheckbox) {
@@ -2841,7 +2859,10 @@ export const uiScript = `
 					type: 'updateSettings',
 					settings: {
 						'mcp.enabled': mcpEnabledCheckbox.checked,
-						'mcp.servers': mcpServers
+						'mcp.servers': mcpServers,
+						'api.useCustomAPI': useCustomAPI,
+						'api.key': apiKey,
+						'api.baseUrl': apiBaseUrl
 					}
 				});
 			}
@@ -2922,6 +2943,12 @@ export const uiScript = `
 				mcpServers.forEach(server => {
 					addMcpServer(server);
 				});
+				
+				// Load API configuration
+				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
+				document.getElementById('api-key').value = message.data['api.key'] || '';
+				document.getElementById('api-baseUrl').value = message.data['api.baseUrl'] || 'https://api.anthropic.com';
+				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
 			}
 
 			if (message.type === 'platformInfo') {
@@ -2969,6 +2996,7 @@ export const uiScript = `
 		window.toggleSettings = toggleSettings;
 		window.toggleStats = toggleStats;
 		window.toggleConversationHistory = toggleConversationHistory;
+		window.toggleApiOptions = toggleApiOptions;
 		window.togglePlanMode = togglePlanMode;
 		window.toggleThinkingMode = toggleThinkingMode;
 		window.confirmThinkingIntensity = confirmThinkingIntensity;

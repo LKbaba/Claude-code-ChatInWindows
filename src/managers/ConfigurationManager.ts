@@ -13,6 +13,9 @@ export interface Settings {
     'thinking.intensity': string;
     'mcp.enabled': boolean;
     'mcp.servers': any[];
+    'api.useCustomAPI': boolean;
+    'api.key': string;
+    'api.baseUrl': string;
     [key: string]: any;
 }
 
@@ -32,7 +35,10 @@ export class ConfigurationManager {
         return {
             'thinking.intensity': config.get<string>('thinking.intensity', 'think'),
             'mcp.enabled': config.get<boolean>('mcp.enabled', false),
-            'mcp.servers': config.get<any[]>('mcp.servers', [])
+            'mcp.servers': config.get<any[]>('mcp.servers', []),
+            'api.useCustomAPI': config.get<boolean>('api.useCustomAPI', false),
+            'api.key': config.get<string>('api.key', ''),
+            'api.baseUrl': config.get<string>('api.baseUrl', 'https://api.anthropic.com')
         };
     }
 
@@ -261,6 +267,42 @@ export class ConfigurationManager {
     public getThinkingIntensity(): string {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         return config.get<string>('thinking.intensity', 'think');
+    }
+
+    /**
+     * Gets API configuration
+     * @returns API configuration object
+     */
+    public getApiConfig(): {
+        useCustomAPI: boolean;
+        key: string;
+        baseUrl: string;
+    } {
+        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
+        return {
+            useCustomAPI: config.get<boolean>('api.useCustomAPI', false),
+            key: config.get<string>('api.key', ''),
+            baseUrl: config.get<string>('api.baseUrl', 'https://api.anthropic.com')
+        };
+    }
+
+    /**
+     * Updates API key securely
+     * @param key API key to store
+     * @returns Promise resolving when key is stored
+     */
+    public async updateApiKey(key: string): Promise<void> {
+        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
+        await config.update('api.key', key, vscode.ConfigurationTarget.Global);
+    }
+
+    /**
+     * Gets API key from configuration
+     * @returns API key or empty string
+     */
+    public getApiKey(): string {
+        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
+        return config.get<string>('api.key', '');
     }
 
 }

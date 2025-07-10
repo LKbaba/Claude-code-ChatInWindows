@@ -1713,6 +1713,12 @@ export const originalScript = `
 				mcpServers.forEach(server => {
 					addMcpServer(server);
 				});
+				
+				// Load API configuration
+				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
+				document.getElementById('api-key').value = message.data['api.key'] || '';
+				document.getElementById('api-baseUrl').value = message.data['api.baseUrl'] || 'https://api.anthropic.com';
+				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
 			}
 
 			if (message.type === 'platformInfo') {
@@ -2496,6 +2502,12 @@ export const originalScript = `
 			}
 		}
 
+		function toggleApiOptions() {
+			const useCustomAPI = document.getElementById('api-useCustomAPI').checked;
+			document.getElementById('apiOptions').style.display = useCustomAPI ? 'block' : 'none';
+			updateSettings();
+		}
+
 		function updateSettings() {
 			// Note: thinking intensity is now handled separately in the thinking intensity modal
 			
@@ -2545,13 +2557,22 @@ export const originalScript = `
 				}
 			});
 
+			// Collect API configuration
+			const useCustomAPI = document.getElementById('api-useCustomAPI').checked;
+			const apiKey = document.getElementById('api-key').value;
+			const apiBaseUrl = document.getElementById('api-baseUrl').value;
+
 			// Send settings to VS Code immediately
 			console.log('Updating settings with MCP servers:', mcpServers);
+			console.log('Updating API settings:', { useCustomAPI, hasKey: !!apiKey, baseUrl: apiBaseUrl });
 			vscode.postMessage({
 				type: 'updateSettings',
 				settings: {
 					'mcp.enabled': mcpEnabled,
-					'mcp.servers': mcpServers
+					'mcp.servers': mcpServers,
+					'api.useCustomAPI': useCustomAPI,
+					'api.key': apiKey,
+					'api.baseUrl': apiBaseUrl
 				}
 			});
 		}
@@ -2629,6 +2650,12 @@ export const originalScript = `
 				mcpServers.forEach(server => {
 					addMcpServer(server);
 				});
+				
+				// Load API configuration
+				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
+				document.getElementById('api-key').value = message.data['api.key'] || '';
+				document.getElementById('api-baseUrl').value = message.data['api.baseUrl'] || 'https://api.anthropic.com';
+				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
 			}
 
 			if (message.type === 'platformInfo') {
