@@ -96,7 +96,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 # 3. 首次登录 Claude Code（如果使用官方账号）
 claude login
 #    浏览器将打开授权页面 → 登录后复制页面上的 Token → 粘贴回终端
-#    💡 提示：如果你计划使用第三方 API，可以跳过此步骤
+#    💡 提示：如果你计划使用第三方 API，请往下观看API操作示例。
 
 # 4. 快速验证安装是否成功
 claude chat -m sonnet -p "hello"
@@ -204,9 +204,9 @@ npm run package
 
 ### 🔑 使用第三方 API
 
-本插件支持使用第三方 API 服务（如 tu-zi.com、openrouter.ai 等），提供两种配置方式：
+本插件支持使用第三方 API 服务（如 tu-zi.com、openrouter.ai 等），使用示例如下：
 
-#### 使用方法
+#### 使用步骤
 
 A.插件内配置
 
@@ -218,7 +218,7 @@ A.插件内配置
 4. **保存确认**：设置会自动保存，左下角会提示"Settings updated successfully"
 5. **首次初始化**（重要）
 
-> ⚠️ **注意**：首次使用自定义 API 必须先在命令行运行一次，之后就可以在插件中正常使用了。
+> ⚠️ **注意**：首次使用自定义 API 必须先在命令行初始化一次，之后就可以在插件中正常使用了。
 
 B.首次初始化操作
 
@@ -228,8 +228,8 @@ B.首次初始化操作
 # 打开一个新的 PowerShell 会话
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # 跳过脚本限制
 
-$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # 注意引号
-$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com"
+$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # 填写自己的api-key,注意引号
+$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com" #具体url需要咨询api供应商
 
 claude code # 现在运行 CLI，就能读到这两个环境变量
 
