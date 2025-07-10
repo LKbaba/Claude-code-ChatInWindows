@@ -53,6 +53,8 @@
 
 ## 🚀 Installation and Usage
 
+> **🎉 Now Available on VS Code Marketplace!** Install with just one click.
+>
 > This guide covers **Environment Setup**, **Extension Installation**, and **Packaging Instructions**.
 
 ### 🔹 Step 1: Set Up Your Environment (One-Time Only)
@@ -96,14 +98,19 @@ claude chat -m sonnet -p "hello"
 
 ### 🔹 Step 3: Install This Extension
 
-#### Method 1: Install from VS Code Marketplace (Recommended)
+#### ✨ Method 1: Install from VS Code Marketplace (Recommended)
 
-1.  Open VS Code or Cursor.
-2.  Click the **Extensions** icon in the Activity Bar on the side.
-3.  Search for `Claude-Code ChatUI for Windows` or the unique ID `lkbaba.claude-code-chatui`.
-4.  Find the extension and click **Install**.
+**The extension is now available on the VS Code Marketplace!** 🎉
 
-You can also install directly from the [**➡️ Marketplace Page**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui).
+**Quick Install:**
+1.  Open VS Code or Cursor
+2.  Press `Ctrl+Shift+X` to open Extensions
+3.  Search for `Claude-Code ChatUI` or `lkbaba`
+4.  Click **Install**
+
+**Direct Link:** [**➡️ Install from VS Code Marketplace**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui)
+
+---
 
 #### Method 2: Advanced Installation (for Developers)
 
