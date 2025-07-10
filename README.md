@@ -103,10 +103,11 @@ claude chat -m sonnet -p "hello"
 **The extension is now available on the VS Code Marketplace!** 🎉
 
 **Quick Install:**
-1.  Open VS Code or Cursor
-2.  Press `Ctrl+Shift+X` to open Extensions
-3.  Search for `Claude-Code ChatUI` or `lkbaba`
-4.  Click **Install**
+
+1. Open VS Code or Cursor
+2. Press `Ctrl+Shift+X` to open Extensions
+3. Search for `Claude-Code ChatUI` or `lkbaba`
+4. Click **Install**
 
 **Direct Link:** [**➡️ Install from VS Code Marketplace**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui)
 
@@ -140,16 +141,16 @@ npm run package
 
 **To install the `.vsix` file:**
 
-1.  In VS Code or Cursor, press `Ctrl+Shift+P` to open the Command Palette.
-2.  Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**.
-3.  Select the generated `.vsix` file from the project root to install.
+1. In VS Code or Cursor, press `Ctrl+Shift+P` to open the Command Palette.
+2. Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**.
+3. Select the generated `.vsix` file from the project root to install.
 
 ---
 
 ### 🎉 Getting Started
 
-*   **Open Chat Panel**: Press `Ctrl+Shift+C`
-*   **Customize Settings**: Go to VS Code/Cursor Settings → Search for `claudeCodeChatUI`
+* **Open Chat Panel**: Press `Ctrl+Shift+C`
+* **Customize Settings**: Go to VS Code/Cursor Settings → Search for `claudeCodeChatUI`
 
 **Example Configuration:**
 
@@ -183,8 +184,8 @@ A. Extension Configuration
 1. **Open Settings**: Click the settings button ⚙️ in the chat interface
 2. **Enable Custom API**: Check "Use Custom API Endpoint"
 3. **Configure API**:
-   - **API Key**: Enter your API key (e.g., `sk-ant-xxxxxxxxxx`)
-   - **Base URL**: Enter the API endpoint (e.g., `https://api.tu-zi.com`)
+   * **API Key**: Enter your API key (e.g., `sk-ant-xxxxxxxxxx`)
+   * **Base URL**: Enter the API endpoint (e.g., `https://api.tu-zi.com`)
 4. **Save Confirmation**: Settings are saved automatically with a "Settings updated successfully" notification
 
 ![API Configuration](docs/assets/api.png)
@@ -212,19 +213,20 @@ claude chat -m opus "hello"  # Test if configuration works
 ```
 
 > 💡 **Tips**:
-> - Third-party APIs are usually more affordable for budget-conscious users
-> - Common services: [tu-zi.com](https://tu-zi.com), [openrouter.ai](https://openrouter.ai)
-> - Toggle between official account and custom API anytime via the switch
-> - Wrong API key will show "processing" until timeout
-> - **Important**: Initialization is required again after system restart
+>
+> * Third-party APIs are usually more affordable for budget-conscious users
+> * Common services: [tu-zi.com](https://tu-zi.com), [openrouter.ai](https://openrouter.ai)
+> * Toggle between official account and custom API anytime via the switch
+> * Wrong API key will show "processing" until timeout
+> * **Important**: Initialization is required again after system restart
 
 ### ❓ FAQ
 
 **Q: Why doesn't chat respond after configuring API?**
-- A: First-time custom API use requires command line initialization to ensure messages can be returned.
+* A: First-time custom API use requires command line initialization to ensure messages can be returned.
 
 **Q: How to switch back to official account?**
-- A: Uncheck "Use Custom API Endpoint" in settings
+* A: Uncheck "Use Custom API Endpoint" in settings
 
 ---
 

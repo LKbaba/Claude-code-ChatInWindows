@@ -125,7 +125,7 @@ claude chat -m sonnet -p "hello"
 如果您無法存取 VS Code 市場，可以直接下載已打包好的擴充套件檔案：
 
 1. **[🔗 前往 Releases 頁面](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)** 下載最新版本
-2. 下載 `Source code (zip)` 壓縮包
+2. 下載 `claude-code-chatinwindows-1.x.x.zip` 壓縮包
 3. 解壓縮後找到 `claude-code-chatinwindows-x.x.vsix` 檔案
 4. 在 VS Code/Cursor 中按 `Ctrl+Shift+P`，選擇 **「擴充功能: 從 VSIX 安裝...」**
 5. 選擇解壓縮出的 `.vsix` 檔案完成安裝
