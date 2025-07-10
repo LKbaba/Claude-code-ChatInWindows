@@ -247,6 +247,7 @@ claude chat -m opus "hello"  # 测试是否配置成功
 > * 常见的第三方服务：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai) 等
 > * 可以通过开关随时切换官方账号和自定义 API
 > * 如果 API 密钥错误，聊天会一直显示 "processing" 直到超时
+> * **重要**：电脑关机重启以后需要重新执行初始化
 
 ### ❓ 常见问题
 

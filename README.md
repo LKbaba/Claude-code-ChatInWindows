@@ -163,9 +163,68 @@ npm run package
 
   // MCP Modular Extensions
   "claudeCodeChatUI.mcp.enabled": true,
-  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"]
+  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"],
+
+  // API Configuration (for third-party services)
+  "claudeCodeChatUI.api.useCustomAPI": false,
+  "claudeCodeChatUI.api.key": "",
+  "claudeCodeChatUI.api.baseUrl": "https://api.anthropic.com"
 }
 ```
+
+### 🔑 Using Third-Party APIs
+
+This extension supports third-party API services (e.g., tu-zi.com, openrouter.ai). Here's how to use them:
+
+#### Usage Steps
+
+A. Extension Configuration
+
+1. **Open Settings**: Click the settings button ⚙️ in the chat interface
+2. **Enable Custom API**: Check "Use Custom API Endpoint"
+3. **Configure API**:
+   - **API Key**: Enter your API key (e.g., `sk-ant-xxxxxxxxxx`)
+   - **Base URL**: Enter the API endpoint (e.g., `https://api.tu-zi.com`)
+4. **Save Confirmation**: Settings are saved automatically with a "Settings updated successfully" notification
+
+![API Configuration](docs/assets/api.png)
+
+5. **First-time Initialization** (Important)
+
+> ⚠️ **Note**: First-time custom API use requires command line initialization. After that, it works normally in the extension.
+
+B. First-time Initialization
+
+**Windows PowerShell Users:**
+
+```powershell
+# Open a new PowerShell session
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # Bypass script restrictions
+
+$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # Enter your API key, note the quotes
+$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com"  # Consult your API provider for the URL
+
+claude code  # Run CLI to read environment variables
+
+Follow the prompts to confirm third-party API can return messages.
+
+claude chat -m opus "hello"  # Test if configuration works
+```
+
+> 💡 **Tips**:
+> - Third-party APIs are usually more affordable for budget-conscious users
+> - Common services: [tu-zi.com](https://tu-zi.com), [openrouter.ai](https://openrouter.ai)
+> - Toggle between official account and custom API anytime via the switch
+> - Wrong API key will show "processing" until timeout
+> - **Important**: Initialization is required again after system restart
+
+### ❓ FAQ
+
+**Q: Why doesn't chat respond after configuring API?**
+- A: First-time custom API use requires command line initialization to ensure messages can be returned.
+
+**Q: How to switch back to official account?**
+- A: Uncheck "Use Custom API Endpoint" in settings
 
 ---
 

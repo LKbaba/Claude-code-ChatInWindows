@@ -1,4 +1,4 @@
-# Claude Code Chat UI – Windows (無 WSL) 專用版
+# Claude Code Chat UI – Windows(No WSL)
 
 > **Windows 上的 UI 介面，讓 Claude Code 一秒變好用！🚀**
 
@@ -53,6 +53,8 @@
 
 ## 🚀 安裝與使用
 
+> **🎉 已上架 VS Code 擴充套件市場！** 一鍵安裝，無需複雜設定。
+>
 > 本部分包含**環境準備**、**擴充套件安裝**與**打包方法**三部分。
 
 ### 🔹 第 1 步：環境準備（僅需一次）
@@ -81,13 +83,20 @@ setx SHELL "C:\Program Files\Git\bin\bash.exe"
 # 1. 在【新的】終端機視窗中，全域安裝 Claude Code CLI
 npm install -g @anthropic-ai/claude-code
 
+# ⚠️ 如果遇到 PowerShell 指令碼執行原則錯誤，請使用以下方法解決：
+# 錯誤範例：「無法載入檔案 npm.ps1，因為此系統上已停用指令碼執行」
+# 解決方案：暫時放寬目前工作階段的執行原則（安全性更好）
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+# 或者直接使用 CMD 取代 PowerShell 來執行 npm 命令
+
 # 2. 確保 npm 全域路徑已新增至系統環境變數 Path 中
 #    預設路徑通常是: C:\Users\您的使用者名稱\AppData\Roaming\npm
 #    如果不確定，可以手動新增至系統環境變數的 "Path" 中
 
-# 3. 首次登入 Claude Code
+# 3. 首次登入 Claude Code（如果使用官方帳號）
 claude login
 #    瀏覽器將開啟授權頁面 → 登入後複製頁面上的 Token → 貼回終端機
+#    💡 提示：如果您計劃使用第三方 API，請往下查看API操作範例。
 
 # 4. 快速驗證安裝是否成功
 claude chat -m sonnet -p "hello"
@@ -96,16 +105,42 @@ claude chat -m sonnet -p "hello"
 
 ### 🔹 第 3 步：安裝本擴充套件
 
-#### 方式一：從 VS Code Marketplace 安裝 (最推薦)
+#### ✨ 方式一：從 VS Code Marketplace 安裝（推薦）
 
-1.  開啟 VS Code 或 Cursor。
-2.  點擊側邊欄的 **擴充功能** 圖示 (Extensions)。
-3.  在搜尋框中輸入 `Claude-Code ChatUI for Windows` 或擴充套件的唯一 ID `lkbaba.claude-code-chatui`。
-4.  找到本擴充套件，點擊 **安裝 (Install)**。
+**擴充套件已正式上架 VS Code 市場！** 🎉
 
-您也可以直接造訪 [**➡️ Marketplace 擴充套件主頁**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui) 點擊安裝。
+**快速安裝：**
 
-#### 方式二：進階安裝選項 (適合開發者)
+1. 開啟 VS Code 或 Cursor
+2. 按 `Ctrl+Shift+X` 開啟擴充套件面板
+3. 搜尋 `Claude-Code ChatUI` 或 `lkbaba`
+4. 點擊 **安裝**
+
+**直達連結：** [**➡️ 從 VS Code 市場安裝**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui)
+
+---
+
+#### 📦 方式二：從 GitHub Release 下載安裝（離線安裝）
+
+如果您無法存取 VS Code 市場，可以直接下載已打包好的擴充套件檔案：
+
+1. **[🔗 前往 Releases 頁面](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)** 下載最新版本
+2. 下載 `Source code (zip)` 壓縮包
+3. 解壓縮後找到 `claude-code-chatinwindows-x.x.vsix` 檔案
+4. 在 VS Code/Cursor 中按 `Ctrl+Shift+P`，選擇 **「擴充功能: 從 VSIX 安裝...」**
+5. 選擇解壓縮出的 `.vsix` 檔案完成安裝
+
+> **💡 提示**：這種方式適合網路受限或需要離線安裝的使用者。
+
+**如何安裝 `.vsix` 檔案：**
+
+1. 開啟 VS Code 或 Cursor，按下 `Ctrl+Shift+P` 開啟命令面板。
+2. 輸入 `Install from VSIX` 並選擇 **「擴充功能: 從 VSIX 安裝...」**。
+3. 選擇專案根目錄下產生的 `.vsix` 檔案進行安裝。
+
+---
+
+#### 方式三：進階安裝選項（適合開發者）
 
 如果您想從原始碼執行或手動打包，可以參考以下步驟。
 
@@ -141,8 +176,10 @@ npm run package
 
 ### 🎉 開始使用
 
-*   **開啟聊天介面**：按快捷鍵 `Ctrl+Shift+C`
-*   **個人化設定**：VS Code/Cursor 設定 → 搜尋 `claudeCodeChatUI`
+> **💡 重要提示**：如果您使用 VPN，請確保開啟 **TUN 模式**，否則可能導致 Claude Code 無法正常連線。
+
+* **開啟聊天介面**：按快捷鍵 `Ctrl+Shift+C`
+* **個人化設定**：VS Code/Cursor 設定 → 搜尋 `claudeCodeChatUI`
 
 **設定範例：**
 
@@ -156,9 +193,71 @@ npm run package
 
   // MCP 模組化擴充
   "claudeCodeChatUI.mcp.enabled": true,
-  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"]
+  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"],
+
+  // API 設定（支援第三方 API 服務）
+  "claudeCodeChatUI.api.useCustomAPI": false,
+  "claudeCodeChatUI.api.key": "",
+  "claudeCodeChatUI.api.baseUrl": "https://api.anthropic.com"
 }
 ```
+
+### 🔑 使用第三方 API
+
+本擴充套件支援使用第三方 API 服務（如 tu-zi.com、openrouter.ai 等），使用範例如下：
+
+#### 使用步驟
+
+A.擴充套件內設定
+
+1. **開啟設定**：點擊聊天介面的設定按鈕 ⚙️
+2. **啟用自訂 API**：勾選 "Use Custom API Endpoint"
+3. **設定 API**：
+   * **API Key**: 輸入您的 API 金鑰（如 `sk-ant-xxxxxxxxxx`）
+   * **Base URL**: 輸入 API 位址（如 `https://api.tu-zi.com`）
+4. **儲存確認**：設定會自動儲存，左下角會提示"Settings updated successfully"
+
+![API Configuration](docs/assets/api.png)
+
+5. **首次初始化**（重要）
+
+> ⚠️ **注意**：首次使用自訂 API 必須先在命令列初始化一次，之後就可以在擴充套件中正常使用了。
+
+B.首次初始化操作
+
+**Windows PowerShell 使用者：**
+
+```powershell
+# 開啟一個新的 PowerShell 工作階段
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # 跳過指令碼限制
+
+$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # 填寫自己的api-key,注意引號
+$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com" #具體url需要諮詢api供應商
+
+claude code # 現在執行 CLI，就能讀到這兩個環境變數
+
+按照提示完成確認，確保第三方api可以傳回訊息。
+
+claude chat -m opus "hello"  # 測試是否設定成功
+```
+
+> 💡 **使用提示**：
+>
+> * 使用第三方 API 服務通常價格更實惠，適合預算有限的使用者
+> * 常見的第三方服務：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai) 等
+> * 可以透過開關隨時切換官方帳號和自訂 API
+> * 如果 API 金鑰錯誤，聊天會一直顯示 "processing" 直到逾時
+> * **重要**：系統重新啟動後需要重新執行初始化
+
+### ❓ 常見問題
+
+**Q: 為什麼設定了 API 但是聊天沒有回應？**
+
+* A: 首次使用自訂 API 需要在命令列初始化執行，確保可以傳回訊息。
+
+**Q: 如何切換回官方帳號？**
+
+* A: 在設定中取消勾選 "Use Custom API Endpoint" 即可
 
 ---
 
