@@ -109,10 +109,11 @@ claude chat -m sonnet -p "hello"
 **插件已正式上架 VS Code 市场！** 🎉
 
 **快速安装：**
-1.  打开 VS Code 或 Cursor
-2.  按 `Ctrl+Shift+X` 打开扩展面板
-3.  搜索 `Claude-Code ChatUI` 或 `lkbaba`
-4.  点击 **安装**
+
+1. 打开 VS Code 或 Cursor
+2. 按 `Ctrl+Shift+X` 打开扩展面板
+3. 搜索 `Claude-Code ChatUI` 或 `lkbaba`
+4. 点击 **安装**
 
 **直达链接：** [**➡️ 从 VS Code 市场安装**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui)
 
@@ -129,6 +130,12 @@ claude chat -m sonnet -p "hello"
 5. 选择解压出的 `.vsix` 文件完成安装
 
 > **💡 提示**：这种方式适合网络受限或需要离线安装的用户。
+
+**如何安装 `.vsix` 文件：**
+
+1. 打开 VS Code 或 Cursor，按下 `Ctrl+Shift+P` 打开命令面板。
+2. 输入 `Install from VSIX` 并选择 **"扩展: 从 VSIX 安装..."**。
+3. 选择项目根目录下生成的 `.vsix` 文件进行安装。
 
 ---
 
@@ -160,9 +167,9 @@ npm run package
 
 **如何安装 `.vsix` 文件：**
 
-1.  打开 VS Code 或 Cursor，按下 `Ctrl+Shift+P` 打开命令面板。
-2.  输入 `Install from VSIX` 并选择 **"扩展: 从 VSIX 安装..."**。
-3.  选择项目根目录下生成的 `.vsix` 文件进行安装。
+1. 打开 VS Code 或 Cursor，按下 `Ctrl+Shift+P` 打开命令面板。
+2. 输入 `Install from VSIX` 并选择 **"扩展: 从 VSIX 安装..."**。
+3. 选择项目根目录下生成的 `.vsix` 文件进行安装。
 
 ---
 
@@ -170,7 +177,7 @@ npm run package
 
 > **💡 重要提示**：如果您使用 VPN，请确保开启 **TUN 模式**，否则可能导致 Claude Code 无法正常连接。
 
-*   **打开聊天界面**：按快捷键 `Ctrl+Shift+C`
+* **打开聊天界面**：按快捷键 `Ctrl+Shift+C`
 * **个性化配置**：VS Code/Cursor 设置 → 搜索 `claudeCodeChatUI`
 
 **配置示例：**
