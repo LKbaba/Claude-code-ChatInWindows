@@ -216,6 +216,9 @@ A.插件内配置
    * **API Key**: 输入你的 API 密钥（如 `sk-ant-xxxxxxxxxx`）
    * **Base URL**: 输入 API 地址（如 `https://api.tu-zi.com`）
 4. **保存确认**：设置会自动保存，左下角会提示"Settings updated successfully"
+
+![API Configuration](docs/assets/api.png)
+
 5. **首次初始化**（重要）
 
 > ⚠️ **注意**：首次使用自定义 API 必须先在命令行初始化一次，之后就可以在插件中正常使用了。
