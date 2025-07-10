@@ -83,6 +83,12 @@ setx SHELL "C:\Program Files\Git\bin\bash.exe"
 # 1. 在【新的】终端窗口中，全局安装 Claude Code CLI
 npm install -g @anthropic-ai/claude-code
 
+# ⚠️ 如果遇到 PowerShell 脚本执行策略错误，请使用以下方法解决：
+# 错误示例："无法加载文件 npm.ps1，因为在此系统上禁止运行脚本"
+# 解决方案：临时放宽当前会话的执行策略（安全性更好）
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+# 或者直接使用 CMD 代替 PowerShell 来运行 npm 命令
+
 # 2. 确保 npm 全局路径已添加到系统环境变量 Path 中
 #    默认路径通常是: C:\Users\你的用户名\AppData\Roaming\npm
 #    如果不确定，可以手动添加到系统环境变量的 "Path" 中
@@ -147,6 +153,8 @@ npm run package
 ---
 
 ### 🎉 开始使用
+
+> **💡 重要提示**：如果您使用 VPN，请确保开启 **TUN 模式**，否则可能导致 Claude Code 无法正常连接。
 
 *   **打开聊天界面**：按快捷键 `Ctrl+Shift+C`
 * **个性化配置**：VS Code/Cursor 设置 → 搜索 `claudeCodeChatUI`
