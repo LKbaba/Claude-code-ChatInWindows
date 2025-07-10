@@ -1,10 +1,10 @@
 {
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
-  "description": "Beautiful Claude Code Chat Interface designed specifically for Windows VS Code users",
-  "version": "1.3.0",
+  "description": "Claude Code – ChatUI – Windows (No WSL)",
+  "version": "1.3.2",
   "publisher": "lkbaba",
-  "author": "LKbaba",
+  "author": "lkbaba",
   "repository": {
     "type": "git",
     "url": "https://github.com/LKbaba/Claude-code-ChatInWindows"
@@ -47,6 +47,8 @@
   ],
   "icon": "icon.png",
   "main": "./out/extension.js",
+  "extensionKind": ["ui"],
+  "os": ["Windows"],
   "activationEvents": [
     "onStartupFinished"
   ],

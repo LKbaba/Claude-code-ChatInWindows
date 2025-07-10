@@ -44,7 +44,13 @@ export class MessageRenderer {
         contentDiv.className = 'message-content';
         
         if (type === 'user' || type === 'claude' || type === 'thinking') {
-            contentDiv.innerHTML = content;
+            // Escape HTML for user messages to prevent content disappearing
+            if (type === 'user') {
+                contentDiv.textContent = content;
+            } else {
+                // Claude and thinking messages may contain formatted HTML
+                contentDiv.innerHTML = content;
+            }
         } else if (type === 'system' && content.includes('class="request-stats"')) {
             // Special handling for request stats to render HTML
             contentDiv.innerHTML = content;
