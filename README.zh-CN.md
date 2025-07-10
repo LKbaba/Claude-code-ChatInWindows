@@ -93,9 +93,10 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 #    默认路径通常是: C:\Users\你的用户名\AppData\Roaming\npm
 #    如果不确定，可以手动添加到系统环境变量的 "Path" 中
 
-# 3. 首次登录 Claude Code
+# 3. 首次登录 Claude Code（如果使用官方账号）
 claude login
 #    浏览器将打开授权页面 → 登录后复制页面上的 Token → 粘贴回终端
+#    💡 提示：如果你计划使用第三方 API，可以跳过此步骤
 
 # 4. 快速验证安装是否成功
 claude chat -m sonnet -p "hello"
@@ -192,9 +193,67 @@ npm run package
 
   // MCP 模块化扩展
   "claudeCodeChatUI.mcp.enabled": true,
-  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"]
+  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"],
+
+  // API 配置（支持第三方 API 服务）
+  "claudeCodeChatUI.api.useCustomAPI": false,
+  "claudeCodeChatUI.api.key": "",
+  "claudeCodeChatUI.api.baseUrl": "https://api.anthropic.com"
 }
 ```
+
+### 🔑 使用第三方 API
+
+本插件支持使用第三方 API 服务（如 tu-zi.com、openrouter.ai 等），提供两种配置方式：
+
+#### 使用方法
+
+A.插件内配置
+
+1. **打开设置**：点击聊天界面的设置按钮 ⚙️
+2. **启用自定义 API**：勾选 "Use Custom API Endpoint"
+3. **配置 API**：
+   * **API Key**: 输入你的 API 密钥（如 `sk-ant-xxxxxxxxxx`）
+   * **Base URL**: 输入 API 地址（如 `https://api.tu-zi.com`）
+4. **保存确认**：设置会自动保存，左下角会提示"Settings updated successfully"
+5. **首次初始化**（重要）
+
+> ⚠️ **注意**：首次使用自定义 API 必须先在命令行运行一次，之后就可以在插件中正常使用了。
+
+B.首次初始化操作
+
+**Windows PowerShell 用户：**
+
+```powershell
+# 打开一个新的 PowerShell 会话
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # 跳过脚本限制
+
+$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # 注意引号
+$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com"
+
+claude code # 现在运行 CLI，就能读到这两个环境变量
+
+按照提示完成确认，确保第三方api可以返回消息。
+
+claude chat -m opus "hello"  # 测试是否配置成功
+```
+
+> 💡 **使用提示**：
+>
+> * 使用第三方 API 服务通常价格更实惠，适合预算有限的用户
+> * 常见的第三方服务：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai) 等
+> * 可以通过开关随时切换官方账号和自定义 API
+> * 如果 API 密钥错误，聊天会一直显示 "processing" 直到超时
+
+### ❓ 常见问题
+
+**Q: 为什么配置了 API 但是聊天没有响应？**
+
+* A: 首次使用自定义 API 需要在命令行初始化运行，确保可以返回消息。
+
+**Q: 如何切换回官方账号？**
+
+* A: 在设置中取消勾选 "Use Custom API Endpoint" 即可
 
 ---
 
