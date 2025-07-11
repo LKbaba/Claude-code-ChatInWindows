@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -48,7 +48,7 @@
   "icon": "icon.png",
   "main": "./out/extension.js",
   "extensionKind": ["ui"],
-  "os": ["Windows"],
+  "os": ["win32"],
   "activationEvents": [
     "onStartupFinished"
   ],

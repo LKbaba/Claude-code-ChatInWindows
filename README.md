@@ -109,7 +109,7 @@ claude chat -m sonnet -p "hello"
 
 | Claude Code CLI Version | Compatible Extension Version |
 |------------------------|----------------------------|
-| v1.0.48 and above     | Use extension v1.4.0+      |
+| v1.0.48 and above     | Use extension v1.4.1+      |
 | v1.0.47 and below     | Use extension v1.3.4       |
 
 **To check your Claude Code CLI version:**
@@ -119,7 +119,7 @@ claude --version
 
 **Why this matters:**
 - Claude Code v1.0.48 changed the shell snapshot location from `/tmp` to `~/.claude`
-- Extension v1.4.0 has been updated to support this change
+- Extension v1.4.1 has been updated to support this change
 - Using mismatched versions may cause issues with the Bash tool
 
 ### 🔹 Step 3: Install This Extension

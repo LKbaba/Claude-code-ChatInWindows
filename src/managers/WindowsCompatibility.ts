@@ -24,8 +24,24 @@ export class WindowsCompatibility {
         const platform = process.platform;
         
         // Claude Code v1.0.48+ uses ~/.claude instead of /tmp for shell snapshots
-        // No need to override temp directory environment variables
+        // Set CLAUDE_HOME to ensure Claude uses the correct directory
+        const homeDir = require('os').homedir();
+        const claudeHome = path.join(homeDir, '.claude');
+        spawnOptions.env!.CLAUDE_HOME = claudeHome;
+        
+        // On Windows, also set proper temp directory to avoid path issues
         if (platform === 'win32') {
+            // Ensure ~/.claude directory exists
+            if (!fs.existsSync(claudeHome)) {
+                fs.mkdirSync(claudeHome, { recursive: true });
+            }
+            
+            // Set temp directory to /tmp for Git Bash compatibility
+            // This avoids Windows path format issues when Claude CLI runs in Git Bash
+            spawnOptions.env!.TEMP = '/tmp';
+            spawnOptions.env!.TMP = '/tmp';
+            spawnOptions.env!.TMPDIR = '/tmp';
+            
             const npmPrefix = await this._npmPrefixPromise;
             if (!npmPrefix) {
                 // This should have been caught by the EnvironmentChecker, but we log it just in case.

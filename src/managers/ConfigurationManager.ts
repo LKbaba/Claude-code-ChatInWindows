@@ -148,11 +148,21 @@ export class ConfigurationManager {
             }
         });
 
-        // Write MCP config to a temporary file
+        // Write MCP config to a temporary file in ~/.claude directory
         let mcpConfigPath: string | null = null;
         if (Object.keys(mcpConfig.mcpServers).length > 0) {
             try {
-                const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-mcp-'));
+                // Use ~/.claude directory for temporary files (Claude Code v1.0.48+)
+                const homeDir = os.homedir();
+                const claudeDir = path.join(homeDir, '.claude');
+                
+                // Ensure ~/.claude directory exists
+                if (!fs.existsSync(claudeDir)) {
+                    fs.mkdirSync(claudeDir, { recursive: true });
+                }
+                
+                // Create temp directory within ~/.claude
+                const tempDir = fs.mkdtempSync(path.join(claudeDir, 'mcp-'));
                 mcpConfigPath = path.join(tempDir, 'mcp-config.json');
                 fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
             } catch (error) {
