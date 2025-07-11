@@ -18,9 +18,9 @@
 * **不用再折腾 WSL**：
     Claude Code 终于支持 **100% Windows 原生运行**，省心到底！
 * **告别路径错误**：
-    `C:\` 与 `/usr/` 路径自动无缝转换，避免浪费宝贵的 AI Token。
+    `C:\` 与 `/usr/` 路径自动无缝转换，避免浪费时间和token。
 * **拒绝终端操作**：
-    完整 GUI 聊天界面，复制粘贴、拖拽图片一气呵成，再也不切窗口！
+    完整 GUI 聊天界面，复制粘贴、插入图片一气呵成，再也不切窗口！
 
 ---
 
@@ -45,7 +45,7 @@
 * ✅ **零 WSL 依赖**：只用 Git Bash 和 Node 就能运行。
 * ✅ **实时费用统计**：Token 和费用实时显示，明明白白消费。
 * ✅ **Windows 路径兼容**：自动识别路径，无痛跨系统交流。
-* ✅ **MCP 模块化扩展**：一键调用外部工具，让你的 Claude Code 无所不能。
+* ✅ **MCP 模块化扩展**：一键调用外部MCP，内置模板，让你的 Claude Code 无所不能。
 * ✅ **细节控最爱**：高 DPI 图标、动态主题支持、流畅动画交互。
 * ✅ **「氛围编程」绝配**：全程 GUI，营造极致舒适的编程环境。
 
@@ -69,12 +69,14 @@
 # 下载地址：https://nodejs.org/
 
 # 3. 以【管理员权限】打开 PowerShell 或 CMD，执行以下命令配置环境变量
-#    （这会告诉 npm 忽略脚本检查并指定 Git Bash 作为 shell，解决核心报错）
+# （这会告诉 npm 忽略脚本检查并指定 Git Bash 作为 shell，解决核心报错）
+
 setx NPM_CONFIG_IGNORE_SCRIPTS true
 setx SHELL "C:\Program Files\Git\bin\bash.exe"
-#    注意：如果你的 Git 安装在其他路径，请相应修改 "C:\Program Files\Git\bin\bash.exe"
 
-# 4.【重要】完全关闭并重启你的 PowerShell/CMD 窗口，让环境变量生效
+# 注意：如果你的 Git 安装在其他路径，请相应修改 "C:\Program Files\Git\bin\bash.exe"
+
+# 4.[重要]完全关闭并重启你的 PowerShell/CMD 窗口，让环境变量生效
 ```
 
 ### 🔹 第 2 步：安装并验证 Claude Code CLI
@@ -86,20 +88,26 @@ npm install -g @anthropic-ai/claude-code
 # ⚠️ 如果遇到 PowerShell 脚本执行策略错误，请使用以下方法解决：
 # 错误示例："无法加载文件 npm.ps1，因为在此系统上禁止运行脚本"
 # 解决方案：临时放宽当前会话的执行策略（安全性更好）
+
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+
 # 或者直接使用 CMD 代替 PowerShell 来运行 npm 命令
 
 # 2. 确保 npm 全局路径已添加到系统环境变量 Path 中
-#    默认路径通常是: C:\Users\你的用户名\AppData\Roaming\npm
-#    如果不确定，可以手动添加到系统环境变量的 "Path" 中
+# 默认路径通常是: C:\Users\你的用户名\AppData\Roaming\npm
+# 如果不确定，可以手动添加到系统环境变量的 "Path" 中
 
 # 3. 首次登录 Claude Code（如果使用官方账号）
-claude login
+
+claude code
+
 #    浏览器将打开授权页面 → 登录后复制页面上的 Token → 粘贴回终端
 #    💡 提示：如果你计划使用第三方 API，请往下观看API操作示例。
 
 # 4. 快速验证安装是否成功
+
 claude chat -m sonnet -p "hello"
+
 #    如果看到 Claude 的回复，说明你的环境已准备就绪！
 ```
 
@@ -127,16 +135,10 @@ claude chat -m sonnet -p "hello"
 1. **[🔗 前往 Releases 页面](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)** 下载最新版本
 2. 下载 `claude-code-chatinwindows-1.x.x.zip` 压缩包
 3. 解压后找到 `claude-code-chatinwindows-x.x.vsix` 文件
-4. 在 VS Code/Cursor 中按 `Ctrl+Shift+P`，选择 **"扩展: 从 VSIX 安装..."**
+4. 在 VS Code/Cursor 中按 `Ctrl+Shift+P`，输入 `Install from VSIX` 并选择 **"扩展: 从 VSIX 安装..."**。
 5. 选择解压出的 `.vsix` 文件完成安装
 
-> **💡 提示**：这种方式适合网络受限或需要离线安装的用户。
-
-**如何安装 `.vsix` 文件：**
-
-1. 打开 VS Code 或 Cursor，按下 `Ctrl+Shift+P` 打开命令面板。
-2. 输入 `Install from VSIX` 并选择 **"扩展: 从 VSIX 安装..."**。
-3. 选择项目根目录下生成的 `.vsix` 文件进行安装。
+> **💡 提示**：这种方式适合离线安装的用户。
 
 ---
 
@@ -148,6 +150,7 @@ claude chat -m sonnet -p "hello"
 
 ```powershell
 # 克隆项目到本地
+
 git clone https://github.com/LKbaba/Claude-code-ChatInWindows.git
 cd Claude-code-ChatInWindows
 npm install  # 安装依赖
@@ -161,6 +164,7 @@ npm install  # 安装依赖
 # 1. 确保你已在项目根目录，并已执行 npm install
 
 # 2. 编译并打包插件
+
 npm run package
 
 #    此命令会自动编译并打包成一个 .vsix 文件
@@ -179,28 +183,7 @@ npm run package
 > **💡 重要提示**：如果您使用 VPN，请确保开启 **TUN 模式**，否则可能导致 Claude Code 无法正常连接。
 
 * **打开聊天界面**：按快捷键 `Ctrl+Shift+C`
-* **个性化配置**：VS Code/Cursor 设置 → 搜索 `claudeCodeChatUI`
-
-**配置示例：**
-
-```jsonc
-{
-  // Claude 思考强度：think | think-hard | think-harder | ultrathink
-  "claudeCodeChatUI.thinking.intensity": "think-harder",
-
-  // Git Bash 路径（默认自动检测，一般无需修改）
-  "claudeCodeChatUI.windows.gitBashPath": "C:\\Program Files\\Git\\bin\\bash.exe",
-
-  // MCP 模块化扩展
-  "claudeCodeChatUI.mcp.enabled": true,
-  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"],
-
-  // API 配置（支持第三方 API 服务）
-  "claudeCodeChatUI.api.useCustomAPI": false,
-  "claudeCodeChatUI.api.key": "",
-  "claudeCodeChatUI.api.baseUrl": "https://api.anthropic.com"
-}
-```
+* **新建文件夹右边**：有一个图标，点击即可
 
 ### 🔑 使用第三方 API
 
@@ -229,10 +212,11 @@ B.首次初始化操作
 
 ```powershell
 # 打开一个新的 PowerShell 会话
+
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # 跳过脚本限制
 
-$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # 填写自己的api-key,注意引号
-$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com" #具体url需要咨询api供应商
+$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # 填写自己的API-KEY,注意引号需要填入。
+$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com"         #具体URL需要咨询api供应商，注意引号需要填入。
 
 claude code # 现在运行 CLI，就能读到这两个环境变量
 
@@ -243,11 +227,10 @@ claude chat -m opus "hello"  # 测试是否配置成功
 
 > 💡 **使用提示**：
 >
-> * 使用第三方 API 服务通常价格更实惠，适合预算有限的用户
-> * 常见的第三方服务：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai) 等
-> * 可以通过开关随时切换官方账号和自定义 API
+> * **重要**：电脑关机重启以后需要重新执行初始化💡
+> * 使用第三方 API 服务通常价格更实惠，适合预算有限的用户，常见的第三方服务：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai) 、[anyrouter.top](https://anyrouter.top)等
+> * 可以通过配置开关随时切换官方账号和自定义 API
 > * 如果 API 密钥错误，聊天会一直显示 "processing" 直到超时
-> * **重要**：电脑关机重启以后需要重新执行初始化
 
 ### ❓ 常见问题
 
