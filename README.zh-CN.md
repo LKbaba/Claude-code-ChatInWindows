@@ -28,15 +28,15 @@
 
 ### **聊天主界面**
 
-![主界面](docs/assets/ui.png)
+[![主界面](docs/assets/ui.png)](docs/assets/ui.png)
 
 ### **Token 实时统计**
 
-![Token HUD](docs/assets/token.png)
+[![Token HUD](docs/assets/token.png)](docs/assets/token.png)
 
 ### **模块化指令 (MCP)**
 
-![MCP](docs/assets/mcp.png)
+[![MCP](docs/assets/mcp.png)](docs/assets/mcp.png)
 
 ---
 
@@ -200,7 +200,7 @@ A.插件内配置
    * **Base URL**: 输入 API 地址（如 `https://api.tu-zi.com`）
 4. **保存确认**：设置会自动保存，左下角会提示"Settings updated successfully"
 
-![API Configuration](docs/assets/api.png)
+[![API Configuration](docs/assets/api.png)](docs/assets/api.png)
 
 5. **首次初始化**（重要）
 
