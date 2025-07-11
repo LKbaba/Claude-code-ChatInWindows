@@ -18,9 +18,9 @@
 * **不必再折騰 WSL**：
     Claude Code 終於支援 **100% Windows 原生執行**，省心到底！
 * **告別路徑錯誤**：
-    `C:\` 與 `/usr/` 路徑自動無縫轉換，避免浪費寶貴的 AI Token。
+    `C:\` 與 `/usr/` 路徑自動無縫轉換，避免浪費時間和token。
 * **拒絕終端機操作**：
-    完整 GUI 聊天介面，複製貼上、拖曳圖片一氣呵成，再也不用切換視窗！
+    完整 GUI 聊天介面，複製貼上、插入圖片一氣呵成，再也不切窗口！
 
 ---
 
@@ -45,7 +45,7 @@
 * ✅ **零 WSL 依賴**：只需 Git Bash 和 Node 就能執行。
 * ✅ **即時費用統計**：Token 和費用即時顯示，清清楚楚消費。
 * ✅ **Windows 路徑相容**：自動識別路徑，無痛跨系統交流。
-* ✅ **MCP 模組化擴充**：一鍵呼叫外部工具，讓您的 Claude Code 無所不能。
+* ✅ **MCP 模組化擴充**：一鍵調用外部MCP，內置模板，讓您的 Claude Code 無所不能。
 * ✅ **細節控最愛**：高 DPI 圖示、動態主題支援、流暢動畫互動。
 * ✅ **「氛圍編程」絕配**：全程 GUI，營造極致舒適的編程環境。
 
@@ -68,38 +68,46 @@
 # 2. 安裝 Node.js（推薦 LTS 版本，≥ 18）
 # 下載位址：https://nodejs.org/
 
-# 3. 以【系統管理員權限】開啟 PowerShell 或 CMD，執行以下命令設定環境變數
-#    （這會告訴 npm 忽略指令碼檢查並指定 Git Bash 作為 shell，解決核心錯誤）
+# 3. 以【管理員權限】打開 PowerShell 或 CMD，執行以下命令配置環境變數
+# （這會告訴 npm 忽略腳本檢查並指定 Git Bash 作為 shell，解決核心報錯）
+
 setx NPM_CONFIG_IGNORE_SCRIPTS true
 setx SHELL "C:\Program Files\Git\bin\bash.exe"
-#    注意：如果您的 Git 安裝在其他路徑，請相應修改 "C:\Program Files\Git\bin\bash.exe"
 
-# 4.【重要】完全關閉並重啟您的 PowerShell/CMD 視窗，讓環境變數生效
+# 注意：如果你的 Git 安裝在其他路徑，請相應修改 "C:\Program Files\Git\bin\bash.exe"
+
+# 4.[重要]完全關閉並重啟您的 PowerShell/CMD 窗口，讓環境變數生效
 ```
 
 ### 🔹 第 2 步：安裝並驗證 Claude Code CLI
 
 ```powershell
-# 1. 在【新的】終端機視窗中，全域安裝 Claude Code CLI
+# 1. 在【新的】終端窗口中，全局安裝 Claude Code CLI
 npm install -g @anthropic-ai/claude-code
 
-# ⚠️ 如果遇到 PowerShell 指令碼執行原則錯誤，請使用以下方法解決：
-# 錯誤範例：「無法載入檔案 npm.ps1，因為此系統上已停用指令碼執行」
-# 解決方案：暫時放寬目前工作階段的執行原則（安全性更好）
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-# 或者直接使用 CMD 取代 PowerShell 來執行 npm 命令
+# ⚠️ 如果遇到 PowerShell 腳本執行策略錯誤，請使用以下方法解決：
+# 錯誤示例：「無法加載文件 npm.ps1，因為在此系統上禁止運行腳本」
+# 解決方案：臨時放寬當前會話的執行策略（安全性更好）
 
-# 2. 確保 npm 全域路徑已新增至系統環境變數 Path 中
-#    預設路徑通常是: C:\Users\您的使用者名稱\AppData\Roaming\npm
-#    如果不確定，可以手動新增至系統環境變數的 "Path" 中
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+
+# 或者直接使用 CMD 代替 PowerShell 來運行 npm 命令
+
+# 2. 確保 npm 全局路徑已添加到系統環境變數 Path 中
+# 默認路徑通常是: C:\Users\你的用戶名\AppData\Roaming\npm
+# 如果不確定，可以手動添加到系統環境變數的 "Path" 中
 
 # 3. 首次登入 Claude Code（如果使用官方帳號）
-claude login
+
+claude code
+
 #    瀏覽器將開啟授權頁面 → 登入後複製頁面上的 Token → 貼回終端機
-#    💡 提示：如果您計劃使用第三方 API，請往下查看API操作範例。
+#    💡 提示：如果您計劃使用第三方 API，請往下觀看API操作示例。
 
 # 4. 快速驗證安裝是否成功
+
 claude chat -m sonnet -p "hello"
+
 #    如果看到 Claude 的回覆，說明您的環境已準備就緒！
 ```
 
@@ -135,12 +143,26 @@ claude chat -m sonnet -p "hello"
 **如何安裝 `.vsix` 檔案：**
 
 1. 開啟 VS Code 或 Cursor，按下 `Ctrl+Shift+P` 開啟命令面板。
-2. 輸入 `Install from VSIX` 並選擇 **「擴充功能: 從 VSIX 安裝...」**。
+2. 輸入 `Install from VSIX` 並選擇 **「擴展: 從 VSIX 安裝...」**。
 3. 選擇專案根目錄下產生的 `.vsix` 檔案進行安裝。
 
 ---
 
-#### 方式三：進階安裝選項（適合開發者）
+#### 📦 方式二：從 GitHub Release 下載安裝（離線安裝）
+
+如果您無法存取 VS Code 市場，可以直接下載已打包好的擴充套件檔案：
+
+1. **[🔗 前往 Releases 頁面](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)** 下載最新版本
+2. 下載 `claude-code-chatinwindows-1.x.x.zip` 壓縮包
+3. 解壓後找到 `claude-code-chatinwindows-x.x.vsix` 檔案
+4. 在 VS Code/Cursor 中按 `Ctrl+Shift+P`，輸入 `Install from VSIX` 並選擇 **"擴展: 從 VSIX 安裝..."**
+5. 選擇解壓出的 `.vsix` 檔案完成安裝
+
+> **💡 提示**：這種方式適合離線安裝的用戶。
+
+---
+
+#### 方式三：高級安裝選項（適合開發者）
 
 如果您想從原始碼執行或手動打包，可以參考以下步驟。
 
@@ -169,17 +191,17 @@ npm run package
 **如何安裝 `.vsix` 檔案：**
 
 1.  在 VS Code 或 Cursor 中，按下 `Ctrl+Shift+P` 開啟命令面板。
-2.  輸入 `Install from VSIX` 並選擇 **"擴充功能: 從 VSIX 安裝..."**。
+2.  輸入 `Install from VSIX` 並選擇 **"擴展: 從 VSIX 安裝..."**。
 3.  選擇專案根目錄下產生的 `.vsix` 檔案進行安裝。
 
 ---
 
 ### 🎉 開始使用
 
-> **💡 重要提示**：如果您使用 VPN，請確保開啟 **TUN 模式**，否則可能導致 Claude Code 無法正常連線。
+> **💡 重要提示**：如果您使用 VPN，請確保開啟 **TUN 模式**，否則可能導致 Claude Code 無法正常連接。
 
 * **開啟聊天介面**：按快捷鍵 `Ctrl+Shift+C`
-* **個人化設定**：VS Code/Cursor 設定 → 搜尋 `claudeCodeChatUI`
+* **新建資料夾右邊**：有一個圖標，點擊即可
 
 **設定範例：**
 
@@ -231,8 +253,8 @@ B.首次初始化操作
 # 開啟一個新的 PowerShell 工作階段
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # 跳過指令碼限制
 
-$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # 填寫自己的api-key,注意引號
-$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com" #具體url需要諮詢api供應商
+$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # 填寫自己的API-KEY,注意引號需要填入。
+$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com"         #具體URL需要諮詢api供應商，注意引號需要填入。
 
 claude code # 現在執行 CLI，就能讀到這兩個環境變數
 
@@ -243,11 +265,10 @@ claude chat -m opus "hello"  # 測試是否設定成功
 
 > 💡 **使用提示**：
 >
-> * 使用第三方 API 服務通常價格更實惠，適合預算有限的使用者
-> * 常見的第三方服務：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai) 等
-> * 可以透過開關隨時切換官方帳號和自訂 API
-> * 如果 API 金鑰錯誤，聊天會一直顯示 "processing" 直到逾時
-> * **重要**：系統重新啟動後需要重新執行初始化
+> * **重要**：電腦關機重啟以後需要重新執行初始化💡
+> * 使用第三方 API 服務通常價格更實惠，適合預算有限的使用者，常見的第三方服務：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai)、[anyrouter.top](https://anyrouter.top)等
+> * 可以透過配置開關隨時切換官方帳號和自訂 API
+> * 如果 API 密鑰錯誤，聊天會一直顯示 "processing" 直到超時
 
 ### ❓ 常見問題
 
