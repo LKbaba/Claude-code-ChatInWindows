@@ -101,14 +101,14 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
 claude code
 
-#    浏览器将打开授权页面 → 登录后复制页面上的 Token → 粘贴回终端
-#    💡 提示：如果你计划使用第三方 API，请往下观看API操作示例。
+# 浏览器将打开授权页面 → 登录后复制页面上的 Token → 粘贴回终端
+# 💡 提示：如果你计划使用第三方 API，请往下观看API操作示例。
 
 # 4. 快速验证安装是否成功
 
 claude chat -m sonnet -p "hello"
 
-#    如果看到 Claude 的回复，说明你的环境已准备就绪！
+# 如果看到 Claude 的回复，说明你的环境已准备就绪！
 ```
 
 ### 🔹 第 3 步：安装本插件
@@ -167,7 +167,7 @@ npm install  # 安装依赖
 
 npm run package
 
-#    此命令会自动编译并打包成一个 .vsix 文件
+# 此命令会自动编译并打包成一个 .vsix 文件
 ```
 
 **如何安装 `.vsix` 文件：**
@@ -227,7 +227,7 @@ claude chat -m opus "hello"  # 测试是否配置成功
 
 > 💡 **使用提示**：
 >
-> * **重要**：电脑关机重启以后需要重新执行初始化💡
+> * ⚠️**重要**：电脑关机重启以后需要重新执行一次初始化
 > * 使用第三方 API 服务通常价格更实惠，适合预算有限的用户，常见的第三方服务：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai) 、[anyrouter.top](https://anyrouter.top)等
 > * 可以通过配置开关随时切换官方账号和自定义 API
 > * 如果 API 密钥错误，聊天会一直显示 "processing" 直到超时

@@ -18,9 +18,9 @@
 * **No More WSL Hassle**:
     Finally, run Claude Code with **100% native Windows support**. It just works!
 * **Say Goodbye to Path Errors**:
-    Seamlessly converts between `C:\` and `/usr/` paths to avoid wasting precious AI tokens.
+    Seamlessly converts between `C:\` and `/usr/` paths to avoid wasting time and tokens.
 * **Ditch the Terminal**:
-    A full-featured GUI chat interface for easy copy-pasting and image drag-and-drop. No more window switching!
+    A full-featured GUI chat interface for easy copy-pasting and image insertion. No more window switching!
 
 ---
 
@@ -45,7 +45,7 @@
 * ✅ **Zero WSL Dependency**: Runs with just Git Bash and Node.js.
 * ✅ **Real-time Cost Tracking**: Instantly see token counts and costs.
 * ✅ **Windows Path Compatibility**: Automatically recognizes and handles paths for smooth cross-system interaction.
-* ✅ **MCP Modular Extensions**: Call external tools with a single click, making your Claude Code omnipotent.
+* ✅ **MCP Modular Extensions**: Call external MCP tools with one click, built-in templates, making your Claude Code omnipotent.
 * ✅ **A Detail-Lover's Dream**: HiDPI icons, dynamic theme support, and fluid animations.
 * ✅ **Perfect for "Vibe Coding"**: A pure GUI experience for an ultra-comfortable coding environment.
 
@@ -83,13 +83,20 @@ setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
 # 1. In a [new] terminal window, globally install the Claude Code CLI
 npm install -g @anthropic-ai/claude-code
 
+# ⚠️ If you encounter PowerShell script execution policy errors, try these solutions:
+# Error example: "cannot be loaded because running scripts is disabled on this system"
+# Solution: Temporarily relax the execution policy for the current session (more secure)
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+# Or use CMD instead of PowerShell to run npm commands
+
 # 2. Ensure the npm global directory is in your system's Path environment variable
 #    The default path is usually: C:\Users\YourUsername\AppData\Roaming\npm
 #    If you're unsure, add it manually to your system's "Path" variable.
 
-# 3. Log in to Claude Code for the first time
-claude login
+# 3. Log in to Claude Code for the first time (if using official account)
+claude code
 #    A browser window will open for authorization → Log in and copy the token → Paste it back into the terminal.
+#    💡 Tip: If you plan to use third-party APIs, see the API setup examples below.
 
 # 4. Quickly verify the installation
 claude chat -m sonnet -p "hello"
@@ -113,7 +120,21 @@ claude chat -m sonnet -p "hello"
 
 ---
 
-#### Method 2: Advanced Installation (for Developers)
+#### 📦 Method 2: Download from GitHub Release (Offline Installation)
+
+If you can't access VS Code Marketplace, download the pre-packaged extension file:
+
+1. **[🔗 Go to Releases page](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)** to download the latest version
+2. Download the `claude-code-chatinwindows-1.x.x.zip` package
+3. Extract and find the `claude-code-chatinwindows-x.x.vsix` file
+4. In VS Code/Cursor, press `Ctrl+Shift+P`, type `Install from VSIX` and select **"Extensions: Install from VSIX..."**
+5. Select the extracted `.vsix` file to install
+
+> **💡 Tip**: This method is suitable for offline installation.
+
+---
+
+#### Method 3: Advanced Installation (for Developers)
 
 If you want to run from source or package the extension manually, follow these steps.
 
@@ -149,8 +170,10 @@ npm run package
 
 ### 🎉 Getting Started
 
+> **💡 Important**: If using a VPN, ensure **TUN mode** is enabled, otherwise Claude Code may fail to connect.
+
 * **Open Chat Panel**: Press `Ctrl+Shift+C`
-* **Customize Settings**: Go to VS Code/Cursor Settings → Search for `claudeCodeChatUI`
+* **File Explorer Icon**: There's an icon next to the new folder button, click it to open
 
 **Example Configuration:**
 
@@ -202,8 +225,8 @@ B. First-time Initialization
 # Open a new PowerShell session
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # Bypass script restrictions
 
-$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # Enter your API key, note the quotes
-$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com"  # Consult your API provider for the URL
+$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # Enter your API key, note the quotes are required
+$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com"  # Consult your API provider for the URL, quotes are required
 
 claude code  # Run CLI to read environment variables
 
@@ -214,11 +237,10 @@ claude chat -m opus "hello"  # Test if configuration works
 
 > 💡 **Tips**:
 >
-> * Third-party APIs are usually more affordable for budget-conscious users
-> * Common services: [tu-zi.com](https://tu-zi.com), [openrouter.ai](https://openrouter.ai)
+> * **Important**: Initialization is required again after system restart 💡
+> * Third-party APIs are usually more affordable for budget-conscious users. Common services: [tu-zi.com](https://tu-zi.com), [openrouter.ai](https://openrouter.ai), [anyrouter.top](https://anyrouter.top)
 > * Toggle between official account and custom API anytime via the switch
 > * Wrong API key will show "processing" until timeout
-> * **Important**: Initialization is required again after system restart
 
 ### ❓ FAQ
 
