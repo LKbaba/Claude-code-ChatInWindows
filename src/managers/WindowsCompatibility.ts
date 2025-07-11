@@ -104,6 +104,20 @@ export class WindowsCompatibility {
             name: name,
             env: spawnOptions.env
         };
+        
+        // On Windows, use Git Bash for slash commands to avoid PowerShell issues
+        if (process.platform === 'win32') {
+            const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
+            const gitBashPath = config.get<string>('windows.gitBashPath');
+            
+            // Check if Git Bash path is configured and exists
+            if (gitBashPath && fs.existsSync(gitBashPath)) {
+                terminalOptions.shellPath = gitBashPath;
+                // Add shell args to ensure proper bash behavior
+                terminalOptions.shellArgs = ['--login', '-i'];
+            }
+        }
+        
         return vscode.window.createTerminal(terminalOptions);
     }
 
