@@ -28,15 +28,15 @@
 
 ### **聊天主介面**
 
-![主介面](docs/assets/ui.png)
+[![主介面](docs/assets/ui.png)](docs/assets/ui.png)
 
 ### **Token 即時統計**
 
-![Token HUD](docs/assets/token.png)
+[![Token HUD](docs/assets/token.png)](docs/assets/token.png)
 
 ### **模組化指令 (MCP)**
 
-![MCP](docs/assets/mcp.png)
+[![MCP](docs/assets/mcp.png)](docs/assets/mcp.png)
 
 ---
 
@@ -239,7 +239,7 @@ A.擴充套件內設定
    * **Base URL**: 輸入 API 位址（如 `https://api.tu-zi.com`）
 4. **儲存確認**：設定會自動儲存，左下角會提示"Settings updated successfully"
 
-![API Configuration](docs/assets/api.png)
+[![API Configuration](docs/assets/api.png)](docs/assets/api.png)
 
 5. **首次初始化**（重要）
 

@@ -28,15 +28,15 @@
 
 ### **Main Chat Interface**
 
-![Main Interface](docs/assets/ui.png)
+[![Main Interface](docs/assets/ui.png)](docs/assets/ui.png)
 
 ### **Real-time Token Stats**
 
-![Token HUD](docs/assets/token.png)
+[![Token HUD](docs/assets/token.png)](docs/assets/token.png)
 
 ### **Modular Command Protocol (MCP)**
 
-![MCP](docs/assets/mcp.png)
+[![MCP](docs/assets/mcp.png)](docs/assets/mcp.png)
 
 ---
 
@@ -211,7 +211,7 @@ A. Extension Configuration
    * **Base URL**: Enter the API endpoint (e.g., `https://api.tu-zi.com`)
 4. **Save Confirmation**: Settings are saved automatically with a "Settings updated successfully" notification
 
-![API Configuration](docs/assets/api.png)
+[![API Configuration](docs/assets/api.png)](docs/assets/api.png)
 
 5. **First-time Initialization** (Important)
 
