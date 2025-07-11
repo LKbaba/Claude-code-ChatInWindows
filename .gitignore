@@ -40,3 +40,4 @@ coverage/
 *.swp
 *.swo
 *.zip
+/docs/md
