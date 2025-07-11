@@ -62,6 +62,6 @@ npm run compile
 
 ## 注意事项
 
-- 确保已安装Claude CLI（通过npm安装：`npm install -g @anthropic-ai/claude-cli`）
+- 确保已安装Claude CLI（通过npm安装：`npm install -g @anthropic-ai/claude-code`）
 - Windows用户建议安装Git Bash以获得更好的体验
 - 首次使用需要登录Claude账号

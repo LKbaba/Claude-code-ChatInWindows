@@ -23,19 +23,8 @@ export class WindowsCompatibility {
 
         const platform = process.platform;
         
-        // Fix Windows temp directory path issue
-        if (platform === 'win32' && spawnOptions.env) {
-            // Use Git Bash compatible temp directory
-            spawnOptions.env.TEMP = '/tmp';
-            spawnOptions.env.TMP = '/tmp';
-            spawnOptions.env.TMPDIR = '/tmp';
-            
-            // Alternative: Use Windows temp with proper format
-            // const windowsTemp = process.env.TEMP || process.env.TMP || 'C:\\Windows\\Temp';
-            // spawnOptions.env.TEMP = windowsTemp.replace(/\\/g, '/');
-            // spawnOptions.env.TMP = spawnOptions.env.TEMP;
-            // spawnOptions.env.TMPDIR = spawnOptions.env.TEMP;
-        }
+        // Claude Code v1.0.48+ uses ~/.claude instead of /tmp for shell snapshots
+        // No need to override temp directory environment variables
         if (platform === 'win32') {
             const npmPrefix = await this._npmPrefixPromise;
             if (!npmPrefix) {

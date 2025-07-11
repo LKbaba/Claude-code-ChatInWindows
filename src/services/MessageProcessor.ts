@@ -238,9 +238,20 @@ export class MessageProcessor {
                 }
                 break;
             case 'Grep':
+                // v1.0.45 redesigned Grep tool - show more parameters
                 if (content.input?.pattern) {
                     const pattern = content.input.pattern.substring(0, 30);
                     details = ` • "${pattern}${content.input.pattern.length > 30 ? '...' : ''}"`;
+                    
+                    // Add path info if specified
+                    if (content.input.path && content.input.path !== '.') {
+                        details += ` in ${content.input.path}`;
+                    }
+                    
+                    // Add include pattern if specified
+                    if (content.input.include) {
+                        details += ` (${content.input.include})`;
+                    }
                 }
                 break;
             case 'WebFetch':

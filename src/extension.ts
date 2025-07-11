@@ -28,22 +28,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		// Do not block extension activation, but some features will fail.
 	}
 	
-	// Create /tmp directory for Git Bash on Windows
+	// Create ~/.claude directory for Claude Code v1.0.48+
 	if (process.platform === 'win32') {
 		try {
-			// Use Git Bash to create /tmp directory if it doesn't exist
-			const gitBashPath = vscode.workspace.getConfiguration('claudeCodeChatUI').get<string>('windows.gitBashPath', 'C:\\Program Files\\Git\\bin\\bash.exe');
-			if (fs.existsSync(gitBashPath)) {
-				cp.exec(`"${gitBashPath}" -c "mkdir -p /tmp"`, (error) => {
-					if (error) {
-						console.error('[Extension] Failed to create /tmp directory:', error);
-					} else {
-						console.log('[Extension] Successfully created /tmp directory for Git Bash');
-					}
-				});
+			const homeDir = require('os').homedir();
+			const claudeDir = require('path').join(homeDir, '.claude');
+			
+			// Create directory if it doesn't exist
+			if (!fs.existsSync(claudeDir)) {
+				fs.mkdirSync(claudeDir, { recursive: true });
+				console.log('[Extension] Successfully created ~/.claude directory at:', claudeDir);
 			}
 		} catch (error) {
-			console.error('[Extension] Error creating /tmp directory:', error);
+			console.error('[Extension] Error creating ~/.claude directory:', error);
 		}
 	}
 

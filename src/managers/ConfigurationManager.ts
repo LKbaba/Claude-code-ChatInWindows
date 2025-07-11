@@ -99,18 +99,21 @@ export class ConfigurationManager {
         
         settings['mcp.servers'].forEach((server) => {
             if (server.name && server.command) {
-                // Build server configuration
+                // Build server configuration with variable expansion
                 const serverConfig: any = {
-                    command: server.command
+                    command: this._expandVariables(server.command)
                 };
                 
-                // Add args if provided
+                // Add args if provided with variable expansion
                 if (server.args) {
                     if (typeof server.args === 'string') {
-                        // If args is a string, split it into array
-                        serverConfig.args = server.args.trim().split(/\s+/);
+                        // If args is a string, split it into array and expand variables
+                        serverConfig.args = server.args.trim().split(/\s+/).map((arg: string) => this._expandVariables(arg));
                     } else if (Array.isArray(server.args)) {
-                        serverConfig.args = server.args;
+                        // Expand variables in each argument
+                        serverConfig.args = server.args.map((arg: any) => 
+                            typeof arg === 'string' ? this._expandVariables(arg) : arg
+                        );
                     }
                 }
                 
@@ -126,13 +129,18 @@ export class ConfigurationManager {
                             server.env.split(/\s+/).forEach((pair: string) => {
                                 const [key, value] = pair.split('=');
                                 if (key && value) {
-                                    envObj[key] = value;
+                                    envObj[key] = this._expandVariables(value);
                                 }
                             });
                             serverConfig.env = envObj;
                         }
                     } else if (typeof server.env === 'object') {
-                        serverConfig.env = server.env;
+                        // Expand variables in object values
+                        const expandedEnv: any = {};
+                        for (const [key, value] of Object.entries(server.env)) {
+                            expandedEnv[key] = typeof value === 'string' ? this._expandVariables(value) : value;
+                        }
+                        serverConfig.env = expandedEnv;
                     }
                 }
                 
@@ -303,6 +311,37 @@ export class ConfigurationManager {
     public getApiKey(): string {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         return config.get<string>('api.key', '');
+    }
+
+    /**
+     * Expands environment variables in strings (e.g., $HOME, ${VAR})
+     * Supports both $VAR and ${VAR} syntax
+     * @param value String potentially containing environment variables
+     * @returns String with expanded variables
+     */
+    private _expandVariables(value: string): string {
+        if (!value || typeof value !== 'string') {
+            return value;
+        }
+
+        // Replace ${VAR} and $VAR with environment variable values
+        return value.replace(/\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, p1, p2) => {
+            const varName = p1 || p2;
+            const envValue = process.env[varName];
+            
+            // If variable exists, return its value; otherwise, return original
+            if (envValue !== undefined) {
+                return envValue;
+            }
+            
+            // Special handling for common variables
+            if (varName === 'HOME' || varName === 'USERPROFILE') {
+                return os.homedir();
+            }
+            
+            // Return original if variable not found
+            return match;
+        });
     }
 
 }

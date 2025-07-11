@@ -157,6 +157,18 @@ export function optimizeToolInput(
             }
             break;
 
+        case 'Grep':
+            // v1.0.45 redesigned the Grep tool with new parameters
+            // Ensure compatibility by logging parameters for debugging
+            console.log(`Grep tool parameters: pattern="${optimizedInput.pattern}", path="${optimizedInput.path || '.'}", include="${optimizedInput.include || ''}", exclude="${optimizedInput.exclude || ''}"`);
+            
+            // Fix Windows path if provided
+            if (optimizedInput.path && process.platform === 'win32') {
+                // Convert Windows backslashes to forward slashes for consistency
+                optimizedInput.path = optimizedInput.path.replace(/\\/g, '/');
+            }
+            break;
+
         // Add more tool-specific optimizations as needed
     }
 
