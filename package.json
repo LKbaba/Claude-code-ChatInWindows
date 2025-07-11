@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-chatinwindows",
+  "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
   "version": "1.3.4",
