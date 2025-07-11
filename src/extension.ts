@@ -1227,12 +1227,110 @@ class ClaudeChatProvider {
 
 	private async _executeSlashCommand(command: string): Promise<void> {
 		try {
-			const terminal = await this._windowsCompatibility.createTerminal(`Claude: ${command.split(' ')[0]}`);
-			const fullCommand = this._windowsCompatibility.getTerminalCommand(command, this._currentSessionId);
-			terminal.sendText(fullCommand);
-			terminal.show();
+			console.log(`[ClaudeChatProvider] Starting _executeSlashCommand for: /${command}`);
+			
+			// Since we're using SDK mode (not interactive REPL), we need to handle slash commands internally
+			// Slash commands only work in interactive Claude CLI, not in SDK mode with -p flag
+			
+			switch (command.toLowerCase()) {
+				case 'help':
+					this._sendAndSaveMessage({
+						type: 'output',
+						data: `## Claude Code Chat - Available Commands
+
+**Slash Commands:**
+• \`/help\` - Show this help message
+• \`/clear\` - Clear conversation history
+• \`/status\` - Show current session status
+• \`/cost\` - Show token usage and cost
+• \`/model\` - Switch AI model
+• \`/config\` - View configuration
+
+**Features:**
+• Ask questions about your codebase
+• Edit and create files
+• Run commands and tests  
+• Get code explanations and reviews
+
+**Note:** This VS Code extension uses Claude Code in SDK mode. Some CLI-specific commands like /login, /doctor, /mcp are not available here. Use the terminal for full CLI features.`
+					});
+					return;
+					
+				case 'clear':
+					// Clear conversation history
+					if (this._currentSessionId) {
+						this._conversationManager.clearCurrentConversation();
+					}
+					this._currentSessionId = undefined;
+					this._panel?.webview.postMessage({ type: 'clearMessages' });
+					this._sendAndSaveMessage({
+						type: 'output',
+						data: 'Conversation history cleared. Starting fresh!'
+					});
+					return;
+					
+				case 'status':
+					const sessionInfo = this._currentSessionId 
+						? `Active session: ${this._currentSessionId}`
+						: 'No active session';
+					const modelInfo = `Model: ${this._selectedModel || 'opus'}`;
+					const processInfo = this._processService.isProcessRunning() 
+						? 'Claude process: Running'
+						: 'Claude process: Not running';
+					this._sendAndSaveMessage({
+						type: 'output',
+						data: `## Status\n\n${sessionInfo}\n${modelInfo}\n${processInfo}\nClaude Code Chat UI v${this._context.extension.packageJSON.version}`
+					});
+					return;
+					
+				case 'cost':
+					// Get token usage from the last message in UI
+					const costMessage = this._currentSessionId 
+						? 'Check the token usage display at the bottom of each message in the chat.'
+						: 'No active session. Start a conversation to see token usage.';
+					this._sendAndSaveMessage({
+						type: 'output',
+						data: `## Token Usage\n\n${costMessage}\n\nNote: Detailed cost tracking is shown in the UI after each message.`
+					});
+					return;
+					
+				case 'model':
+					// Show model selection info
+					this._sendAndSaveMessage({
+						type: 'output',
+						data: `## Model Selection\n\nCurrent model: ${this._selectedModel || 'opus'}\n\nAvailable models:\n• opus - Claude 3 Opus (most capable)\n• sonnet - Claude 3.5 Sonnet (balanced)\n• haiku - Claude 3 Haiku (fastest)\n\nTo change model, use the model selector dropdown in the UI.`
+					});
+					return;
+					
+				case 'config':
+					// Show key configuration
+					const settings = this._configurationManager.getCurrentSettings();
+					const configInfo = {
+						'Git Bash Path': settings['windows.gitBashPath'],
+						'Thinking Mode': settings['thinking.intensity'],
+						'MCP Enabled': settings['mcp.enabled'],
+						'MCP Servers': settings['mcp.servers']?.length || 0
+					};
+					this._sendAndSaveMessage({
+						type: 'output',
+						data: `## Configuration\n\n\`\`\`json\n${JSON.stringify(configInfo, null, 2)}\n\`\`\`\n\nTo modify settings, use VS Code settings (Ctrl+,) and search for "Claude Code Chat".`
+					});
+					return;
+					
+				default:
+					// For unsupported commands, show a helpful message
+					this._sendAndSaveMessage({
+						type: 'output',
+						data: `The \`/${command}\` command is not available in this VS Code extension.\n\nThis extension uses Claude Code in SDK mode, which doesn't support all CLI commands.\n\nAvailable commands: /help, /clear, /status, /cost, /model, /config\n\nFor full CLI features, use Claude Code directly in the terminal.`
+					});
+					return;
+			}
 		} catch (error: any) {
-			vscode.window.showErrorMessage(`Failed to execute command: ${error.message}`);
+			console.error(`[ClaudeChatProvider] Exception in _executeSlashCommand:`, error);
+			this._sendAndSaveMessage({
+				type: 'error',
+				data: `Failed to execute command: ${error.message}`
+			});
 		}
 	}
 
