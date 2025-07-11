@@ -17,13 +17,12 @@ export interface ProcessOptions {
     cwd: string;
     sessionId?: string;
     model: string;
-    planMode?: boolean;
-    thinkingMode?: boolean;
-    thinkingIntensity?: string;
     windowsEnvironmentInfo?: string;
     customInstructions?: string;
     resumeFrom?: string;
     imagesInMessage?: string[];
+    // Note: planMode and thinkingMode are handled through message prefixes
+    // thinkingIntensity is also no longer needed here
 }
 
 export interface ProcessCallbacks {
@@ -202,15 +201,8 @@ export class ClaudeProcessService {
             args.push('--model', options.model);
         }
 
-        // Add thinking mode
-        if (options.thinkingMode && options.thinkingIntensity) {
-            args.push(`--${options.thinkingIntensity}`);
-        }
-
-        // Add plan mode
-        if (options.planMode) {
-            args.push('--plan');
-        }
+        // Note: Plan mode and thinking mode are now handled through message prefixes,
+        // not through CLI arguments. The actual prompts are added in extension.ts
 
         // Add custom instructions
         if (options.customInstructions) {

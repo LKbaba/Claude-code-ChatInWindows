@@ -305,6 +305,20 @@ class ClaudeChatProvider {
 		}, 100);
 	}
 
+	/**
+	 * Send a message to Claude Code CLI with optional Plan First and Thinking Mode features
+	 * 
+	 * @param message - The user's message
+	 * @param planMode - If true, Claude will first create a detailed plan and wait for approval
+	 * @param thinkingMode - If true, Claude will show its step-by-step thinking process
+	 * 
+	 * How it works:
+	 * - These features are implemented through message prefixes, not CLI arguments
+	 * - Plan First: Adds "PLAN FIRST FOR THIS MESSAGE ONLY:" prefix to make Claude plan before implementing
+	 * - Thinking Mode: Adds "THINK/THINK HARD/ULTRATHINK THROUGH THIS STEP BY STEP:" prefix for extended reasoning
+	 * - The prefixes trigger Claude's built-in behaviors without needing special CLI flags
+	 * - Both modes only affect the current message, not the entire conversation
+	 */
 	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean) {
 		if (this._processService.isProcessRunning()) {
 			// DEBUG: console.log("A request is already in progress. Please wait.");
@@ -346,11 +360,14 @@ class ClaudeChatProvider {
 		// Prepend mode instructions if enabled
 		let actualMessage = windowsEnvironmentInfo + message;
 		if (planMode) {
-			actualMessage = windowsEnvironmentInfo + 'PLAN FIRST BEFORE MAKING ANY CHANGES, SHOW ME IN DETAIL WHAT YOU WILL CHANGE. DONT PROCEED BEFORE I ACCEPT IN A DIFFERENT MESSAGE: \n' + message;
+			// Plan First mode: Claude will create a detailed plan and wait for approval before implementing
+			actualMessage = windowsEnvironmentInfo + 'PLAN FIRST FOR THIS MESSAGE ONLY: Plan first before making any changes. Show me in detail what you will change and wait for my explicit approval in a separate message before proceeding. Do not implement anything until I confirm. This planning requirement applies ONLY to this current message.\n\n' + message;
 		}
 		if (thinkingMode) {
+			// Thinking Mode: Claude will show its step-by-step reasoning process
+			// The intensity affects how deeply Claude thinks through the problem
 			let thinkingPrompt = '';
-			const thinkingMesssage = ' THROUGH THIS STEP BY STEP: \n';
+			const thinkingMessage = ' THROUGH THIS STEP BY STEP: \n\n';
 			switch (thinkingIntensity) {
 				case 'think':
 					thinkingPrompt = 'THINK';
@@ -367,7 +384,7 @@ class ClaudeChatProvider {
 				default:
 					thinkingPrompt = 'THINK';
 			}
-			actualMessage = windowsEnvironmentInfo + thinkingPrompt + thinkingMesssage + message;
+			actualMessage = windowsEnvironmentInfo + thinkingPrompt + thinkingMessage + actualMessage;
 		}
 
 		this._sendAndSaveMessage({ type: 'userInput', data: message });
@@ -400,10 +417,9 @@ class ClaudeChatProvider {
 			cwd: cwd,
 			sessionId: this._currentSessionId,
 			model: this._selectedModel,
-			planMode: planMode,
-			thinkingMode: thinkingMode,
-			thinkingIntensity: thinkingIntensity,
 			windowsEnvironmentInfo: windowsEnvironmentInfo
+			// Note: planMode and thinkingMode are handled through message prefixes above,
+			// not passed to ProcessService
 		};
 
 		// Prepare callbacks for process service
