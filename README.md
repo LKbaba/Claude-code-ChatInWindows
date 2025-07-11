@@ -175,27 +175,6 @@ npm run package
 * **Open Chat Panel**: Press `Ctrl+Shift+C`
 * **File Explorer Icon**: There's an icon next to the new folder button, click it to open
 
-**Example Configuration:**
-
-```jsonc
-{
-  // Claude's thinking intensity: think | think-hard | think-harder | ultrathink
-  "claudeCodeChatUI.thinking.intensity": "think-harder",
-
-  // Path to Git Bash (usually auto-detected, no changes needed)
-  "claudeCodeChatUI.windows.gitBashPath": "C:\\Program Files\\Git\\bin\\bash.exe",
-
-  // MCP Modular Extensions
-  "claudeCodeChatUI.mcp.enabled": true,
-  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"],
-
-  // API Configuration (for third-party services)
-  "claudeCodeChatUI.api.useCustomAPI": false,
-  "claudeCodeChatUI.api.key": "",
-  "claudeCodeChatUI.api.baseUrl": "https://api.anthropic.com"
-}
-```
-
 ### 🔑 Using Third-Party APIs
 
 This extension supports third-party API services (e.g., tu-zi.com, openrouter.ai). Here's how to use them:
@@ -238,7 +217,7 @@ claude chat -m opus "hello"  # Test if configuration works
 > 💡 **Tips**:
 >
 > * **Important**: Initialization is required again after system restart 💡
-> * Third-party APIs are usually more affordable for budget-conscious users. Common services: [tu-zi.com](https://tu-zi.com), [openrouter.ai](https://openrouter.ai), [anyrouter.top](https://anyrouter.top)
+> * Third-party APIs are usually more affordable for budget-conscious users. Common services: [api.tu-zi.com](https://api.tu-zi.com/), [openrouter.ai](https://openrouter.ai), [anyrouter.top](https://anyrouter.top)
 > * Toggle between official account and custom API anytime via the switch
 > * Wrong API key will show "processing" until timeout
 

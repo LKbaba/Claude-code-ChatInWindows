@@ -203,27 +203,6 @@ npm run package
 * **開啟聊天介面**：按快捷鍵 `Ctrl+Shift+C`
 * **新建資料夾右邊**：有一個圖標，點擊即可
 
-**設定範例：**
-
-```jsonc
-{
-  // Claude 思考強度：think | think-hard | think-harder | ultrathink
-  "claudeCodeChatUI.thinking.intensity": "think-harder",
-
-  // Git Bash 路徑（預設自動偵測，一般無需修改）
-  "claudeCodeChatUI.windows.gitBashPath": "C:\\Program Files\\Git\\bin\\bash.exe",
-
-  // MCP 模組化擴充
-  "claudeCodeChatUI.mcp.enabled": true,
-  "claudeCodeChatUI.mcp.servers": ["http://localhost:7070"],
-
-  // API 設定（支援第三方 API 服務）
-  "claudeCodeChatUI.api.useCustomAPI": false,
-  "claudeCodeChatUI.api.key": "",
-  "claudeCodeChatUI.api.baseUrl": "https://api.anthropic.com"
-}
-```
-
 ### 🔑 使用第三方 API
 
 本擴充套件支援使用第三方 API 服務（如 tu-zi.com、openrouter.ai 等），使用範例如下：
@@ -266,9 +245,10 @@ claude chat -m opus "hello"  # 測試是否設定成功
 > 💡 **使用提示**：
 >
 > * **重要**：電腦關機重啟以後需要重新執行初始化💡
-> * 使用第三方 API 服務通常價格更實惠，適合預算有限的使用者，常見的第三方服務：[tu-zi.com](https://tu-zi.com)、[openrouter.ai](https://openrouter.ai)、[anyrouter.top](https://anyrouter.top)等
-> * 可以透過配置開關隨時切換官方帳號和自訂 API
-> * 如果 API 密鑰錯誤，聊天會一直顯示 "processing" 直到超時
+> * 使用第三方 API 服務通常價格更實惠，適合預算有限的用戶，常見的第三方服務：[api.tu-zi.com](https://api.tu-zi.com/)、[openrouter.ai](https://openrouter.ai) 、[anyrouter.top](https://anyrouter.top)等
+> * 可以透過設定開關隨時切換官方帳號和自訂 API
+> * 如果 API 金鑰錯誤，聊天會一直顯示 "processing" 直到逾時
+> * 兔子API提供Claude Code月卡，詳見[store.tu-zi.com](https://store.tu-zi.com/)
 
 ### ❓ 常見問題
 
