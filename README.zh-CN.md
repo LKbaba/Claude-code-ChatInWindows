@@ -133,16 +133,8 @@ claude chat -m sonnet -p "hello"
 # 如果看到 Claude 的回复，说明你的环境已准备就绪！
 ```
 
-### ⚠️ 版本兼容性说明
 **版本差异说明：**
 
-**重要：插件版本与 Claude Code CLI 版本的兼容性**
-
-| Claude Code CLI 版本 | 兼容的插件版本 |
-|---------------------|---------------|
-
-**为什么需要注意版本兼容性：**
-- 插件 v1.4.1 已更新以支持这一变化
 * Claude Code v1.0.51 增加了Windows原生支持，要求PATH中只有Git\cmd
 * Claude Code v1.0.48 将 shell 快照位置从 `/tmp` 改为 `~/.claude`
 
