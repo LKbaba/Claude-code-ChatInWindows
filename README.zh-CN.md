@@ -262,6 +262,17 @@ claude chat -m opus "hello"  # 测试是否配置成功
 
 * A: 在设置中取消勾选 "Use Custom API Endpoint" 即可
 
+**Q: 遇到 "rg: command not found" 错误？**
+* A: 这是可选的。如果想安装 ripgrep 以获得更好的搜索性能：
+  ```bash
+  # 在 Git Bash 中：
+  curl -L https://github.com/BurntSushi/ripgrep/releases/download/14.1.0/ripgrep-14.1.0-x86_64-pc-windows-msvc.zip -o ripgrep.zip
+  unzip ripgrep.zip && mkdir -p ~/bin
+  cp ripgrep-14.1.0-x86_64-pc-windows-msvc/rg.exe ~/bin/
+  echo 'alias rg="~/bin/rg"' >> ~/.bashrc && source ~/.bashrc
+  ```
+  * 注意：扩展内置的 Grep 工具即使没有 ripgrep 也能正常工作。
+
 ---
 
 ## 🤝 如何参与贡献

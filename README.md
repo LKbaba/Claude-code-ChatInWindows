@@ -248,6 +248,17 @@ claude chat -m opus "hello"  # Test if configuration works
 **Q: How to switch back to official account?**
 * A: Uncheck "Use Custom API Endpoint" in settings
 
+**Q: Getting "rg: command not found" error?**
+* A: This is optional. If you want to install ripgrep for better search performance:
+  ```bash
+  # In Git Bash:
+  curl -L https://github.com/BurntSushi/ripgrep/releases/download/14.1.0/ripgrep-14.1.0-x86_64-pc-windows-msvc.zip -o ripgrep.zip
+  unzip ripgrep.zip && mkdir -p ~/bin
+  cp ripgrep-14.1.0-x86_64-pc-windows-msvc/rg.exe ~/bin/
+  echo 'alias rg="~/bin/rg"' >> ~/.bashrc && source ~/.bashrc
+  ```
+  * Note: The extension's built-in Grep tool works fine without ripgrep.
+
 ---
 
 ## 🤝 How to Contribute
