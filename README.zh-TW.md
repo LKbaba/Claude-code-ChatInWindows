@@ -57,6 +57,12 @@
 >
 > 本部分包含**環境準備**、**擴充套件安裝**與**打包方法**三部分。
 
+> ⚡ **Claude Code v1.0.51+ 使用者注意**：
+>
+> * 請確保系統PATH中沒有`Git\bin`路徑，否則會遇到啟動錯誤
+> * 修改系統環境變數後必須**重啟電腦**才能生效
+> * 詳見[環境準備](#-第-1-步環境準備僅需一次)部分
+
 ### 🔹 第 1 步：環境準備（僅需一次）
 
 核心步驟解決了 Windows 環境下 `No suitable shell found` 的錯誤訊息問題。
@@ -69,14 +75,30 @@
 # 下載位址：https://nodejs.org/
 
 # 3. 以【管理員權限】打開 PowerShell 或 CMD，執行以下命令配置環境變數
-# （這會告訴 npm 忽略腳本檢查並指定 Git Bash 作為 shell，解決核心報錯）
 
 setx NPM_CONFIG_IGNORE_SCRIPTS true
-setx SHELL "C:\Program Files\Git\bin\bash.exe"
 
+# ⚠️ Claude Code 版本差異：
+# - v1.0.50 及以下：需要設定 SHELL 環境變數
+setx SHELL "C:\Program Files\Git\bin\bash.exe"
 # 注意：如果你的 Git 安裝在其他路徑，請相應修改 "C:\Program Files\Git\bin\bash.exe"
 
-# 4.[重要]完全關閉並重啟您的 PowerShell/CMD 窗口，讓環境變數生效
+# - v1.0.51 及以上：不需要設定 SHELL 環境變數，
+確保 PATH 中沒有 Git\bin
+
+# 4. [重要] 檢查您的 PATH 環境變數
+# Claude Code v1.0.51+ 要求 PATH 中只能有 Git\cmd，不能有 Git\bin
+# 
+# 修改方法：
+# - Win + X → 系統 → 進階系統設定 → 環境變數
+# - 在系統變數中找到 PATH，編輯
+# - ✅ 確保包含：C:\Program Files\Git\cmd
+# - ❌ 刪除包含：C:\Program Files\Git\bin 的所有條目
+# 
+# ⚠️ 重要：修改系統環境變數後必須【重啟電腦】才能完全生效！
+# 僅關閉PowerShell/CMD窗口是不夠的
+
+# 5. 重啟電腦後，驗證環境配置
 ```
 
 ### 🔹 第 2 步：安裝並驗證 Claude Code CLI
@@ -111,24 +133,10 @@ claude chat -m sonnet -p "hello"
 #    如果看到 Claude 的回覆，說明您的環境已準備就緒！
 ```
 
-### ⚠️ 版本相容性說明
+**版本差異說明：**
 
-**重要：擴充套件版本與 Claude Code CLI 版本的相容性**
-
-| Claude Code CLI 版本 | 相容的擴充套件版本 |
-|---------------------|-----------------|
-| v1.0.48 及以上      | 使用擴充套件 v1.4.1+ |
-| v1.0.47 及以下      | 使用擴充套件 v1.3.4  |
-
-**檢查您的 Claude Code CLI 版本：**
-```bash
-claude --version
-```
-
-**為什麼需要注意版本相容性：**
-- Claude Code v1.0.48 將 shell 快照位置從 `/tmp` 改為 `~/.claude`
-- 擴充套件 v1.4.1 已更新以支援這一變化
-- 使用不相符的版本可能導致 Bash 工具出現問題
+* Claude Code v1.0.51 增加了Windows原生支援，要求PATH中只有Git\cmd
+* Claude Code v1.0.48 將 shell 快照位置從 `/tmp` 改為 `~/.claude`
 
 ### 🔹 第 3 步：安裝本擴充套件
 
@@ -158,26 +166,6 @@ claude --version
 5. 選擇解壓縮出的 `.vsix` 檔案完成安裝
 
 > **💡 提示**：這種方式適合網路受限或需要離線安裝的使用者。
-
-**如何安裝 `.vsix` 檔案：**
-
-1. 開啟 VS Code 或 Cursor，按下 `Ctrl+Shift+P` 開啟命令面板。
-2. 輸入 `Install from VSIX` 並選擇 **「擴展: 從 VSIX 安裝...」**。
-3. 選擇專案根目錄下產生的 `.vsix` 檔案進行安裝。
-
----
-
-#### 📦 方式二：從 GitHub Release 下載安裝（離線安裝）
-
-如果您無法存取 VS Code 市場，可以直接下載已打包好的擴充套件檔案：
-
-1. **[🔗 前往 Releases 頁面](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)** 下載最新版本
-2. 下載 `claude-code-chatinwindows-1.x.x.zip` 壓縮包
-3. 解壓後找到 `claude-code-chatinwindows-x.x.vsix` 檔案
-4. 在 VS Code/Cursor 中按 `Ctrl+Shift+P`，輸入 `Install from VSIX` 並選擇 **"擴展: 從 VSIX 安裝..."**
-5. 選擇解壓出的 `.vsix` 檔案完成安裝
-
-> **💡 提示**：這種方式適合離線安裝的用戶。
 
 ---
 
@@ -270,6 +258,25 @@ claude chat -m opus "hello"  # 測試是否設定成功
 > * 兔子API提供Claude Code月卡，詳見[store.tu-zi.com](https://store.tu-zi.com/)
 
 ### ❓ 常見問題
+
+**Q: 升級到 Claude Code v1.0.51 後出現 "No suitable shell found" 錯誤？**
+
+* A: Claude Code v1.0.51 的 Windows 原生支援需要特定的環境配置：
+  1. 打開系統環境變數設定（Win + X → 系統 → 進階系統設定 → 環境變數）
+  2. 編輯PATH變數，移除所有包含 `Git\bin` 的條目
+  3. 確保PATH中有 `C:\Program Files\Git\cmd`
+  4. **重要：修改後必須重啟電腦才能生效**
+  
+  臨時測試方法（PowerShell，無需重啟）：
+
+  ```powershell
+  # 臨時移除 Git\bin（僅當前工作階段有效）
+  $env:PATH = $env:PATH -replace 'C:\\Program Files\\Git\\bin;?', ''
+  claude --version
+  claude code
+  ```
+  
+  如果臨時測試成功，請按上述步驟永久修改環境變數並重啟電腦。
 
 **Q: 為什麼設定了 API 但是聊天沒有回應？**
 

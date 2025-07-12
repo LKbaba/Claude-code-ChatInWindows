@@ -57,6 +57,12 @@
 >
 > This guide covers **Environment Setup**, **Extension Installation**, and **Packaging Instructions**.
 
+> ⚡ **Claude Code v1.0.51+ users notice**:
+>
+> * Ensure your system PATH does NOT contain `Git\bin`, or you'll encounter startup errors
+> * You must **restart your computer** after modifying system environment variables
+> * See [Environment Setup](#-step-1-set-up-your-environment-one-time-only) for details
+
 ### 🔹 Step 1: Set Up Your Environment (One-Time Only)
 
 This core step resolves the `No suitable shell found` error on Windows.
@@ -69,12 +75,30 @@ This core step resolves the `No suitable shell found` error on Windows.
 # Download here: https://nodejs.org/
 
 # 3. Open PowerShell or CMD as an [Administrator] and run the following commands to set environment variables
-#    (This tells npm to ignore scripts and sets Git Bash as the shell, fixing the core issue)
-setx NPM_CONFIG_IGNORE_SCRIPTS true
-setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
-#    Note: If you installed Git in a different directory, update the path accordingly.
 
-# 4. [IMPORTANT] Completely close and restart your PowerShell/CMD window for the changes to take effect.
+setx NPM_CONFIG_IGNORE_SCRIPTS true
+
+# ⚠️ Claude Code version differences:
+# - v1.0.50 and below: Need to set SHELL environment variable
+setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
+# Note: If you installed Git in a different directory, update the path accordingly.
+
+# - v1.0.51 and above: Do NOT set SHELL variable,
+ensure PATH does NOT contain Git\bin
+
+# 4. [IMPORTANT] Check your PATH environment variable
+# Claude Code v1.0.51+ requires PATH to only contain Git\cmd, NOT Git\bin
+# 
+# How to modify:
+# - Win + X → System → Advanced system settings → Environment Variables
+# - Find PATH in System variables, click Edit
+# - ✅ Ensure it contains: C:\Program Files\Git\cmd
+# - ❌ Remove any entries containing: C:\Program Files\Git\bin
+# 
+# ⚠️ IMPORTANT: You must RESTART YOUR COMPUTER after modifying system environment variables!
+# Simply closing PowerShell/CMD window is NOT enough
+
+# 5. After restart, verify your environment setup
 ```
 
 ### 🔹 Step 2: Install and Verify Claude Code CLI
@@ -103,24 +127,10 @@ claude chat -m sonnet -p "hello"
 #    If you see a reply from Claude, your environment is ready!
 ```
 
-### ⚠️ Version Compatibility Notice
+**Version notes:**
 
-**Important: Extension Version Compatibility with Claude Code CLI**
-
-| Claude Code CLI Version | Compatible Extension Version |
-|------------------------|----------------------------|
-| v1.0.48 and above     | Use extension v1.4.1+      |
-| v1.0.47 and below     | Use extension v1.3.4       |
-
-**To check your Claude Code CLI version:**
-```bash
-claude --version
-```
-
-**Why this matters:**
-- Claude Code v1.0.48 changed the shell snapshot location from `/tmp` to `~/.claude`
-- Extension v1.4.1 has been updated to support this change
-- Using mismatched versions may cause issues with the Bash tool
+* Claude Code v1.0.51 added native Windows support, requires PATH to only contain Git\cmd
+* Claude Code v1.0.48 changed the shell snapshot location from `/tmp` to `~/.claude`
 
 ### 🔹 Step 3: Install This Extension
 
@@ -241,6 +251,25 @@ claude chat -m opus "hello"  # Test if configuration works
 > * Wrong API key will show "processing" until timeout
 
 ### ❓ FAQ
+
+**Q: Getting "No suitable shell found" error after upgrading to Claude Code v1.0.51?**
+
+* A: Claude Code v1.0.51's native Windows support requires specific environment setup:
+  1. Open system environment variables (Win + X → System → Advanced system settings → Environment Variables)
+  2. Edit PATH variable, remove all entries containing `Git\bin`
+  3. Ensure PATH contains `C:\Program Files\Git\cmd`
+  4. **Important: You must restart your computer for changes to take effect**
+  
+  Temporary test method (PowerShell, no restart needed):
+
+  ```powershell
+  # Temporarily remove Git\bin (current session only)
+  $env:PATH = $env:PATH -replace 'C:\\Program Files\\Git\\bin;?', ''
+  claude --version
+  claude code
+  ```
+  
+  If the temporary test works, follow the steps above to permanently modify environment variables and restart.
 
 **Q: Why doesn't chat respond after configuring API?**
 * A: First-time custom API use requires command line initialization to ensure messages can be returned.
