@@ -57,6 +57,8 @@
 >
 > This guide covers **Environment Setup**, **Extension Installation**, and **Packaging Instructions**.
 
+## recommend not to use version 1.0.51 for now, as prompt adherence is suboptimal and MCP invocation is less effective. Please use version 1.0.48 (2025.07.13) instead
+
 > ⚡ **Claude Code v1.0.51+ users notice**:
 >
 > * Ensure your system PATH does NOT contain `Git\bin`, or you'll encounter startup errors
@@ -272,13 +274,17 @@ claude chat -m opus "hello"  # Test if configuration works
   If the temporary test works, follow the steps above to permanently modify environment variables and restart.
 
 **Q: Why doesn't chat respond after configuring API?**
+
 * A: First-time custom API use requires command line initialization to ensure messages can be returned.
 
 **Q: How to switch back to official account?**
+
 * A: Uncheck "Use Custom API Endpoint" in settings
 
 **Q: Getting "rg: command not found" error?**
+
 * A: This is optional. If you want to install ripgrep for better search performance:
+
   ```bash
   # In Git Bash:
   curl -L https://github.com/BurntSushi/ripgrep/releases/download/14.1.0/ripgrep-14.1.0-x86_64-pc-windows-msvc.zip -o ripgrep.zip
@@ -286,6 +292,7 @@ claude chat -m opus "hello"  # Test if configuration works
   cp ripgrep-14.1.0-x86_64-pc-windows-msvc/rg.exe ~/bin/
   echo 'alias rg="~/bin/rg"' >> ~/.bashrc && source ~/.bashrc
   ```
+
   * Note: The extension's built-in Grep tool works fine without ripgrep.
 
 ---
