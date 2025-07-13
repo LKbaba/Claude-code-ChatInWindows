@@ -7,6 +7,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { getToolStatusText, optimizeToolInput } from '../utils/utils';
 import { ConversationManager } from '../managers/ConversationManager';
+import { OperationTracker } from '../managers/OperationTracker';
+import { Operation, OperationType, OperationData } from '../types/Operation';
 
 export interface MessageCallbacks {
     onSystemMessage: (data: any) => void;
@@ -18,6 +20,7 @@ export interface MessageCallbacks {
     onError: (error: string) => void;
     sendToWebview: (message: any) => void;
     saveMessage: (message: any) => void;
+    onOperationTracked?: (operation: Operation) => void;
 }
 
 export interface TokenUpdate {
@@ -45,11 +48,14 @@ export class MessageProcessor {
     private _lastToolUseId: string | undefined;
     private _lastToolName: string | undefined;
     private _lastToolInput: any | undefined;
+    private _lastOperationTracked: boolean = false;
     private _currentRequestTokensInput: number = 0;
     private _currentRequestTokensOutput: number = 0;
+    private _currentMessageId: string | undefined;
 
     constructor(
         private _conversationManager: ConversationManager,
+        private _operationTracker: OperationTracker,
         private _workspaceRoot?: string
     ) {}
 
@@ -65,6 +71,7 @@ export class MessageProcessor {
         this._lastToolUseId = undefined;
         this._lastToolName = undefined;
         this._lastToolInput = undefined;
+        this._lastOperationTracked = false;
     }
 
     /**
@@ -165,6 +172,9 @@ export class MessageProcessor {
         console.log('[MessageProcessor] Processing assistant message:', message);
         if (!message.content || !Array.isArray(message.content)) return;
 
+        // Generate or use existing message ID
+        this._currentMessageId = message.id || `msg_${Date.now()}`;
+
         message.content.forEach((content: any) => {
             if (content.type === 'text' && content.text) {
                 console.log('[MessageProcessor] Assistant text:', content.text);
@@ -187,6 +197,9 @@ export class MessageProcessor {
      * Process tool use
      */
     private _processToolUse(content: any, callbacks: MessageCallbacks): void {
+        // Reset tracking flag for new tool use
+        this._lastOperationTracked = false;
+        
         // Store tool info for result matching
         this._lastToolUseId = content.id;
         this._lastToolName = content.name;
@@ -197,6 +210,10 @@ export class MessageProcessor {
             content.name,
             content.input
         );
+
+        // Track operation based on tool type
+        this._trackOperation(content, callbacks);
+        this._lastOperationTracked = true;
 
         // Send tool use message
         callbacks.saveMessage({
@@ -213,6 +230,183 @@ export class MessageProcessor {
         const toolStatusText = getToolStatusText(content.name);
         let details = this._getToolDetails(content);
         callbacks.onToolStatus(content.name, toolStatusText + details);
+    }
+
+    /**
+     * Track operation based on tool usage
+     */
+    private _trackOperation(content: any, callbacks: MessageCallbacks): void {
+        console.log('[MessageProcessor] _trackOperation called with:', content);
+        
+        let operationType: OperationType | null = null;
+        let operationData: OperationData = {};
+
+        switch (content.name) {
+            case 'Write':
+                operationType = OperationType.FILE_CREATE;
+                operationData = {
+                    filePath: content.input.file_path,
+                    content: content.input.content || ''
+                };
+                break;
+
+            case 'Edit':
+                operationType = OperationType.FILE_EDIT;
+                operationData = {
+                    filePath: content.input.file_path,
+                    oldString: content.input.old_string || '',
+                    newString: content.input.new_string || '',
+                    replaceAll: content.input.replace_all || false
+                };
+                break;
+
+            case 'MultiEdit':
+                operationType = OperationType.MULTI_EDIT;
+                operationData = {
+                    filePath: content.input.file_path,
+                    edits: content.input.edits || [],
+                    isMultiEdit: true
+                };
+                break;
+
+            case 'Bash':
+                // Analyze bash command for file operations
+                const command = content.input.command || '';
+                const fileOpResult = this._analyzeBashCommand(command);
+                
+                if (fileOpResult) {
+                    operationType = fileOpResult.type;
+                    operationData = fileOpResult.data;
+                } else {
+                    operationType = OperationType.BASH_COMMAND;
+                    operationData = {
+                        command: command
+                    };
+                }
+                break;
+        }
+
+        // Track the operation if we identified one
+        console.log('[MessageProcessor] Operation type:', operationType);
+        console.log('[MessageProcessor] Operation data:', operationData);
+        console.log('[MessageProcessor] Has operation tracker:', !!this._operationTracker);
+        
+        if (operationType && this._operationTracker) {
+            const operation = this._operationTracker.trackOperation(
+                operationType,
+                operationData,
+                this._currentMessageId,
+                content.id
+            );
+            console.log('[MessageProcessor] Created operation:', operation);
+
+            // Notify callback if available
+            if (callbacks.onOperationTracked) {
+                console.log('[MessageProcessor] Calling onOperationTracked callback');
+                callbacks.onOperationTracked(operation);
+            } else {
+                console.log('[MessageProcessor] No onOperationTracked callback available');
+            }
+        }
+    }
+
+    /**
+     * Parse operation input from tool result content
+     */
+    private _parseOperationFromResult(toolName: string, resultContent: string): any {
+        switch (toolName) {
+            case 'Write':
+                // Parse "File created successfully at: [path]"
+                const writeMatch = resultContent.match(/File created successfully at:\s*(.+)/);
+                if (writeMatch) {
+                    return {
+                        file_path: writeMatch[1].trim(),
+                        content: '' // Content not available from result
+                    };
+                }
+                break;
+                
+            case 'Edit':
+            case 'MultiEdit':
+                // Parse "File updated successfully at: [path]" or similar
+                const editMatch = resultContent.match(/File (?:updated|edited) successfully at:\s*(.+)/);
+                if (editMatch) {
+                    return {
+                        file_path: editMatch[1].trim(),
+                        old_string: '',
+                        new_string: ''
+                    };
+                }
+                break;
+                
+            case 'Bash':
+                // For bash commands, we need to analyze the command from result
+                // This is more complex and would need the actual command
+                return null;
+        }
+        
+        return null;
+    }
+
+    /**
+     * Analyze bash command to extract file operations
+     */
+    private _analyzeBashCommand(command: string): { type: OperationType; data: OperationData } | null {
+        // Remove file
+        if (command.includes('rm ') && !command.includes('rmdir')) {
+            const match = command.match(/rm\s+(?:-[rf]+\s+)?([^\s]+)/);
+            if (match) {
+                return {
+                    type: OperationType.FILE_DELETE,
+                    data: {
+                        filePath: match[1],
+                        content: '' // We'll need to read content before deletion in UndoRedoManager
+                    }
+                };
+            }
+        }
+
+        // Rename/move file
+        if (command.includes('mv ')) {
+            const match = command.match(/mv\s+([^\s]+)\s+([^\s]+)/);
+            if (match) {
+                return {
+                    type: OperationType.FILE_RENAME,
+                    data: {
+                        oldPath: match[1],
+                        newPath: match[2]
+                    }
+                };
+            }
+        }
+
+        // Create directory
+        if (command.includes('mkdir')) {
+            const match = command.match(/mkdir\s+(?:-p\s+)?([^\s]+)/);
+            if (match) {
+                return {
+                    type: OperationType.DIRECTORY_CREATE,
+                    data: {
+                        dirPath: match[1]
+                    }
+                };
+            }
+        }
+
+        // Remove directory
+        if (command.includes('rmdir') || (command.includes('rm') && command.includes('-r'))) {
+            const match = command.match(/(?:rmdir|rm\s+-r[f]*)\s+([^\s]+)/);
+            if (match) {
+                return {
+                    type: OperationType.DIRECTORY_DELETE,
+                    data: {
+                        dirPath: match[1]
+                    }
+                };
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -305,6 +499,35 @@ export class MessageProcessor {
         console.log('[MessageProcessor] Processing tool result for tool:', toolName);
         console.log('[MessageProcessor] Tool result content type:', typeof resultContent);
         console.log('[MessageProcessor] Tool result content:', resultContent);
+        
+        // Track operation when we get successful tool results
+        // This handles cases where tool_use info isn't in assistant messages
+        console.log('[MessageProcessor] Checking if should track operation:', {
+            isError,
+            toolName,
+            lastOperationTracked: this._lastOperationTracked
+        });
+        
+        if (!isError && toolName && !this._lastOperationTracked) {
+            console.log('[MessageProcessor] Tracking operation from tool result for:', toolName);
+            
+            // Parse operation data from result content
+            const operationInput = this._parseOperationFromResult(toolName, resultContent);
+            console.log('[MessageProcessor] Parsed operation input:', operationInput);
+            
+            if (operationInput) {
+                this._trackOperation({
+                    name: toolName,
+                    input: operationInput,
+                    id: content.tool_use_id || this._lastToolUseId
+                }, callbacks);
+            } else {
+                console.log('[MessageProcessor] Failed to parse operation input from result');
+            }
+        }
+        
+        // Reset the tracking flag for next operation
+        this._lastOperationTracked = false;
         
         // Handle object content (e.g., from MCP tools)
         if (typeof resultContent === 'object' && resultContent !== null) {

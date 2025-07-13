@@ -13,6 +13,9 @@ import { ConversationManager } from './managers/ConversationManager';
 import { WindowsCompatibility } from './managers/WindowsCompatibility';
 import { ClaudeProcessService } from './services/ClaudeProcessService';
 import { MessageProcessor } from './services/MessageProcessor';
+import { OperationTracker } from './managers/OperationTracker';
+import { UndoRedoManager } from './managers/UndoRedoManager';
+import { OperationPreviewService } from './services/OperationPreview';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// DEBUG: console.log('Claude Code Chat extension is being activated!');
@@ -55,6 +58,17 @@ export async function activate(context: vscode.ExtensionContext) {
 		provider.loadConversation(filename);
 	});
 
+	// Register operation tracking commands (fix for "command not found" errors)
+	const operationTrackedCommand = vscode.commands.registerCommand('claude-code-chat.operationTracked', () => {
+		// Command is already handled through MessageProcessor callback
+		// This registration is just to prevent "command not found" errors
+	});
+
+	const operationChangedCommand = vscode.commands.registerCommand('claude-code-chat.operationChanged', () => {
+		// Command is already handled through MessageProcessor callback
+		// This registration is just to prevent "command not found" errors
+	});
+
 	// Register tree data provider for the activity bar view
 	const treeProvider = new ClaudeChatViewProvider(context.extensionUri, context);
 	vscode.window.registerTreeDataProvider('claude-code-chatui.chat', treeProvider);
@@ -69,7 +83,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	statusBarItem.command = 'claude-code-chat.openChat';
 	statusBarItem.show();
 
-	context.subscriptions.push(disposable, loadConversationDisposable, statusBarItem);
+	context.subscriptions.push(disposable, loadConversationDisposable, operationTrackedCommand, operationChangedCommand, statusBarItem);
 	// DEBUG: console.log('Claude Code Chat extension activation completed successfully!');
 }
 
@@ -94,6 +108,9 @@ class ClaudeChatProvider {
 	private _windowsCompatibility: WindowsCompatibility;
 	private _processService: ClaudeProcessService;
 	private _messageProcessor: MessageProcessor;
+	private _operationTracker: OperationTracker;
+	private _undoRedoManager: UndoRedoManager;
+	private _operationPreviewService: OperationPreviewService;
 
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
@@ -108,6 +125,11 @@ class ClaudeChatProvider {
 		this._conversationManager = new ConversationManager(this._context);
 		this._windowsCompatibility = new WindowsCompatibility(this._npmPrefixPromise, this._configurationManager);
 		
+		// Initialize operation tracking
+		this._operationTracker = new OperationTracker(this._context);
+		this._undoRedoManager = new UndoRedoManager(this._context, this._operationTracker);
+		this._operationPreviewService = new OperationPreviewService(this._operationTracker);
+		
 		// Initialize services
 		this._processService = new ClaudeProcessService(
 			this._windowsCompatibility,
@@ -119,6 +141,7 @@ class ClaudeChatProvider {
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 		this._messageProcessor = new MessageProcessor(
 			this._conversationManager,
+			this._operationTracker,
 			workspaceFolder?.uri.fsPath
 		);
 		
@@ -139,6 +162,16 @@ class ClaudeChatProvider {
 		// Resume session from latest conversation
 		const latestConversation = this._conversationManager.getLatestConversation();
 		this._currentSessionId = latestConversation?.sessionId;
+		
+		// Load saved operations
+		this._operationTracker.loadOperations().catch(error => {
+			console.error('[ClaudeChatProvider] Failed to load operations:', error);
+		});
+		
+		// Set current session in operation tracker
+		if (this._currentSessionId) {
+			this._operationTracker.setCurrentSession(this._currentSessionId);
+		}
 	}
 
 	public async show() {
@@ -255,6 +288,18 @@ class ClaudeChatProvider {
 						return;
 					case 'executeCustomCommand':
 						this._executeCustomCommand(message.command);
+						return;
+					case 'previewOperation':
+						this._previewOperation(message.operationId, message.action);
+						return;
+					case 'undoOperation':
+						this._undoOperation(message.operationId);
+						return;
+					case 'redoOperation':
+						this._redoOperation(message.operationId);
+						return;
+					case 'getOperationHistory':
+						this._sendOperationHistory();
 						return;
 				}
 			},
@@ -409,6 +454,7 @@ class ClaudeChatProvider {
 		// Reset message processor state for new conversation
 		if (!this._currentSessionId) {
 			this._messageProcessor.reset();
+			this._operationTracker.setCurrentSession('');
 		}
 
 		// Prepare process options
@@ -459,6 +505,8 @@ class ClaudeChatProvider {
 					onFinalResult: (result: any) => {
 						if (result.sessionId) {
 							this._currentSessionId = result.sessionId;
+							// Update operation tracker session
+							this._operationTracker.setCurrentSession(result.sessionId);
 							this._sendAndSaveMessage({
 								type: 'sessionInfo',
 								data: {
@@ -485,6 +533,15 @@ class ClaudeChatProvider {
 					},
 					saveMessage: (message: any) => {
 						this._sendAndSaveMessage(message);
+					},
+					onOperationTracked: (operation: any) => {
+						// Send operation info to UI
+						this._panel?.webview.postMessage({
+							type: 'operationTracked',
+							data: operation
+						});
+						// Save operations periodically
+						this._operationTracker.saveOperations();
 					}
 				});
 			},
@@ -533,6 +590,9 @@ class ClaudeChatProvider {
 
 		// Reset message processor
 		this._messageProcessor.reset();
+		
+		// Reset operation tracker session
+		this._operationTracker.setCurrentSession('');
 
 		// Notify webview to clear all messages and reset session
 		this._panel?.webview.postMessage({
@@ -1639,6 +1699,109 @@ class ClaudeChatProvider {
 		} catch (error: any) {
 			vscode.window.showErrorMessage(`Failed to execute custom command: ${error.message}`);
 		}
+	}
+
+	private async _previewOperation(operationId: string, action: 'undo' | 'redo'): Promise<void> {
+		try {
+			const preview = await this._operationPreviewService.generatePreview(operationId, action);
+			if (preview) {
+				this._panel?.webview.postMessage({
+					type: 'operationPreview',
+					data: preview
+				});
+			}
+		} catch (error: any) {
+			console.error('Failed to preview operation:', error);
+			this._panel?.webview.postMessage({
+				type: 'error',
+				data: `Failed to preview operation: ${error.message}`
+			});
+		}
+	}
+
+	private async _undoOperation(operationId: string): Promise<void> {
+		try {
+			this._panel?.webview.postMessage({
+				type: 'operationProgress',
+				data: 'Undoing operation...'
+			});
+
+			const result = await this._undoRedoManager.undo(operationId);
+			
+			if (result.success) {
+				this._sendAndSaveMessage({
+					type: 'operationUndone',
+					data: {
+						message: result.message,
+						operationId: operationId,
+						affectedOperations: result.affectedOperations
+					}
+				});
+			} else {
+				this._panel?.webview.postMessage({
+					type: 'operationError',
+					data: result.message
+				});
+			}
+			
+			// Refresh operation history
+			this._sendOperationHistory();
+		} catch (error: any) {
+			console.error('Failed to undo operation:', error);
+			this._panel?.webview.postMessage({
+				type: 'error',
+				data: `Failed to undo operation: ${error.message}`
+			});
+		}
+	}
+
+	private async _redoOperation(operationId: string): Promise<void> {
+		try {
+			this._panel?.webview.postMessage({
+				type: 'operationProgress',
+				data: 'Redoing operation...'
+			});
+
+			const result = await this._undoRedoManager.redo(operationId);
+			
+			if (result.success) {
+				this._sendAndSaveMessage({
+					type: 'operationRedone',
+					data: {
+						message: result.message,
+						operationId: operationId,
+						affectedOperations: result.affectedOperations
+					}
+				});
+			} else {
+				this._panel?.webview.postMessage({
+					type: 'operationError',
+					data: result.message
+				});
+			}
+			
+			// Refresh operation history
+			this._sendOperationHistory();
+		} catch (error: any) {
+			console.error('Failed to redo operation:', error);
+			this._panel?.webview.postMessage({
+				type: 'error',
+				data: `Failed to redo operation: ${error.message}`
+			});
+		}
+	}
+
+	private _sendOperationHistory(): void {
+		const activeOperations = this._operationTracker.getActiveOperations();
+		const undoneOperations = this._operationTracker.getUndoneOperations();
+		
+		this._panel?.webview.postMessage({
+			type: 'operationHistory',
+			data: {
+				active: activeOperations,
+				undone: undoneOperations
+			}
+		});
 	}
 
 

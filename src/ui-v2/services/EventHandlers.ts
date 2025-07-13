@@ -53,6 +53,30 @@ export class EventHandlers {
       case 'settingsData':
         this.stateManager.setState({ settings: message.settings });
         break;
+        
+      case 'operationTracked':
+        // Handle new operation tracked
+        const currentOperations = this.stateManager.getState().operations || [];
+        this.stateManager.setState({ 
+          operations: [...currentOperations, message.data] 
+        });
+        break;
+        
+      case 'operationChanged':
+        // Handle operation status change
+        const operations = this.stateManager.getState().operations || [];
+        const updatedOperations = operations.map(op => 
+          op.id === message.data.id ? message.data : op
+        );
+        this.stateManager.setState({ operations: updatedOperations });
+        break;
+        
+      case 'getOperationHistory':
+        // Response to operation history request
+        if (message.data) {
+          this.stateManager.setState({ operations: message.data });
+        }
+        break;
 
       // Add other message handlers as needed
       default:
