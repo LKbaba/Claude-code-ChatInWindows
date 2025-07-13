@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v1.4.1</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v1.4.2</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -203,7 +203,7 @@ export function getBodyContent(): string {
 
 	<!-- Settings modal -->
 	<div id="settingsModal" class="tools-modal" style="display: none;">
-		<div class="tools-modal-content">
+		<div class="tools-modal-content" style="max-height: 80vh;">
 			<div class="tools-modal-header">
 				<span>Claude Code Chat Settings</span>
 				<button class="tools-close-btn" onclick="hideSettingsModal()">✕</button>
@@ -241,6 +241,7 @@ export function getBodyContent(): string {
 								<option value="">Add from template...</option>
 								<option value="sequential-thinking">Sequential Thinking</option>
 								<option value="context7">Context7</option>
+								<option value="basic-memory">Basic Memory</option>
 							</select>
 						</div>
 						<div style="margin-top: 12px; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
@@ -561,6 +562,7 @@ export function getBodyContent(): string {
 			</div>
 		</div>
 	</div>
+
 
 	<!-- Custom Commands Management Modal -->
 	<div id="customCommandsModal" class="tools-modal" style="display: none;">

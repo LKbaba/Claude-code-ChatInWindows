@@ -1914,6 +1914,9 @@ export const uiScript = `
 				case 'mcpStatus':
 					updateMcpStatus(message.data);
 					break;
+				case 'mcpToolsData':
+					displayMcpTools(message.data);
+					break;
 				case 'customCommands':
 					displayCustomCommands(message.data);
 					break;
@@ -2072,6 +2075,8 @@ export const uiScript = `
 
 		updateStatus('Initializing...', 'disconnected');
 		
+		// Initialize status immediately
+		updateStatusWithTotals();
 
 		function parseSimpleMarkdown(markdown) {
 			const lines = markdown.split('\\n');
@@ -2661,14 +2666,26 @@ export const uiScript = `
 			title.style.cssText = 'margin: 0; font-size: 12px; font-weight: 600;';
 			title.textContent = 'MCP Server';
 			
+			const buttonsDiv = document.createElement('div');
+			buttonsDiv.style.cssText = 'display: flex; gap: 4px;';
+			
+			const viewToolsBtn = document.createElement('button');
+			viewToolsBtn.className = 'btn outlined';
+			viewToolsBtn.style.cssText = 'font-size: 11px; padding: 2px 6px;';
+			viewToolsBtn.textContent = 'View Tools';
+			viewToolsBtn.onclick = () => toggleMcpTools(serverId);
+			
 			const removeBtn = document.createElement('button');
 			removeBtn.className = 'btn outlined';
 			removeBtn.style.cssText = 'font-size: 11px; padding: 2px 6px;';
 			removeBtn.textContent = 'Remove';
 			removeBtn.onclick = () => removeMcpServer(serverId);
 			
+			buttonsDiv.appendChild(viewToolsBtn);
+			buttonsDiv.appendChild(removeBtn);
+			
 			headerDiv.appendChild(title);
-			headerDiv.appendChild(removeBtn);
+			headerDiv.appendChild(buttonsDiv);
 			
 			const fieldsDiv = document.createElement('div');
 			fieldsDiv.style.cssText = 'display: grid; gap: 8px;';
@@ -2690,6 +2707,13 @@ export const uiScript = `
 			serverDiv.appendChild(headerDiv);
 			serverDiv.appendChild(fieldsDiv);
 			
+			// Tools section (initially hidden)
+			const toolsSection = document.createElement('div');
+			toolsSection.id = \`tools-\${serverId}\`;
+			toolsSection.style.cssText = 'display: none; margin-top: 12px; padding: 12px; background: var(--vscode-editor-background); border-radius: 4px;';
+			toolsSection.innerHTML = '<p style="text-align: center; color: var(--vscode-descriptionForeground);">Loading tools...</p>';
+			
+			serverDiv.appendChild(toolsSection);
 			serversList.appendChild(serverDiv);
 			
 			function createField(label, className, placeholder, value) {
@@ -2722,6 +2746,97 @@ export const uiScript = `
 			}
 		}
 		
+		function toggleMcpTools(serverId) {
+			const serverEl = document.getElementById(serverId);
+			if (!serverEl) return;
+			
+			const toolsSection = document.getElementById(\`tools-\${serverId}\`);
+			if (!toolsSection) return;
+			
+			const buttons = serverEl.querySelectorAll('button');
+			const viewToolsBtn = buttons[0]; // First button is View Tools
+			
+			if (toolsSection.style.display === 'none') {
+				// Show tools
+				toolsSection.style.display = 'block';
+				viewToolsBtn.textContent = 'Hide Tools';
+				
+				// Load tools if not already loaded
+				if (!toolsSection.hasAttribute('data-loaded')) {
+					const nameInput = serverEl.querySelector('.mcp-server-name');
+					const serverName = nameInput?.value || 'Unknown Server';
+					
+					vscode.postMessage({
+						type: 'getMcpTools',
+						serverId: serverId,
+						serverName: serverName
+					});
+				}
+			} else {
+				// Hide tools
+				toolsSection.style.display = 'none';
+				viewToolsBtn.textContent = 'View Tools';
+			}
+		}
+		
+		
+		function displayMcpTools(data) {
+			// Find which server this is for (data should include serverId)
+			const serverElements = document.querySelectorAll('.mcp-server-item');
+			let targetServerId = null;
+			
+			// Find the server by name
+			serverElements.forEach(serverEl => {
+				const nameInput = serverEl.querySelector('.mcp-server-name');
+				if (nameInput && nameInput.value === data.serverName) {
+					targetServerId = serverEl.id;
+				}
+			});
+			
+			if (!targetServerId) return;
+			
+			const toolsSection = document.getElementById(\`tools-\${targetServerId}\`);
+			if (!toolsSection) return;
+			
+			toolsSection.setAttribute('data-loaded', 'true');
+			
+			if (data.error) {
+				toolsSection.innerHTML = \`
+					<div style="text-align: center; padding: 20px; color: var(--vscode-errorForeground);">
+						<p>Failed to get tool list</p>
+						<p style="font-size: 12px; margin-top: 8px;">\${data.error}</p>
+					</div>
+				\`;
+				return;
+			}
+			
+			const tools = data.tools || [];
+			if (tools.length === 0) {
+				toolsSection.innerHTML = \`
+					<div style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground);">
+						<p>This server does not provide any tools</p>
+					</div>
+				\`;
+				return;
+			}
+			
+			toolsSection.innerHTML = \`
+				<div style="border-top: 1px solid var(--vscode-panel-border); padding-top: 12px;">
+					<p style="font-size: 11px; color: var(--vscode-charts-green); font-family: 'Cascadia Mono', 'Courier New', monospace; margin: 0 0 8px 0;">
+						Successfully connected to \${tools.length} tool(s)
+					</p>
+					<div style="display: grid; gap: 8px; margin-top: 8px;">
+						\${tools.map(tool => \`
+							<div style="padding: 8px; background: var(--vscode-editor-background); border-radius: 4px;">
+								<div style="font-size: 12px; font-weight: 600; margin-bottom: 4px;">\${tool.name}</div>
+								<div style="font-size: 11px; color: var(--vscode-descriptionForeground);">\${tool.description || 'No description available'}</div>
+							</div>
+						\`).join('')}
+					</div>
+				</div>
+			\`;
+		}
+		
 		function addMcpFromTemplate() {
 			const templateSelector = document.getElementById('mcpTemplateSelector');
 			const templateValue = templateSelector.value;
@@ -2742,6 +2857,14 @@ export const uiScript = `
 					command: 'npx',
 					args: ['-y', '@upstash/context7-mcp@latest'],
 					env: {}
+				},
+				'basic-memory': {
+					name: 'basic-memory',
+					command: 'uvx',
+					args: ['--from', 'basic-memory', 'basic-memory', 'mcp'],
+					env: {
+						'BASIC_MEMORY_HOME': 'C:\\Users\\LiuKe\\.claude\\memory'
+					}
 				}
 			};
 			
@@ -2758,13 +2881,6 @@ export const uiScript = `
 					const serversList = document.getElementById('mcpServersList');
 					if (serversList && serversList.lastElementChild) {
 						serversList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-						// Highlight the new server briefly
-						serversList.lastElementChild.style.backgroundColor = 'rgba(0, 122, 204, 0.2)';
-						setTimeout(() => {
-							if (serversList.lastElementChild) {
-								serversList.lastElementChild.style.backgroundColor = '';
-							}
-						}, 1500);
 					}
 					// Update MCP status to show configured
 					updateMcpStatus({ 

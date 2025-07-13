@@ -1556,8 +1556,8 @@ function getStylesOld(): string {
         background-color: var(--vscode-editor-background);
         border: 1px solid var(--vscode-panel-border);
         border-radius: 6px;
-        width: 500px;
-        max-height: 600px;
+        width: 600px;
+        max-height: 80vh;
         display: flex;
         flex-direction: column;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -1596,7 +1596,6 @@ function getStylesOld(): string {
 
     .tools-list {
         padding: 20px;
-        max-height: 400px;
         overflow-y: auto;
     }
 

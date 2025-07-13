@@ -217,6 +217,9 @@ class ClaudeChatProvider {
 					case 'testMcpConnection':
 						this._testMcpConnection();
 						return;
+					case 'getMcpTools':
+						this._getMcpTools(message.serverId, message.serverName);
+						return;
 					case 'getClipboardText':
 						const clipboardText = await this._fileOperationsManager.getClipboardText();
 						this._panel?.webview.postMessage({
@@ -1192,7 +1195,260 @@ class ClaudeChatProvider {
 			data: mcpStatus
 		});
 	}
+	
+	private async _getMcpTools(serverId: string, serverName: string): Promise<void> {
+		try {
+			// Get MCP servers configuration
+			const settings = this._configurationManager.getCurrentSettings();
+			const mcpServers = settings['mcp.servers'] || [];
+			
+			// Find the server with matching name
+			const server = mcpServers.find((s: any) => s.name === serverName);
+			
+			if (!server) {
+				this._panel?.webview.postMessage({
+					type: 'mcpToolsData',
+					data: {
+						error: `Server "${serverName}" not found`
+					}
+				});
+				return;
+			}
+			
+			// Try to dynamically query the MCP server for tools
+			const dynamicTools = await this._queryMcpServerTools(server);
+			
+			if (dynamicTools && dynamicTools.length > 0) {
+				// Successfully got tools from server
+				this._panel?.webview.postMessage({
+					type: 'mcpToolsData',
+					data: {
+						tools: dynamicTools,
+						serverName: serverName
+					}
+				});
+				return;
+			}
+			
+			// Fallback to hardcoded tool lists
+			const toolLists: { [key: string]: any[] } = {
+				'basic-memory': [
+					{
+						name: 'write_note',
+						description: 'Create or update knowledge notes'
+					},
+					{
+						name: 'read_note',
+						description: 'Read specific note content'
+					},
+					{
+						name: 'search_notes',
+						description: 'Full-text search across knowledge base'
+					},
+					{
+						name: 'recent_activity',
+						description: 'View recent activities and updates'
+					},
+					{
+						name: 'build_context',
+						description: 'Build relevant context'
+					},
+					{
+						name: 'canvas',
+						description: 'Create visual knowledge graphs'
+					}
+				],
+				'sequential-thinking': [
+					{
+						name: 'sequential_thinking',
+						description: 'Process complex problems with structured thinking, breaking tasks into multiple thought steps'
+					}
+				],
+				'context7': [
+					{
+						name: 'resolve-library-id',
+						description: 'Resolve library name to Context7-compatible library ID'
+					},
+					{
+						name: 'get-library-docs',
+						description: 'Get latest official documentation and code examples for specific versions'
+					}
+				]
+			};
+			
+			// Get tools for the server from hardcoded list
+			const tools = toolLists[serverName] || [];
+			
+			// If no hardcoded tools and it's a custom server
+			if (tools.length === 0 && server.command) {
+				this._panel?.webview.postMessage({
+					type: 'mcpToolsData',
+					data: {
+						tools: [{
+							name: 'Dynamic tools',
+							description: `Unable to fetch tool list dynamically. MCP server may not be running or doesn't support tool discovery.\nCommand: ${server.command} ${server.args?.join(' ') || ''}`
+						}]
+					}
+				});
+				return;
+			}
+			
+			// Send tools data
+			this._panel?.webview.postMessage({
+				type: 'mcpToolsData',
+				data: {
+					tools: tools,
+					serverName: serverName
+				}
+			});
+			
+		} catch (error: any) {
+			this._panel?.webview.postMessage({
+				type: 'mcpToolsData',
+				data: {
+					error: `Failed to get tool list: ${error.message}`,
+					serverName: serverName
+				}
+			});
+		}
+	}
+	
+	/**
+	 * Dynamically query MCP server for available tools
+	 * @param server MCP server configuration
+	 * @returns Array of tools or null if failed
+	 */
+	private async _queryMcpServerTools(server: any): Promise<any[] | null> {
+		try {
+			console.log(`[MCP] Querying tools for server: ${server.name}`);
 
+			// Get execution environment for Windows compatibility
+			const execEnvironment = await this._windowsCompatibility.getExecutionEnvironment();
+			const spawnOptions = {
+				...execEnvironment.spawnOptions,
+				env: {
+					...execEnvironment.spawnOptions.env,
+					...(server.env || {})
+				}
+			};
+			
+			const command = server.command;
+			const args = server.args || [];
+			const mcpProcess = cp.spawn(command, args, spawnOptions);
+
+			if (!mcpProcess.stdout || !mcpProcess.stderr || !mcpProcess.stdin) {
+				console.error(`[MCP] Failed to get stdio streams for ${server.name}`);
+				return null;
+			}
+			
+			const mcpStdout = mcpProcess.stdout;
+			const mcpStderr = mcpProcess.stderr;
+			const mcpStdin = mcpProcess.stdin;
+
+			return new Promise((resolve) => {
+				let responseData = '';
+				let errorData = '';
+
+				const timeout = setTimeout(() => {
+					if (!mcpProcess.killed) {
+						mcpProcess.kill();
+					}
+					console.log(`[MCP] Timeout waiting for response from ${server.name}`);
+					resolve(null);
+				}, 5000); // 5-second timeout for the whole process
+
+				const cleanup = () => {
+					clearTimeout(timeout);
+					if (!mcpProcess.killed) {
+						mcpProcess.kill();
+					}
+				};
+
+				mcpStdout.on('data', (data: Buffer) => {
+					responseData += data.toString();
+					const lines = responseData.split('\n');
+					responseData = lines.pop() || ''; // Keep incomplete line
+
+					for (const line of lines) {
+						if (line.trim()) {
+							try {
+								const response = JSON.parse(line);
+
+								if (response.id === 1 && response.result) { // Initialization response
+									console.log(`[MCP] Initialized with ${server.name}.`);
+									if (response.result.capabilities?.tools) {
+										const toolListRequest = {
+											jsonrpc: '2.0',
+											id: 2,
+											method: 'tools/list',
+											params: {}
+										};
+										mcpStdin.write(JSON.stringify(toolListRequest) + '\n');
+									} else {
+										console.log(`[MCP] ${server.name} does not support tools.`);
+										cleanup();
+										resolve([]);
+									}
+								} else if (response.id === 2 && response.result) { // tools/list response
+									const tools = response.result.tools || [];
+									const toolList = tools.map((tool: any) => ({
+										name: tool.name || 'Unknown Tool',
+										description: tool.description || 'No description available.'
+									}));
+									console.log(`[MCP] Retrieved ${toolList.length} tools from ${server.name}.`);
+									cleanup();
+									resolve(toolList);
+								}
+							} catch (e) {
+								console.error(`[MCP] Error parsing JSON from ${server.name}:`, line, e);
+								// continue to next line
+							}
+						}
+					}
+				});
+
+				mcpStderr.on('data', (data: Buffer) => {
+					errorData += data.toString();
+				});
+
+				mcpProcess.on('error', (error: any) => {
+					console.error(`[MCP] Failed to spawn ${server.name}:`, error);
+					cleanup();
+					resolve(null);
+				});
+
+				mcpProcess.on('close', (code: number) => {
+					cleanup();
+					if (code !== 0 && code !== null) {
+						console.error(`[MCP] ${server.name} exited with code: ${code}`);
+						if(errorData) {
+							console.error(`[MCP] stderr:`, errorData);
+						}
+						resolve([]); // Resolve with empty array on error
+					}
+				});
+				
+				// Send initialization request
+				const initRequest = {
+					jsonrpc: '2.0',
+					id: 1,
+					method: 'initialize',
+					params: {
+						protocolVersion: '2024-11-05',
+						clientInfo: {
+							name: 'claude-code-chatui',
+							version: '1.0.0'
+						},
+						capabilities: {}
+					}
+				};
+				mcpStdin.write(JSON.stringify(initRequest) + '\n');
+			});
+		} catch (error) {
+			console.error(`[MCP] Error querying server tools for ${server.name}:`, error);
+			return null;
+		}
+	}
 
 	private _setSelectedModel(model: string): void {
 		// Validate model name to prevent issues mentioned in the GitHub issue
