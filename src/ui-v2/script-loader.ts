@@ -1920,6 +1920,37 @@ export const uiScript = `
 				case 'customCommands':
 					displayCustomCommands(message.data);
 					break;
+				case 'operationHistory':
+					// Update operation history UI and sync currentOperations
+					const allOperations = [...(message.data.active || []), ...(message.data.undone || [])];
+					currentOperations = allOperations;
+					renderOperationHistory(message.data);
+					break;
+					
+				case 'operationTracked':
+					// Add new operation to history
+					if (!currentOperations) {
+						currentOperations = [];
+					}
+					currentOperations.push(message.data);
+					updateOperationHistoryDisplay();
+					break;
+					
+				case 'operationChanged':
+					// Update existing operation
+					if (currentOperations) {
+						const index = currentOperations.findIndex(op => op.id === message.data.id);
+						if (index !== -1) {
+							currentOperations[index] = message.data;
+							updateOperationHistoryDisplay();
+						}
+					}
+					break;
+					
+				case 'operationPreview':
+					// Display operation preview
+					displayOperationPreview(message.data);
+					break;
 			}
 
 			if (message.type === 'settingsData') {
@@ -2077,6 +2108,9 @@ export const uiScript = `
 		
 		// Initialize status immediately
 		updateStatusWithTotals();
+		
+		// Request operation history on load
+		vscode.postMessage({ type: 'getOperationHistory' });
 
 		function parseSimpleMarkdown(markdown) {
 			const lines = markdown.split('\\n');
@@ -3113,9 +3147,380 @@ export const uiScript = `
 		window.toggleStats = toggleStats;
 		window.toggleConversationHistory = toggleConversationHistory;
 		window.toggleApiOptions = toggleApiOptions;
+		// Operation History Functions
+		let currentOperations = [];
+
+		function toggleOperationHistory() {
+			const historyPanel = document.getElementById('operationHistoryPanel');
+			const chatContainer = document.getElementById('chatContainer');
+			
+			if (historyPanel.style.display === 'none') {
+				// Show operation history panel
+				historyPanel.style.display = 'block';
+				chatContainer.style.display = 'none';
+				
+				// Request operation history from extension
+				vscode.postMessage({
+					type: 'getOperationHistory'
+				});
+			} else {
+				// Hide operation history panel
+				historyPanel.style.display = 'none';
+				chatContainer.style.display = 'flex';
+			}
+		}
+
+		function updateOperationHistoryDisplay() {
+			// Convert currentOperations to the format expected by renderOperationHistory
+			const activeOps = currentOperations.filter(op => !op.undone);
+			const undoneOps = currentOperations.filter(op => op.undone);
+			
+			renderOperationHistory({
+				active: activeOps,
+				undone: undoneOps
+			});
+		}
+
+		function renderOperationHistory(data) {
+			const historyContent = document.getElementById('operationHistoryContent');
+			const activeCountEl = document.getElementById('activeOperationsCount');
+			const undoneCountEl = document.getElementById('undoneOperationsCount');
+			
+			const activeOps = data.active || [];
+			const undoneOps = data.undone || [];
+			const allOps = [...activeOps, ...undoneOps];
+			
+			// Update stats
+			if (activeCountEl) activeCountEl.textContent = activeOps.length;
+			if (undoneCountEl) undoneCountEl.textContent = undoneOps.length;
+			
+			if (!historyContent) return;
+			
+			if (allOps.length === 0) {
+				historyContent.innerHTML = \`
+					<div class="operation-empty-state" style="text-align: center; padding: 40px 20px;">
+						<svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
+							<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+						</svg>
+						<p style="font-size: 14px; margin: 12px 0 4px 0; color: var(--vscode-foreground);">No Operation History</p>
+						<span style="font-size: 12px; color: var(--vscode-descriptionForeground);">Operations will appear here when you perform file actions</span>
+					</div>
+				\`;
+				return;
+			}
+			
+			let html = '<div class="operation-history-list">';
+			
+			// Render active operations
+			if (activeOps.length > 0) {
+				html += '<div class="operation-section">';
+				html += '<h4 style="font-size: 13px; margin: 0 0 12px 0; color: var(--vscode-foreground);">Active Operations</h4>';
+				html += '<div class="operation-cards">';
+				
+				activeOps.forEach((op, index) => {
+					html += renderOperationCard(op, index, false);
+				});
+				
+				html += '</div></div>';
+			}
+			
+			// Render undone operations
+			if (undoneOps.length > 0) {
+				html += '<div class="operation-section" style="margin-top: 24px;">';
+				html += '<h4 style="font-size: 13px; margin: 0 0 12px 0; color: var(--vscode-foreground);">Undone Operations</h4>';
+				html += '<div class="operation-cards">';
+				
+				undoneOps.forEach((op, index) => {
+					html += renderOperationCard(op, index, true);
+				});
+				
+				html += '</div></div>';
+			}
+			
+			html += '</div>';
+			historyContent.innerHTML = html;
+		}
+
+		function renderOperationCard(op, index, isUndone) {
+			const timestamp = new Date(op.timestamp).toLocaleTimeString();
+			
+			return \`
+				<div class="operation-card \${isUndone ? 'undone' : ''}" style="background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 12px; margin-bottom: 8px;">
+					<div class="operation-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+						<div class="operation-info" style="display: flex; align-items: center; gap: 8px;">
+							<span class="operation-icon">\${getOperationIcon(op.type || op.toolName)}</span>
+							<span class="operation-name" style="font-weight: 500;">\${getOperationLabel(op.type || op.toolName)}</span>
+							<span class="operation-id" style="color: var(--vscode-descriptionForeground); font-size: 11px;">#\${op.id}</span>
+						</div>
+						<div class="operation-timestamp" style="font-size: 11px; color: var(--vscode-descriptionForeground);">\${timestamp}</div>
+					</div>
+					<div class="operation-card-body" style="margin-bottom: 8px;">
+						\${renderOperationDetails(op)}
+					</div>
+					<div class="operation-card-footer" style="display: flex; gap: 8px;">
+						<button class="operation-action-btn" onclick="previewOperation('\${op.id}', '\${isUndone ? 'redo' : 'undo'}')" style="padding: 4px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 2px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+							<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+								<path d="M8 3C4.5 3 1.5 5.5 0 8c1.5 2.5 4.5 5 8 5s6.5-2.5 8-5c-1.5-2.5-4.5-5-8-5zm0 8c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3zm0-5c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+							</svg>
+							Preview
+						</button>
+						\${isUndone ? 
+							\`<button class="operation-action-btn redo" onclick="redoOperation('\${op.id}')" style="padding: 4px 12px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+								<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+									<path d="M12.5 8c0 2.5-2 4.5-4.5 4.5S3.5 10.5 3.5 8 5.5 3.5 8 3.5c1.3 0 2.5.6 3.3 1.5L9 7h4V3l-1.4 1.4C10.5 3 9.3 2.2 8 2.2c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6h-1.5z"/>
+								</svg>
+								Redo
+							</button>\` : 
+							\`<button class="operation-action-btn undo" onclick="undoOperation('\${op.id}')" style="padding: 4px 12px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+								<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+									<path d="M3.5 8c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5-2 4.5-4.5 4.5c-1.3 0-2.5-.6-3.3-1.5L7 9H3v4l1.4-1.4c1.1 1.4 2.8 2.2 4.6 2.2 3.3 0 6-2.7 6-6s-2.7-6-6-6-6 2.7-6 6h1.5z"/>
+								</svg>
+								Undo
+							</button>\`
+						}
+					</div>
+				</div>
+			\`;
+		}
+
+		function getOperationIcon(type) {
+			// Handle both old type format and new toolName format
+			const iconMap = {
+				'file_create': '📄',
+				'file_edit': '✏️',
+				'file_delete': '🗑️',
+				'file_rename': '📝',
+				'directory_create': '📁',
+				'directory_delete': '📁',
+				'bash_command': '⚡',
+				'multi_edit': '📝',
+				// New toolName format
+				'Write': '📄',
+				'Edit': '✏️',
+				'MultiEdit': '📝',
+				'Read': '👀',
+				'Bash': '⚡'
+			};
+			return iconMap[type] || '📄';
+		}
+
+		function getOperationLabel(type) {
+			// Handle both old type format and new toolName format
+			const labelMap = {
+				'file_create': 'Create File',
+				'file_edit': 'Edit File',
+				'file_delete': 'Delete File',
+				'file_rename': 'Rename File',
+				'directory_create': 'Create Directory',
+				'directory_delete': 'Delete Directory',
+				'bash_command': 'Bash Command',
+				'multi_edit': 'Multi Edit',
+				// New toolName format
+				'Write': 'Write File',
+				'Edit': 'Edit File',
+				'MultiEdit': 'Multi Edit',
+				'Read': 'Read File',
+				'Bash': 'Bash Command'
+			};
+			return labelMap[type] || type;
+		}
+
+		function renderOperationDetails(operation) {
+			// Handle both old format (data) and new format (params)
+			const data = operation.data || operation.params || {};
+			const type = operation.type || operation.toolName;
+			
+			switch (type) {
+				// Old format
+				case 'file_create':
+				case 'file_edit':
+				case 'file_delete':
+				case 'multi_edit':
+					return data.filePath ? \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>File:</strong> \${escapeHtml(getFileName(data.filePath))}</div>\` : '';
+					
+				case 'file_rename':
+					return data.oldPath && data.newPath 
+						? \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>Rename:</strong> \${escapeHtml(getFileName(data.oldPath))} → \${escapeHtml(getFileName(data.newPath))}</div>\`
+						: '';
+						
+				case 'directory_create':
+				case 'directory_delete':
+					return data.dirPath ? \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>Directory:</strong> \${escapeHtml(getFileName(data.dirPath))}</div>\` : '';
+					
+				case 'bash_command':
+					return data.command ? \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>Command:</strong> <code>\${escapeHtml(truncateCommand(data.command))}</code></div>\` : '';
+					
+				// New format
+				case 'Write':
+					return data.file_path ? \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>File:</strong> \${escapeHtml(data.file_path)}</div>\` : '';
+					
+				case 'Edit':
+				case 'MultiEdit':
+					let details = '';
+					if (data.file_path) {
+						details += \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>File:</strong> \${escapeHtml(data.file_path)}</div>\`;
+					}
+					if (data.replace_all !== undefined) {
+						details += \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>Mode:</strong> \${data.replace_all ? 'Replace All' : 'Single Replace'}</div>\`;
+					}
+					return details;
+					
+				case 'Read':
+					return data.file_path ? \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>File:</strong> \${escapeHtml(data.file_path)}</div>\` : '';
+					
+				case 'Bash':
+					return data.command ? \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>Command:</strong> <code>\${escapeHtml(data.command)}</code></div>\` : '';
+					
+				default:
+					return \`<div style="font-size: 12px; color: var(--vscode-descriptionForeground);"><strong>Operation:</strong> \${escapeHtml(type)}</div>\`;
+			}
+		}
+
+		function getFileName(path) {
+			const parts = path.split(/[\\/]/);
+			return parts[parts.length - 1] || path;
+		}
+
+		function truncateCommand(command, maxLength = 50) {
+			return command.length > maxLength 
+				? command.substring(0, maxLength) + '...'
+				: command;
+		}
+
+		function formatOperationTime(timestamp) {
+			const date = new Date(timestamp);
+			const now = new Date();
+			const diff = now.getTime() - date.getTime();
+			
+			if (diff < 60000) return 'Just now';
+			if (diff < 3600000) return \`\${Math.floor(diff / 60000)} minutes ago\`;
+			if (diff < 86400000) return \`\${Math.floor(diff / 3600000)} hours ago\`;
+			
+			return date.toLocaleDateString();
+		}
+
+		function undoOperation(operationId) {
+			vscode.postMessage({
+				type: 'undoOperation',
+				operationId: operationId
+			});
+		}
+
+		function redoOperation(operationId) {
+			vscode.postMessage({
+				type: 'redoOperation',
+				operationId: operationId
+			});
+		}
+
+		function previewOperation(operationId, action) {
+			vscode.postMessage({
+				type: 'previewOperation',
+				operationId: operationId,
+				action: action
+			});
+		}
+
+		function displayOperationPreview(preview) {
+			// Create modal for preview
+			const modal = document.createElement('div');
+			modal.className = 'preview-modal';
+			modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+			
+			const content = document.createElement('div');
+			content.className = 'preview-content';
+			content.style.cssText = 'background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border); border-radius: 8px; max-width: 80%; max-height: 80%; overflow: auto; padding: 20px; position: relative;';
+			
+			// Add close button
+			const closeBtn = document.createElement('button');
+			closeBtn.innerHTML = '×';
+			closeBtn.style.cssText = 'position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--vscode-editor-foreground); font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; line-height: 30px;';
+			closeBtn.onclick = () => document.body.removeChild(modal);
+			content.appendChild(closeBtn);
+			
+			// Add preview content
+			let html = '<h3 style="margin-top: 0;">Operation Preview: ' + (preview.action === 'undo' ? 'Undo' : 'Redo') + '</h3>';
+			html += '<div style="margin-bottom: 20px;">';
+			html += '<strong>Operation Type:</strong> ' + getOperationLabel(preview.operation.type || preview.operation.toolName) + '<br>';
+			html += '<strong>Operation ID:</strong> ' + preview.operation.id + '<br>';
+			html += '<strong>Time:</strong> ' + new Date(preview.operation.timestamp).toLocaleString();
+			html += '</div>';
+			
+			// Add changes section
+			if (preview.changes && preview.changes.length > 0) {
+				html += '<h4>Changes to be Applied:</h4>';
+				html += '<div style="font-family: monospace; font-size: 12px;">';
+				preview.changes.forEach(change => {
+					html += '<div style="margin-bottom: 10px; padding: 10px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px;">';
+					html += '<strong>' + change.type + ':</strong> ' + change.path;
+					if (change.diff) {
+						html += '<pre style="margin-top: 10px; overflow-x: auto;">' + escapeHtml(change.diff) + '</pre>';
+					}
+					html += '</div>';
+				});
+				html += '</div>';
+			}
+			
+			// Add cascading operations
+			if (preview.cascadingOps && preview.cascadingOps.length > 0) {
+				html += '<h4>Cascading Operations (' + preview.cascadingOps.length + '):</h4>';
+				html += '<ul>';
+				preview.cascadingOps.forEach(op => {
+					html += '<li>' + getOperationLabel(op.type || op.toolName) + ': ' + renderOperationDetails(op).replace(/<[^>]*>/g, '') + '</li>';
+				});
+				html += '</ul>';
+			}
+			
+			// Add warnings
+			if (preview.warnings && preview.warnings.length > 0) {
+				html += '<h4 style="color: var(--vscode-editorWarning-foreground);">Warnings:</h4>';
+				html += '<ul style="color: var(--vscode-editorWarning-foreground);">';
+				preview.warnings.forEach(warning => {
+					html += '<li>' + warning + '</li>';
+				});
+				html += '</ul>';
+			}
+			
+			// Add action buttons
+			html += '<div style="margin-top: 20px; text-align: right;">';
+			html += '<button onclick="document.body.removeChild(document.querySelector(\\\'.preview-modal\\\'))" style="margin-right: 10px; padding: 6px 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer;">Cancel</button>';
+			html += '<button onclick="executePreviewAction(\\\'' + preview.operation.id + '\\\', \\\'' + preview.action + '\\\'); document.body.removeChild(document.querySelector(\\\'.preview-modal\\\'))" style="padding: 6px 12px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer;">Confirm ' + (preview.action === 'undo' ? 'Undo' : 'Redo') + '</button>';
+			html += '</div>';
+			
+			content.innerHTML += html;
+			modal.appendChild(content);
+			document.body.appendChild(modal);
+			
+			// Click outside to close
+			modal.onclick = (e) => {
+				if (e.target === modal) {
+					document.body.removeChild(modal);
+				}
+			};
+		}
+		
+		function executePreviewAction(operationId, action) {
+			if (action === 'undo') {
+				undoOperation(operationId);
+			} else {
+				redoOperation(operationId);
+			}
+		}
+		
+		function escapeHtml(text) {
+			const div = document.createElement('div');
+			div.textContent = text;
+			return div.innerHTML;
+		}
+
 		window.togglePlanMode = togglePlanMode;
 		window.toggleThinkingMode = toggleThinkingMode;
 		window.confirmThinkingIntensity = confirmThinkingIntensity;
+		window.toggleOperationHistory = toggleOperationHistory;
+		window.undoOperation = undoOperation;
+		window.redoOperation = redoOperation;
+		window.previewOperation = previewOperation;
+		window.executePreviewAction = executePreviewAction;
 		window.updateThinkingIntensityDisplay = updateThinkingIntensityDisplay;
 		window.openModelTerminal = openModelTerminal;
 		window.handleCustomCommandKeydown = handleCustomCommandKeydown;

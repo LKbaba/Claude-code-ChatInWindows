@@ -14,6 +14,7 @@ import { toolStyles } from './features/tools';
 import { filePickerStyles } from './features/file-picker';
 import { statsStyles } from './features/statistics';
 import { diffStyles } from './features/diff-viewer';
+import { operationStyles } from './features/operations';
 import { animationStyles } from './base/animations';
 import { themeStyles } from './themes/index';
 
@@ -39,6 +40,7 @@ export function getCombinedStyles(): string {
     ${filePickerStyles}
     ${statsStyles}
     ${diffStyles}
+    ${operationStyles}
     
     /* Animations & Transitions */
     ${animationStyles}
@@ -73,6 +75,7 @@ export {
   filePickerStyles,
   statsStyles,
   diffStyles,
+  operationStyles,
   animationStyles,
   themeStyles
 };

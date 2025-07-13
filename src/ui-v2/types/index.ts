@@ -50,6 +50,9 @@ export interface UIState {
     // Messages
     messages: Message[];
     
+    // Operations (for undo/redo)
+    operations?: any[]; // Will be typed as Operation[] when we import the type
+    
     // Token Tracking
     inputTokens: number;
     outputTokens: number;

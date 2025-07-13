@@ -2294,6 +2294,149 @@ function getStylesOld(): string {
         flex-direction: column;
     }
 
+    /* Operation History Panel Styles */
+    .operation-history-stats {
+        display: flex;
+        gap: 24px;
+        padding: 16px 20px;
+        background-color: var(--vscode-panel-background);
+        border-bottom: 1px solid var(--vscode-panel-border);
+    }
+
+    .operation-stat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+    }
+
+    .stat-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--vscode-foreground);
+    }
+
+    .operation-empty-state {
+        text-align: center;
+        padding: 40px 20px;
+    }
+
+    .operation-history-list {
+        padding: 20px;
+    }
+
+    .operation-section {
+        margin-bottom: 24px;
+    }
+
+    .operation-section-title {
+        font-size: 13px;
+        margin: 0 0 12px 0;
+        color: var(--vscode-foreground);
+        font-weight: 600;
+    }
+
+    .operation-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .operation-card {
+        background: var(--vscode-editor-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 4px;
+        padding: 12px;
+        transition: all 0.2s ease;
+    }
+
+    .operation-card:hover {
+        border-color: var(--vscode-focusBorder);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .operation-card.undone {
+        opacity: 0.6;
+    }
+
+    .operation-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .operation-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .operation-icon {
+        font-size: 16px;
+    }
+
+    .operation-name {
+        font-weight: 500;
+        font-size: 13px;
+    }
+
+    .operation-id {
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+    }
+
+    .operation-timestamp {
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+    }
+
+    .operation-card-body {
+        margin-bottom: 8px;
+    }
+
+    .operation-detail-item {
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+        margin-bottom: 4px;
+    }
+
+    .operation-card-footer {
+        display: flex;
+        gap: 8px;
+    }
+
+    .operation-action-btn {
+        padding: 4px 12px;
+        border: none;
+        border-radius: 2px;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .operation-action-btn:hover {
+        opacity: 0.8;
+        transform: translateY(-1px);
+    }
+
+    .operation-action-btn.undo {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+    }
+
+    .operation-action-btn.redo {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+    }
+
     .stats-header {
         padding: 14px 20px;
         border-bottom: 1px solid var(--vscode-panel-border);
