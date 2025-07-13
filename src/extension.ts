@@ -1028,8 +1028,8 @@ class ClaudeChatProvider {
 				return;
 			}
 			
-			// Create images directory if it doesn't exist
-			const imagesDir = vscode.Uri.joinPath(workspaceFolder.uri, 'images');
+			// Create CCimages directory if it doesn't exist
+			const imagesDir = vscode.Uri.joinPath(workspaceFolder.uri, 'CCimages');
 			try {
 				await vscode.workspace.fs.stat(imagesDir);
 			} catch {
