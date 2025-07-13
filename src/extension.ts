@@ -1322,18 +1322,54 @@ class ClaudeChatProvider {
 		try {
 			console.log(`[MCP] Querying tools for server: ${server.name}`);
 
+			// Expand environment variables in command and args using ConfigurationManager
+			const command = this._configurationManager.expandVariables(server.command);
+			
+			// Expand variables in args
+			let args: string[] = [];
+			if (server.args) {
+				if (typeof server.args === 'string') {
+					// If args is a string, split it and expand variables
+					args = server.args.trim().split(/\s+/).map((arg: string) => 
+						this._configurationManager.expandVariables(arg)
+					);
+				} else if (Array.isArray(server.args)) {
+					// Expand variables in each argument
+					args = server.args.map((arg: any) => 
+						typeof arg === 'string' ? this._configurationManager.expandVariables(arg) : arg
+					);
+				}
+			}
+			
+			// Expand variables in environment
+			let expandedEnv: any = {};
+			if (server.env) {
+				if (typeof server.env === 'object') {
+					for (const [key, value] of Object.entries(server.env)) {
+						let expandedValue = typeof value === 'string' ? 
+							this._configurationManager.expandVariables(value) : value;
+						
+						// Normalize Windows paths
+						if (typeof expandedValue === 'string' && process.platform === 'win32') {
+							expandedValue = require('path').normalize(expandedValue);
+						}
+						
+						expandedEnv[key] = expandedValue;
+					}
+				}
+			}
+
 			// Get execution environment for Windows compatibility
 			const execEnvironment = await this._windowsCompatibility.getExecutionEnvironment();
 			const spawnOptions = {
 				...execEnvironment.spawnOptions,
 				env: {
 					...execEnvironment.spawnOptions.env,
-					...(server.env || {})
+					...expandedEnv
 				}
 			};
 			
-			const command = server.command;
-			const args = server.args || [];
+			console.log(`[MCP] Spawning process - command: ${command}, args:`, args);
 			const mcpProcess = cp.spawn(command, args, spawnOptions);
 
 			if (!mcpProcess.stdout || !mcpProcess.stderr || !mcpProcess.stdin) {

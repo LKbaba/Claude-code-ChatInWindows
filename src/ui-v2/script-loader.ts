@@ -2863,7 +2863,7 @@ export const uiScript = `
 					command: 'uvx',
 					args: ['--from', 'basic-memory', 'basic-memory', 'mcp'],
 					env: {
-						'BASIC_MEMORY_HOME': 'C:\\Users\\LiuKe\\.claude\\memory'
+						'BASIC_MEMORY_HOME': '\${HOME}/.claude/memory'
 					}
 				}
 			};

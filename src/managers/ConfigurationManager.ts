@@ -72,10 +72,15 @@ export class ConfigurationManager {
         const mcpEnabled = config.get('mcp.enabled', false);
         const mcpServers = config.get('mcp.servers', []) as any[];
         
+        // Only report as configured if MCP is enabled AND there are servers
+        const isActuallyConfigured = mcpEnabled && mcpServers.length > 0;
+        
         return {
-            status: mcpEnabled ? 'configured' : 'disabled',
-            message: mcpEnabled ? `${mcpServers.length} server(s) configured` : 'MCP disabled',
-            servers: mcpServers
+            status: isActuallyConfigured ? 'configured' : 'disabled',
+            message: isActuallyConfigured 
+                ? `${mcpServers.length} server(s) configured` 
+                : (mcpEnabled ? 'MCP enabled but no servers configured' : 'MCP disabled'),
+            servers: isActuallyConfigured ? mcpServers : []
         };
     }
 
@@ -87,6 +92,8 @@ export class ConfigurationManager {
         const settings = this.getCurrentSettings();
         
         if (!settings['mcp.enabled'] || settings['mcp.servers'].length === 0) {
+            // Clean up old MCP configs when MCP is disabled or no servers
+            await this.cleanupOldMcpConfigs();
             return { config: null, configPath: null };
         }
 
@@ -101,18 +108,18 @@ export class ConfigurationManager {
             if (server.name && server.command) {
                 // Build server configuration with variable expansion
                 const serverConfig: any = {
-                    command: this._expandVariables(server.command)
+                    command: this.expandVariables(server.command)
                 };
                 
                 // Add args if provided with variable expansion
                 if (server.args) {
                     if (typeof server.args === 'string') {
                         // If args is a string, split it into array and expand variables
-                        serverConfig.args = server.args.trim().split(/\s+/).map((arg: string) => this._expandVariables(arg));
+                        serverConfig.args = server.args.trim().split(/\s+/).map((arg: string) => this.expandVariables(arg));
                     } else if (Array.isArray(server.args)) {
                         // Expand variables in each argument
                         serverConfig.args = server.args.map((arg: any) => 
-                            typeof arg === 'string' ? this._expandVariables(arg) : arg
+                            typeof arg === 'string' ? this.expandVariables(arg) : arg
                         );
                     }
                 }
@@ -129,7 +136,7 @@ export class ConfigurationManager {
                             server.env.split(/\s+/).forEach((pair: string) => {
                                 const [key, value] = pair.split('=');
                                 if (key && value) {
-                                    envObj[key] = this._expandVariables(value);
+                                    envObj[key] = this.expandVariables(value);
                                 }
                             });
                             serverConfig.env = envObj;
@@ -138,7 +145,15 @@ export class ConfigurationManager {
                         // Expand variables in object values
                         const expandedEnv: any = {};
                         for (const [key, value] of Object.entries(server.env)) {
-                            expandedEnv[key] = typeof value === 'string' ? this._expandVariables(value) : value;
+                            let expandedValue = typeof value === 'string' ? this.expandVariables(value) : value;
+                            
+                            // Normalize Windows paths
+                            if (typeof expandedValue === 'string' && process.platform === 'win32') {
+                                // Ensure proper path separators for Windows
+                                expandedValue = path.normalize(expandedValue);
+                            }
+                            
+                            expandedEnv[key] = expandedValue;
                         }
                         serverConfig.env = expandedEnv;
                     }
@@ -164,7 +179,16 @@ export class ConfigurationManager {
                 // Create temp directory within ~/.claude
                 const tempDir = fs.mkdtempSync(path.join(claudeDir, 'mcp-'));
                 mcpConfigPath = path.join(tempDir, 'mcp-config.json');
+                
+                // Log configuration before writing
+                console.log('[buildMcpConfig] Generated MCP configuration:', JSON.stringify(mcpConfig, null, 2));
+                
                 fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
+                
+                // Verify the file was written correctly
+                const writtenContent = fs.readFileSync(mcpConfigPath, 'utf8');
+                console.log('[buildMcpConfig] Written MCP config file:', mcpConfigPath);
+                console.log('[buildMcpConfig] File content:', writtenContent);
             } catch (error) {
                 console.error('Failed to write MCP config file:', error);
                 throw new Error(`Failed to write MCP configuration: ${error}`);
@@ -329,10 +353,13 @@ export class ConfigurationManager {
      * @param value String potentially containing environment variables
      * @returns String with expanded variables
      */
-    private _expandVariables(value: string): string {
+    public expandVariables(value: string): string {
         if (!value || typeof value !== 'string') {
             return value;
         }
+
+        // First, handle escaped variables \${VAR} -> ${VAR}
+        value = value.replace(/\\\$\{([^}]+)\}/g, '${$1}');
 
         // Replace ${VAR} and $VAR with environment variable values
         return value.replace(/\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, p1, p2) => {
@@ -352,6 +379,36 @@ export class ConfigurationManager {
             // Return original if variable not found
             return match;
         });
+    }
+
+    /**
+     * Cleans up old MCP configuration files
+     */
+    private async cleanupOldMcpConfigs(): Promise<void> {
+        try {
+            const homeDir = os.homedir();
+            const claudeDir = path.join(homeDir, '.claude');
+            
+            if (!fs.existsSync(claudeDir)) {
+                return;
+            }
+            
+            // Delete all old mcp-* temporary directories
+            const entries = fs.readdirSync(claudeDir);
+            for (const entry of entries) {
+                if (entry.startsWith('mcp-')) {
+                    const fullPath = path.join(claudeDir, entry);
+                    try {
+                        fs.rmSync(fullPath, { recursive: true, force: true });
+                        console.log('[cleanupOldMcpConfigs] Removed old MCP config:', fullPath);
+                    } catch (error) {
+                        console.error('[cleanupOldMcpConfigs] Failed to remove:', fullPath, error);
+                    }
+                }
+            }
+        } catch (error) {
+            console.log('[cleanupOldMcpConfigs] Error cleaning up old MCP configs:', error);
+        }
     }
 
 }
