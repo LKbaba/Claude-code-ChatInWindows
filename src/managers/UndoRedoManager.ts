@@ -213,17 +213,31 @@ export class UndoRedoManager {
         try {
             const fileUri = vscode.Uri.file(operation.data.filePath);
             
-            // Backup file before deletion
-            const backupPath = await this._backupFile(operation.id, fileUri);
-            
-            // Delete the file
-            await vscode.workspace.fs.delete(fileUri);
-            
-            return {
-                success: true,
-                message: `File deleted: ${operation.data.filePath}`,
-                backupPath
-            };
+            // Check if file exists before trying to delete it
+            try {
+                await vscode.workspace.fs.stat(fileUri);
+                
+                // Backup file before deletion
+                const backupPath = await this._backupFile(operation.id, fileUri);
+                
+                // Delete the file
+                await vscode.workspace.fs.delete(fileUri);
+                
+                return {
+                    success: true,
+                    message: `File deleted: ${operation.data.filePath}`,
+                    backupPath
+                };
+            } catch (statError: any) {
+                // File doesn't exist, but we still mark the operation as undone
+                if (statError.code === 'FileNotFound' || statError.code === 'EntryNotFound') {
+                    return {
+                        success: true,
+                        message: `File already deleted: ${operation.data.filePath}`
+                    };
+                }
+                throw statError;
+            }
         } catch (error: any) {
             return {
                 success: false,
@@ -830,8 +844,11 @@ export class UndoRedoManager {
             const backupUri = vscode.Uri.joinPath(this._backupDir, backupId);
             await vscode.workspace.fs.writeFile(backupUri, content);
             return backupUri.fsPath;
-        } catch (error) {
-            console.error('Failed to backup file:', error);
+        } catch (error: any) {
+            // Don't log error for missing files - this is expected when undoing file creation
+            if (error.code !== 'FileNotFound' && error.code !== 'EntryNotFound') {
+                console.error('Failed to backup file:', error);
+            }
             return undefined;
         }
     }

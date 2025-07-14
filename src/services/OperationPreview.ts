@@ -170,14 +170,15 @@ export class OperationPreviewService {
                     canRedo: false
                 };
             } catch (error) {
+                // File doesn't exist, but we can still undo the creation operation
                 return {
                     operation,
                     previewType: 'info',
                     title: `Delete ${fileName}`,
-                    description: 'File not found or not accessible',
+                    description: 'File has already been deleted or moved',
                     cascadingOperations: [],
-                    warnings: ['File may have been already deleted'],
-                    canUndo: false,
+                    warnings: ['File no longer exists at the original location'],
+                    canUndo: true,  // Still allow undo to mark operation as undone
                     canRedo: false
                 };
             }
