@@ -16,9 +16,9 @@ export function getBodyContent(): string {
 		<div style="display: flex; gap: 8px; align-items: center;">
 			<div id="sessionStatus" class="session-status" style="display: none;">No session</div>
 			<button class="btn outlined" id="settingsBtn" onclick="toggleSettings()" title="Settings">⚙️</button>
-			<button class="btn outlined" id="statsBtn" onclick="toggleStats()" title="Usage Statistics">📊</button>
-			<button class="btn outlined" id="operationHistoryBtn" onclick="toggleOperationHistory()" title="Operation History">↩️ History</button>
-			<button class="btn outlined" id="historyBtn" onclick="toggleConversationHistory()" style="display: none;">📚 History</button>
+			<button class="btn outlined" id="statsBtn" onclick="toggleStats()" title="Usage Statistics">📈</button>
+			<button class="btn outlined" id="operationHistoryBtn" onclick="toggleOperationHistory()" title="Operation Undo">🔄</button>
+			<button class="btn outlined" id="historyBtn" onclick="toggleConversationHistory()" style="display: none;">📜 History</button>
 			<button class="btn primary" id="newSessionBtn" onclick="newSession()" style="display: none;">New Chat</button>
 		</div>
 	</div>
