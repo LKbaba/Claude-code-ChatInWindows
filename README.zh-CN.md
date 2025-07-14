@@ -48,6 +48,7 @@
 * ✅ **MCP 模块化扩展**：一键调用外部MCP，内置模板，让你的 Claude Code 无所不能。
 * ✅ **细节控最爱**：高 DPI 图标、动态主题支持、流畅动画交互。
 * ✅ **「氛围编程」绝配**：全程 GUI，营造极致舒适的编程环境。
+* 🔄 **操作历史记录**：实时显示所有文件操作，一键撤销/重做
 
 ---
 
@@ -85,19 +86,7 @@ setx NPM_CONFIG_IGNORE_SCRIPTS true
 setx SHELL "C:\Program Files\Git\bin\bash.exe"
 # 注意：如果你的 Git 安装在其他路径，请相应修改 "C:\Program Files\Git\bin\bash.exe"
 
-# - v1.0.51 及以上：不需要设置 SHELL 环境变量，
-确保 PATH 中没有 Git\bin
-
-# 4. [重要] 检查你的 PATH 环境变量
-# Claude Code v1.0.51+ 要求 PATH 中只能有 Git\cmd，不能有 Git\bin
-# 
-# 修改方法：
-# - Win + X → 系统 → 高级系统设置 → 环境变量
-# - 在系统变量中找到 PATH，编辑
-# - ✅ 确保包含：C:\Program Files\Git\cmd
-# - ❌ 删除包含：C:\Program Files\Git\bin 的所有条目
-# 
-# ⚠️ 重要：修改系统环境变量后必须【重启电脑】才能完全生效！
+# 4. ⚠️ 重要：修改系统环境变量后必须【重启电脑】才能完全生效！
 # 仅关闭PowerShell/CMD窗口是不够的
 
 # 5. 重启电脑后，验证环境配置
@@ -106,8 +95,8 @@ setx SHELL "C:\Program Files\Git\bin\bash.exe"
 ### 🔹 第 2 步：安装并验证 Claude Code CLI
 
 ```powershell
-# 1. 在【新的】终端窗口中，全局安装 Claude Code CLI
-npm install -g @anthropic-ai/claude-code
+# 1. 在【新的】终端窗口中，全局安装 Claude Code CLI，推荐1.0.48
+npm install -g @anthropic-ai/claude-code@1.0.48
 
 # ⚠️ 如果遇到 PowerShell 脚本执行策略错误，请使用以下方法解决：
 # 错误示例："无法加载文件 npm.ps1，因为在此系统上禁止运行脚本"

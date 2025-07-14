@@ -45,6 +45,7 @@
 * ✅ **Zero WSL Dependency**: Runs with just Git Bash and Node.js.
 * ✅ **Real-time Cost Tracking**: Instantly see token counts and costs.
 * ✅ **Windows Path Compatibility**: Automatically recognizes and handles paths for smooth cross-system interaction.
+* ✅ **Smart Undo/Redo**: Supports undo/redo for file operations with intelligent dependency tracking and automatic backup protection.
 * ✅ **MCP Modular Extensions**: Call external MCP tools with one click, built-in templates, making your Claude Code omnipotent.
 * ✅ **A Detail-Lover's Dream**: HiDPI icons, dynamic theme support, and fluid animations.
 * ✅ **Perfect for "Vibe Coding"**: A pure GUI experience for an ultra-comfortable coding environment.
@@ -85,19 +86,7 @@ setx NPM_CONFIG_IGNORE_SCRIPTS true
 setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
 # Note: If you installed Git in a different directory, update the path accordingly.
 
-# - v1.0.51 and above: Do NOT set SHELL variable,
-ensure PATH does NOT contain Git\bin
-
-# 4. [IMPORTANT] Check your PATH environment variable
-# Claude Code v1.0.51+ requires PATH to only contain Git\cmd, NOT Git\bin
-# 
-# How to modify:
-# - Win + X → System → Advanced system settings → Environment Variables
-# - Find PATH in System variables, click Edit
-# - ✅ Ensure it contains: C:\Program Files\Git\cmd
-# - ❌ Remove any entries containing: C:\Program Files\Git\bin
-# 
-# ⚠️ IMPORTANT: You must RESTART YOUR COMPUTER after modifying system environment variables!
+# 4. ⚠️ IMPORTANT: You must RESTART YOUR COMPUTER after modifying system environment variables!
 # Simply closing PowerShell/CMD window is NOT enough
 
 # 5. After restart, verify your environment setup
@@ -106,8 +95,8 @@ ensure PATH does NOT contain Git\bin
 ### 🔹 Step 2: Install and Verify Claude Code CLI
 
 ```powershell
-# 1. In a [new] terminal window, globally install the Claude Code CLI
-npm install -g @anthropic-ai/claude-code
+# 1. In a [new] terminal window, globally install the Claude Code CLI, recommend v1.0.48
+npm install -g @anthropic-ai/claude-code@1.0.48
 
 # ⚠️ If you encounter PowerShell script execution policy errors, try these solutions:
 # Error example: "cannot be loaded because running scripts is disabled on this system"

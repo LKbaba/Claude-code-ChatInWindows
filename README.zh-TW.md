@@ -45,6 +45,7 @@
 * ✅ **零 WSL 依賴**：只需 Git Bash 和 Node 就能執行。
 * ✅ **即時費用統計**：Token 和費用即時顯示，清清楚楚消費。
 * ✅ **Windows 路徑相容**：自動識別路徑，無痛跨系統交流。
+* ✅ **智慧撤銷重做**：支援檔案操作的撤銷/重做，智慧處理依賴關係，自動備份保障資料安全。
 * ✅ **MCP 模組化擴充**：一鍵調用外部MCP，內置模板，讓您的 Claude Code 無所不能。
 * ✅ **細節控最愛**：高 DPI 圖示、動態主題支援、流暢動畫互動。
 * ✅ **「氛圍編程」絕配**：全程 GUI，營造極致舒適的編程環境。
@@ -83,19 +84,7 @@ setx NPM_CONFIG_IGNORE_SCRIPTS true
 setx SHELL "C:\Program Files\Git\bin\bash.exe"
 # 注意：如果你的 Git 安裝在其他路徑，請相應修改 "C:\Program Files\Git\bin\bash.exe"
 
-# - v1.0.51 及以上：不需要設定 SHELL 環境變數，
-確保 PATH 中沒有 Git\bin
-
-# 4. [重要] 檢查您的 PATH 環境變數
-# Claude Code v1.0.51+ 要求 PATH 中只能有 Git\cmd，不能有 Git\bin
-# 
-# 修改方法：
-# - Win + X → 系統 → 進階系統設定 → 環境變數
-# - 在系統變數中找到 PATH，編輯
-# - ✅ 確保包含：C:\Program Files\Git\cmd
-# - ❌ 刪除包含：C:\Program Files\Git\bin 的所有條目
-# 
-# ⚠️ 重要：修改系統環境變數後必須【重啟電腦】才能完全生效！
+# 4. ⚠️ 重要：修改系統環境變數後必須【重啟電腦】才能完全生效！
 # 僅關閉PowerShell/CMD窗口是不夠的
 
 # 5. 重啟電腦後，驗證環境配置
@@ -104,8 +93,8 @@ setx SHELL "C:\Program Files\Git\bin\bash.exe"
 ### 🔹 第 2 步：安裝並驗證 Claude Code CLI
 
 ```powershell
-# 1. 在【新的】終端窗口中，全局安裝 Claude Code CLI
-npm install -g @anthropic-ai/claude-code
+# 1. 在【新的】終端窗口中，全局安裝 Claude Code CLI，推薦 1.0.48
+npm install -g @anthropic-ai/claude-code@1.0.48
 
 # ⚠️ 如果遇到 PowerShell 腳本執行策略錯誤，請使用以下方法解決：
 # 錯誤示例：「無法加載文件 npm.ps1，因為在此系統上禁止運行腳本」
