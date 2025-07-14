@@ -354,12 +354,17 @@ export class MessageProcessor {
     private _analyzeBashCommand(command: string): { type: OperationType; data: OperationData } | null {
         // Remove file
         if (command.includes('rm ') && !command.includes('rmdir')) {
-            const match = command.match(/rm\s+(?:-[rf]+\s+)?([^\s]+)/);
+            // Match either quoted or unquoted paths
+            const quotedMatch = command.match(/rm\s+(?:-[rf]+\s+)?["']([^"']+)["']/);
+            const unquotedMatch = command.match(/rm\s+(?:-[rf]+\s+)?([^\s]+)/);
+            
+            const match = quotedMatch || unquotedMatch;
             if (match) {
+                const filePath = match[1].trim();
                 return {
                     type: OperationType.FILE_DELETE,
                     data: {
-                        filePath: match[1],
+                        filePath: filePath,
                         content: '' // We'll need to read content before deletion in UndoRedoManager
                     }
                 };
@@ -368,13 +373,21 @@ export class MessageProcessor {
 
         // Rename/move file
         if (command.includes('mv ')) {
-            const match = command.match(/mv\s+([^\s]+)\s+([^\s]+)/);
+            // Match either quoted or unquoted paths
+            const quotedMatch = command.match(/mv\s+["']([^"']+)["']\s+["']([^"']+)["']/);
+            const mixedMatch1 = command.match(/mv\s+["']([^"']+)["']\s+([^\s]+)/);
+            const mixedMatch2 = command.match(/mv\s+([^\s]+)\s+["']([^"']+)["']/);
+            const unquotedMatch = command.match(/mv\s+([^\s]+)\s+([^\s]+)/);
+            
+            const match = quotedMatch || mixedMatch1 || mixedMatch2 || unquotedMatch;
             if (match) {
+                const oldPath = match[1].trim();
+                const newPath = match[2].trim();
                 return {
                     type: OperationType.FILE_RENAME,
                     data: {
-                        oldPath: match[1],
-                        newPath: match[2]
+                        oldPath: oldPath,
+                        newPath: newPath
                     }
                 };
             }
@@ -382,12 +395,17 @@ export class MessageProcessor {
 
         // Create directory
         if (command.includes('mkdir')) {
-            const match = command.match(/mkdir\s+(?:-p\s+)?([^\s]+)/);
+            // Match either quoted or unquoted paths
+            const quotedMatch = command.match(/mkdir\s+(?:-p\s+)?["']([^"']+)["']/);
+            const unquotedMatch = command.match(/mkdir\s+(?:-p\s+)?([^\s]+)/);
+            
+            const match = quotedMatch || unquotedMatch;
             if (match) {
+                const dirPath = match[1].trim();
                 return {
                     type: OperationType.DIRECTORY_CREATE,
                     data: {
-                        dirPath: match[1]
+                        dirPath: dirPath
                     }
                 };
             }
@@ -395,12 +413,17 @@ export class MessageProcessor {
 
         // Remove directory
         if (command.includes('rmdir') || (command.includes('rm') && command.includes('-r'))) {
-            const match = command.match(/(?:rmdir|rm\s+-r[f]*)\s+([^\s]+)/);
+            // Match either quoted or unquoted paths
+            const quotedMatch = command.match(/(?:rmdir|rm\s+-r[f]*)\s+["']([^"']+)["']/);
+            const unquotedMatch = command.match(/(?:rmdir|rm\s+-r[f]*)\s+([^\s]+)/);
+            
+            const match = quotedMatch || unquotedMatch;
             if (match) {
+                const dirPath = match[1].trim();
                 return {
                     type: OperationType.DIRECTORY_DELETE,
                     data: {
-                        dirPath: match[1]
+                        dirPath: dirPath
                     }
                 };
             }

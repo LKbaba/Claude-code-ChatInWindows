@@ -71,8 +71,20 @@ export class EventHandlers {
         this.stateManager.setState({ operations: updatedOperations });
         break;
         
-      case 'getOperationHistory':
+      case 'operationHistory':
         // Response to operation history request
+        if (message.data) {
+          // Combine active and undone operations into a single array
+          const allOperations = [
+            ...(message.data.active || []),
+            ...(message.data.undone || [])
+          ];
+          this.stateManager.setState({ operations: allOperations });
+        }
+        break;
+        
+      case 'getOperationHistory':
+        // Legacy handler for backward compatibility
         if (message.data) {
           this.stateManager.setState({ operations: message.data });
         }

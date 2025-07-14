@@ -26,7 +26,13 @@ export class WindowsCompatibility {
         // Claude Code v1.0.48+ uses ~/.claude instead of /tmp for shell snapshots
         // Set CLAUDE_HOME to ensure Claude uses the correct directory
         const homeDir = require('os').homedir();
-        const claudeHome = path.join(homeDir, '.claude');
+        let claudeHome = path.join(homeDir, '.claude');
+        
+        // Convert to Unix-style path for Git Bash on Windows
+        if (platform === 'win32') {
+            claudeHome = claudeHome.replace(/\\/g, '/');
+        }
+        
         spawnOptions.env!.CLAUDE_HOME = claudeHome;
         
         // On Windows, also set proper temp directory to avoid path issues

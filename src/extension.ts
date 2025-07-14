@@ -164,9 +164,14 @@ class ClaudeChatProvider {
 		this._currentSessionId = latestConversation?.sessionId;
 		
 		// Load saved operations
-		this._operationTracker.loadOperations().catch(error => {
-			console.error('[ClaudeChatProvider] Failed to load operations:', error);
-		});
+		this._operationTracker.loadOperations()
+			.then(() => {
+				// Send operation history after loading
+				this._sendOperationHistory();
+			})
+			.catch(error => {
+				console.error('[ClaudeChatProvider] Failed to load operations:', error);
+			});
 		
 		// Set current session in operation tracker
 		if (this._currentSessionId) {
@@ -332,6 +337,9 @@ class ClaudeChatProvider {
 				type: 'ready',
 				data: 'Ready to chat with Claude Code! Type your message below.'
 			});
+
+			// Send operation history after ready
+			this._sendOperationHistory();
 
 			// Send current model to webview
 			this._panel?.webview.postMessage({
