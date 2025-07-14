@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Operation, OperationType, OperationData } from '../types/Operation';
+import { Operation, OperationType, OperationData, OperationStatus } from '../types/Operation';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -183,14 +183,14 @@ export class OperationTracker {
    * Get active (not undone) operations
    */
   getActiveOperations(): Operation[] {
-    return this.getCurrentSessionOperations().filter(op => !op.undone);
+    return this.getCurrentSessionOperations().filter(op => op.status === OperationStatus.ACTIVE);
   }
 
   /**
    * Get undone operations that can be redone
    */
   getUndoneOperations(): Operation[] {
-    return this.getCurrentSessionOperations().filter(op => op.undone);
+    return this.getCurrentSessionOperations().filter(op => op.status === OperationStatus.UNDONE);
   }
 
   /**
@@ -199,7 +199,8 @@ export class OperationTracker {
   markAsUndone(operationId: string): void {
     const operation = this._operations.get(operationId);
     if (operation) {
-      operation.undone = true;
+      operation.status = OperationStatus.UNDONE;
+      operation.undone = true; // 保留向后兼容
       this.emitOperationChanged(operation);
     }
   }
@@ -210,7 +211,20 @@ export class OperationTracker {
   markAsRedone(operationId: string): void {
     const operation = this._operations.get(operationId);
     if (operation) {
-      operation.undone = false;
+      operation.status = OperationStatus.ACTIVE;
+      operation.undone = false; // 保留向后兼容
+      this.emitOperationChanged(operation);
+    }
+  }
+
+  /**
+   * Mark operation as failed
+   */
+  markAsFailed(operationId: string, error: string): void {
+    const operation = this._operations.get(operationId);
+    if (operation) {
+      operation.status = OperationStatus.FAILED;
+      operation.error = error;
       this.emitOperationChanged(operation);
     }
   }

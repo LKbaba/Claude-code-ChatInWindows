@@ -4,6 +4,17 @@ import { OperationTracker } from '../managers/OperationTracker';
 import * as path from 'path';
 
 /**
+ * Statistics for operation preview
+ */
+export interface OperationStatistics {
+    totalLines?: number;      // 文件总行数
+    affectedLines?: number;   // 受影响的行数
+    fileSize?: string;        // 文件大小
+    additions?: number;       // 添加的行数
+    deletions?: number;       // 删除的行数
+}
+
+/**
  * Detailed preview of an operation
  */
 export interface DetailedOperationPreview {
@@ -17,6 +28,7 @@ export interface DetailedOperationPreview {
     warnings: string[];
     canUndo: boolean;
     canRedo: boolean;
+    statistics?: OperationStatistics;
 }
 
 /**
@@ -167,7 +179,8 @@ export class OperationPreviewService {
                     cascadingOperations: [],
                     warnings: ['The file will be backed up before deletion'],
                     canUndo: true,
-                    canRedo: false
+                    canRedo: false,
+                    statistics: this._generateStatistics(fileContent)
                 };
             } catch (error) {
                 // File doesn't exist, but we can still undo the creation operation
@@ -260,7 +273,8 @@ export class OperationPreviewService {
                     cascadingOperations: [],
                     warnings: [],
                     canUndo: !operation.undone,
-                    canRedo: operation.undone
+                    canRedo: operation.undone,
+                    statistics: this._generateStatistics(currentContent, diff)
                 };
             }
         } catch (error) {
@@ -596,7 +610,7 @@ export class OperationPreviewService {
     /**
      * Generate HTML preview for diff
      */
-    generateDiffHtml(diff: DiffPreview): string {
+    generateDiffHtml(diff: DiffPreview, statistics?: OperationStatistics): string {
         const hunks = diff.hunks.map(hunk => {
             const lines = hunk.lines.map(line => {
                 const className = line.type === 'add' ? 'add' : line.type === 'delete' ? 'delete' : 'context';
@@ -616,11 +630,35 @@ export class OperationPreviewService {
             </div>`;
         }).join('\n');
 
+        // Generate statistics bar
+        const totalChanges = diff.additions + diff.deletions;
+        const addPercent = totalChanges > 0 ? (diff.additions / totalChanges) * 100 : 0;
+        const delPercent = totalChanges > 0 ? (diff.deletions / totalChanges) * 100 : 0;
+
+        const statsBar = `
+            <div class="diff-stats-bar">
+                <div class="stats-bar-content">
+                    <div class="stats-bar-additions" style="width: ${addPercent}%"></div>
+                    <div class="stats-bar-deletions" style="width: ${delPercent}%"></div>
+                </div>
+            </div>
+        `;
+
+        const statsInfo = statistics ? `
+            <div class="diff-stats-info">
+                <span class="file-info">📄 ${statistics.totalLines} lines, ${statistics.fileSize}</span>
+                <span class="separator">|</span>
+                <span class="affected-lines">📝 ${statistics.affectedLines} lines changed</span>
+            </div>
+        ` : '';
+
         return `<div class="diff-preview">
             <div class="diff-stats">
                 <span class="additions">+${diff.additions}</span>
                 <span class="deletions">-${diff.deletions}</span>
+                ${statsBar}
             </div>
+            ${statsInfo}
             ${hunks}
         </div>`;
     }
@@ -635,5 +673,31 @@ export class OperationPreviewService {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * Format file size for display
+     */
+    private _formatFileSize(bytes: number): string {
+        if (bytes < 1024) return bytes + ' B';
+        else if (bytes < 1048576) return Math.round(bytes / 1024) + ' KB';
+        else if (bytes < 1073741824) return Math.round(bytes / 1048576 * 10) / 10 + ' MB';
+        else return Math.round(bytes / 1073741824 * 10) / 10 + ' GB';
+    }
+
+    /**
+     * Generate statistics for content
+     */
+    private _generateStatistics(content: string, diff?: DiffPreview): OperationStatistics {
+        const lines = content.split('\n');
+        const bytes = Buffer.byteLength(content, 'utf8');
+        
+        return {
+            totalLines: lines.length,
+            fileSize: this._formatFileSize(bytes),
+            additions: diff?.additions,
+            deletions: diff?.deletions,
+            affectedLines: diff ? (diff.additions + diff.deletions) : undefined
+        };
     }
 }

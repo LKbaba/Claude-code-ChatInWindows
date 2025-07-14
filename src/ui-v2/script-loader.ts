@@ -3244,13 +3244,21 @@ export const uiScript = `
 		function renderOperationCard(op, index, isUndone) {
 			const timestamp = new Date(op.timestamp).toLocaleTimeString();
 			
+			// 获取操作状态
+			const status = op.status || (isUndone ? 'undone' : 'active');
+			const statusIcon = getStatusIcon(status);
+			const statusColor = getStatusColor(status);
+			const statusLabel = getStatusLabel(status);
+			
 			return \`
-				<div class="operation-card \${isUndone ? 'undone' : ''}" style="background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 12px; margin-bottom: 8px;">
+				<div class="operation-card \${isUndone ? 'undone' : ''}" style="background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-left: 3px solid \${statusColor}; border-radius: 4px; padding: 12px; margin-bottom: 8px;">
 					<div class="operation-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
 						<div class="operation-info" style="display: flex; align-items: center; gap: 8px;">
+							<span class="operation-status-icon" title="\${statusLabel}" style="font-size: 14px;">\${statusIcon}</span>
 							<span class="operation-icon">\${getOperationIcon(op.type || op.toolName)}</span>
 							<span class="operation-name" style="font-weight: 500;">\${getOperationLabel(op.type || op.toolName)}</span>
 							<span class="operation-id" style="color: var(--vscode-descriptionForeground); font-size: 11px;">#\${op.id}</span>
+							\${status === 'failed' && op.error ? \`<span class="error-indicator" title="\${op.error}" style="color: #F44336; font-size: 12px;">⚠️</span>\` : ''}
 						</div>
 						<div class="operation-timestamp" style="font-size: 11px; color: var(--vscode-descriptionForeground);">\${timestamp}</div>
 					</div>
@@ -3281,6 +3289,40 @@ export const uiScript = `
 					</div>
 				</div>
 			\`;
+		}
+
+		// 状态图标和颜色函数
+		function getStatusIcon(status) {
+			const iconMap = {
+				'active': '✅',
+				'undone': '↩️',
+				'failed': '❌',
+				'partial': '⚠️',
+				'pending': '⏳'
+			};
+			return iconMap[status] || '❓';
+		}
+		
+		function getStatusColor(status) {
+			const colorMap = {
+				'active': '#4CAF50',
+				'undone': '#9E9E9E',
+				'failed': '#F44336',
+				'partial': '#FF9800',
+				'pending': '#2196F3'
+			};
+			return colorMap[status] || '#757575';
+		}
+		
+		function getStatusLabel(status) {
+			const labelMap = {
+				'active': '活跃',
+				'undone': '已撤销',
+				'failed': '失败',
+				'partial': '部分成功',
+				'pending': '等待中'
+			};
+			return labelMap[status] || '未知';
 		}
 
 		function getOperationIcon(type) {
@@ -3439,12 +3481,45 @@ export const uiScript = `
 			content.appendChild(closeBtn);
 			
 			// Add preview content
-			let html = '<h3 style="margin-top: 0;">Operation Preview: ' + (preview.action === 'undo' ? 'Undo' : 'Redo') + '</h3>';
+			let html = '<h3 style="margin-top: 0;">🔍 Operation Preview: ' + (preview.action === 'undo' ? 'Undo' : 'Redo') + '</h3>';
 			html += '<div style="margin-bottom: 20px;">';
 			html += '<strong>Operation Type:</strong> ' + getOperationLabel(preview.operation.type || preview.operation.toolName) + '<br>';
-			html += '<strong>Operation ID:</strong> ' + preview.operation.id + '<br>';
+			html += '<strong>Operation ID:</strong> toolu_' + preview.operation.id + '<br>';
 			html += '<strong>Time:</strong> ' + new Date(preview.operation.timestamp).toLocaleString();
 			html += '</div>';
+			
+			// Add statistics if available
+			if (preview.statistics) {
+				html += '<div style="background: var(--vscode-editorWidget-background); padding: 12px; border-radius: 6px; margin-bottom: 20px;">';
+				html += '<h4 style="margin: 0 0 8px 0; font-size: 13px;">📊 Statistics:</h4>';
+				if (preview.statistics.additions !== undefined && preview.statistics.deletions !== undefined) {
+					const totalChanges = preview.statistics.additions + preview.statistics.deletions;
+					const addPercent = totalChanges > 0 ? (preview.statistics.additions / totalChanges) * 100 : 0;
+					const delPercent = totalChanges > 0 ? (preview.statistics.deletions / totalChanges) * 100 : 0;
+					
+					html += '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">';
+					html += '<span style="color: #4CAF50; font-weight: 500;">+' + preview.statistics.additions + '</span>';
+					html += '<span style="color: #F44336; font-weight: 500;">-' + preview.statistics.deletions + '</span>';
+					// Add statistics bar
+					html += '<div style="flex: 1; height: 8px; background: #2d2d2d; border-radius: 4px; overflow: hidden; max-width: 200px;">';
+					html += '<div style="display: flex; height: 100%;">';
+					html += '<div style="width: ' + addPercent + '%; background: #4CAF50;"></div>';
+					html += '<div style="width: ' + delPercent + '%; background: #F44336;"></div>';
+					html += '</div></div></div>';
+				}
+				if (preview.statistics.totalLines !== undefined) {
+					html += '<div style="font-size: 12px; color: var(--vscode-descriptionForeground);">';
+					html += '📄 ' + preview.statistics.totalLines + ' lines';
+					if (preview.statistics.fileSize) {
+						html += ', ' + preview.statistics.fileSize;
+					}
+					if (preview.statistics.affectedLines !== undefined) {
+						html += ' | 🗒 ' + preview.statistics.affectedLines + ' lines changed';
+					}
+					html += '</div>';
+				}
+				html += '</div>';
+			}
 			
 			// Add changes section
 			if (preview.changes && preview.changes.length > 0) {
@@ -3458,6 +3533,46 @@ export const uiScript = `
 					}
 					html += '</div>';
 				});
+				html += '</div>';
+			}
+			
+			// Add diff preview if available
+			if (preview.diff) {
+				html += '<h4>Diff Preview:</h4>';
+				html += '<div style="background: var(--vscode-editor-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; padding: 12px; margin-bottom: 20px; font-family: monospace; font-size: 12px;">';
+				
+				// Diff statistics
+				if (preview.diff.additions !== undefined && preview.diff.deletions !== undefined) {
+					html += '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--vscode-editorWidget-border);">';
+					html += '<span style="color: #4CAF50; font-weight: 500;">+' + preview.diff.additions + ' additions</span>';
+					html += '<span style="color: #F44336; font-weight: 500;">-' + preview.diff.deletions + ' deletions</span>';
+					html += '</div>';
+				}
+				
+				// Diff hunks
+				if (preview.diff.hunks) {
+					preview.diff.hunks.forEach(hunk => {
+						html += '<div style="margin-bottom: 16px;">';
+						html += '<div style="color: #00ACC1; background: rgba(0, 172, 193, 0.1); padding: 4px 8px; margin-bottom: 4px;">@@ -' + hunk.oldStart + ',' + hunk.oldLines + ' +' + hunk.newStart + ',' + hunk.newLines + ' @@</div>';
+						
+						hunk.lines.forEach(line => {
+							const bgColor = line.type === 'add' ? 'rgba(76, 175, 80, 0.1)' : line.type === 'delete' ? 'rgba(244, 67, 54, 0.1)' : 'transparent';
+							const textColor = line.type === 'add' ? '#4CAF50' : line.type === 'delete' ? '#F44336' : 'inherit';
+							const prefix = line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' ';
+							
+							html += '<div style="background: ' + bgColor + '; color: ' + textColor + '; padding: 2px 8px;">';
+							if (line.oldLineNo || line.newLineNo) {
+								html += '<span style="display: inline-block; width: 40px; text-align: right; color: var(--vscode-descriptionForeground); margin-right: 8px;">' + (line.oldLineNo || '') + '</span>';
+							}
+							html += '<span style="margin-right: 8px;">' + prefix + '</span>';
+							html += '<span>' + escapeHtml(line.content) + '</span>';
+							html += '</div>';
+						});
+						
+						html += '</div>';
+					});
+				}
+				
 				html += '</div>';
 			}
 			

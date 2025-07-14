@@ -6,7 +6,7 @@
 import { Component } from '../Component';
 import { Button } from '../base/Button';
 import { Icon } from '../base/Icon';
-import { Operation, OperationType } from '../../../types/Operation';
+import { Operation, OperationType, OperationStatus } from '../../../types/Operation';
 import { DetailedOperationPreview } from '../../../services/OperationPreview';
 
 export interface OperationHistoryProps {
@@ -56,17 +56,27 @@ export class OperationHistory extends Component<OperationHistoryProps> {
 
     private renderOperation(operation: Operation): string {
         const isSelected = this.selectedOperationId === operation.id;
-        const canUndo = !operation.undone;
-        const canRedo = operation.undone;
+        const canUndo = operation.status === OperationStatus.ACTIVE;
+        const canRedo = operation.status === OperationStatus.UNDONE;
+        const statusClass = `status-${operation.status}`;
         
         return `
-            <div class="operation-item ${operation.undone ? 'undone' : ''} ${isSelected ? 'selected' : ''}" 
-                 data-operation-id="${operation.id}">
+            <div class="operation-item ${statusClass} ${isSelected ? 'selected' : ''}" 
+                 data-operation-id="${operation.id}"
+                 style="border-left: 3px solid ${operation.getStatusColor()}">
+                <div class="operation-status-icon" title="${this.getStatusLabel(operation.status)}">
+                    ${operation.getStatusIcon()}
+                </div>
                 <div class="operation-icon">
                     ${this.getOperationIcon(operation.type)}
                 </div>
                 <div class="operation-content">
-                    <div class="operation-type">${this.getOperationLabel(operation.type)}</div>
+                    <div class="operation-type">
+                        ${this.getOperationLabel(operation.type)}
+                        ${operation.status === OperationStatus.FAILED ? `
+                            <span class="error-indicator" title="${operation.error || 'Operation failed'}">⚠️</span>
+                        ` : ''}
+                    </div>
                     <div class="operation-details">${this.getOperationDetails(operation)}</div>
                     <div class="operation-time">${this.formatTime(operation.timestamp.getTime())}</div>
                 </div>
@@ -201,6 +211,17 @@ export class OperationHistory extends Component<OperationHistoryProps> {
             name: iconMap[type] || 'file', 
             size: 'small' 
         }).render();
+    }
+
+    private getStatusLabel(status: OperationStatus): string {
+        const statusLabels: Record<OperationStatus, string> = {
+            [OperationStatus.ACTIVE]: '活跃',
+            [OperationStatus.UNDONE]: '已撤销',
+            [OperationStatus.FAILED]: '失败',
+            [OperationStatus.PARTIAL]: '部分成功',
+            [OperationStatus.PENDING]: '等待中'
+        };
+        return statusLabels[status] || '未知';
     }
 
     private getOperationLabel(type: OperationType): string {

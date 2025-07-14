@@ -13,6 +13,17 @@ export enum OperationType {
 }
 
 /**
+ * Operation status
+ */
+export enum OperationStatus {
+  ACTIVE = 'active',      // 正常执行的操作
+  UNDONE = 'undone',      // 已撤销
+  FAILED = 'failed',      // 执行失败
+  PARTIAL = 'partial',    // 部分成功
+  PENDING = 'pending'     // 等待执行
+}
+
+/**
  * Represents a single edit operation within a file
  */
 export interface EditOperation {
@@ -61,7 +72,9 @@ export class Operation {
   type: OperationType;
   data: OperationData;
   timestamp: Date;
-  undone: boolean;
+  status: OperationStatus;
+  error?: string;
+  undone: boolean; // 保留用于向后兼容
   messageId?: string;
   sessionId?: string;
   dependencies: string[]; // IDs of operations that depend on this one
@@ -72,6 +85,7 @@ export class Operation {
     this.type = type;
     this.data = data;
     this.timestamp = new Date();
+    this.status = OperationStatus.ACTIVE;
     this.undone = false;
     this.messageId = messageId;
     this.dependencies = [];
@@ -94,6 +108,8 @@ export class Operation {
       type: this.type,
       data: this.data,
       timestamp: this.timestamp.toISOString(),
+      status: this.status,
+      error: this.error,
       undone: this.undone,
       messageId: this.messageId,
       sessionId: this.sessionId,
@@ -109,6 +125,8 @@ export class Operation {
     const op = new Operation(json.type, json.data, json.messageId);
     op.id = json.id;
     op.timestamp = new Date(json.timestamp);
+    op.status = json.status || (json.undone ? OperationStatus.UNDONE : OperationStatus.ACTIVE);
+    op.error = json.error;
     op.undone = json.undone || false;
     op.sessionId = json.sessionId;
     op.dependencies = json.dependencies || [];
@@ -162,6 +180,46 @@ export class Operation {
         return '💻';
       default:
         return '❓';
+    }
+  }
+
+  /**
+   * Get status icon for display
+   */
+  getStatusIcon(): string {
+    switch (this.status) {
+      case OperationStatus.ACTIVE:
+        return '✅';
+      case OperationStatus.UNDONE:
+        return '↩️';
+      case OperationStatus.FAILED:
+        return '❌';
+      case OperationStatus.PARTIAL:
+        return '⚠️';
+      case OperationStatus.PENDING:
+        return '⏳';
+      default:
+        return '❓';
+    }
+  }
+
+  /**
+   * Get status color for display
+   */
+  getStatusColor(): string {
+    switch (this.status) {
+      case OperationStatus.ACTIVE:
+        return '#4CAF50'; // 绿色
+      case OperationStatus.UNDONE:
+        return '#9E9E9E'; // 灰色
+      case OperationStatus.FAILED:
+        return '#F44336'; // 红色
+      case OperationStatus.PARTIAL:
+        return '#FF9800'; // 黄色
+      case OperationStatus.PENDING:
+        return '#2196F3'; // 蓝色
+      default:
+        return '#757575';
     }
   }
 }

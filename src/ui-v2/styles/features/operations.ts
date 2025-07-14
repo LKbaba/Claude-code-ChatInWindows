@@ -165,6 +165,48 @@ export const operationStyles = `
         text-decoration: line-through;
     }
 
+    /* Operation Status Styles */
+    .operation-item.status-active {
+        border-left-width: 3px !important;
+    }
+
+    .operation-item.status-undone {
+        opacity: 0.6;
+        border-left-width: 3px !important;
+    }
+
+    .operation-item.status-failed {
+        background: rgba(244, 67, 54, 0.05);
+        border-left-width: 3px !important;
+    }
+
+    .operation-item.status-partial {
+        background: rgba(255, 152, 0, 0.05);
+        border-left-width: 3px !important;
+    }
+
+    .operation-item.status-pending {
+        background: rgba(33, 150, 243, 0.05);
+        border-left-width: 3px !important;
+    }
+
+    .operation-status-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        font-size: 14px;
+        margin-right: 4px;
+    }
+
+    .error-indicator {
+        margin-left: 4px;
+        font-size: 12px;
+        color: var(--error-color);
+        cursor: help;
+    }
+
     .operation-icon {
         display: flex;
         align-items: center;
@@ -326,6 +368,7 @@ export const operationStyles = `
 
     .diff-stats {
         display: flex;
+        align-items: center;
         gap: 12px;
         margin-bottom: 12px;
         font-size: 13px;
@@ -333,10 +376,67 @@ export const operationStyles = `
 
     .diff-stats .additions {
         color: var(--success-color);
+        font-weight: 500;
     }
 
     .diff-stats .deletions {
         color: var(--error-color);
+        font-weight: 500;
+    }
+
+    /* Diff Statistics Bar */
+    .diff-stats-bar {
+        flex: 1;
+        height: 8px;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+        overflow: hidden;
+        max-width: 200px;
+    }
+
+    .stats-bar-content {
+        display: flex;
+        height: 100%;
+    }
+
+    .stats-bar-additions {
+        background: var(--success-color);
+        height: 100%;
+    }
+
+    .stats-bar-deletions {
+        background: var(--error-color);
+        height: 100%;
+    }
+
+    /* Diff Statistics Info */
+    .diff-stats-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        padding: 8px 12px;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .diff-stats-info .file-info {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .diff-stats-info .separator {
+        color: var(--text-disabled);
+    }
+
+    .diff-stats-info .affected-lines {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--accent-color);
     }
 
     .diff-content {
