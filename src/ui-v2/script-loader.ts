@@ -3473,13 +3473,6 @@ export const uiScript = `
 			content.className = 'preview-content';
 			content.style.cssText = 'background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border); border-radius: 8px; max-width: 80%; max-height: 80%; overflow: auto; padding: 20px; position: relative;';
 			
-			// Add close button
-			const closeBtn = document.createElement('button');
-			closeBtn.innerHTML = '×';
-			closeBtn.style.cssText = 'position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--vscode-editor-foreground); font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; line-height: 30px;';
-			closeBtn.onclick = () => document.body.removeChild(modal);
-			content.appendChild(closeBtn);
-			
 			// Add preview content
 			let html = '<h3 style="margin-top: 0;">🔍 Operation Preview: ' + (preview.action === 'undo' ? 'Undo' : 'Redo') + '</h3>';
 			html += '<div style="margin-bottom: 20px;">';
