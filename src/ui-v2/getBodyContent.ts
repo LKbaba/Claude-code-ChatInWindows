@@ -180,20 +180,12 @@ export function getBodyContent(): string {
 			</div>
 			<div id="toolsList" class="tools-list">
 				<div class="tool-item">
+					<input type="checkbox" id="tool-task" checked disabled>
+					<label for="tool-task">Task - Launch agent for search tasks</label>
+				</div>
+				<div class="tool-item">
 					<input type="checkbox" id="tool-bash" checked disabled>
 					<label for="tool-bash">Bash - Execute shell commands</label>
-				</div>
-				<div class="tool-item">
-					<input type="checkbox" id="tool-read" checked disabled>
-					<label for="tool-read">Read - Read file contents</label>
-				</div>
-				<div class="tool-item">
-					<input type="checkbox" id="tool-edit" checked disabled>
-					<label for="tool-edit">Edit - Modify files</label>
-				</div>
-				<div class="tool-item">
-					<input type="checkbox" id="tool-write" checked disabled>
-					<label for="tool-write">Write - Create new files</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-glob" checked disabled>
@@ -208,16 +200,44 @@ export function getBodyContent(): string {
 					<label for="tool-ls">LS - List directory contents</label>
 				</div>
 				<div class="tool-item">
+					<input type="checkbox" id="tool-exit-plan-mode" checked disabled>
+					<label for="tool-exit-plan-mode">Exit Plan Mode - Exit planning mode</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-read" checked disabled>
+					<label for="tool-read">Read - Read file contents</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-edit" checked disabled>
+					<label for="tool-edit">Edit - Modify files</label>
+				</div>
+				<div class="tool-item">
 					<input type="checkbox" id="tool-multiedit" checked disabled>
 					<label for="tool-multiedit">MultiEdit - Edit multiple files</label>
 				</div>
 				<div class="tool-item">
-					<input type="checkbox" id="tool-websearch" checked disabled>
-					<label for="tool-websearch">WebSearch - Search the web</label>
+					<input type="checkbox" id="tool-write" checked disabled>
+					<label for="tool-write">Write - Create new files</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-notebook-read" checked disabled>
+					<label for="tool-notebook-read">NotebookRead - Read Jupyter notebooks</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-notebook-edit" checked disabled>
+					<label for="tool-notebook-edit">NotebookEdit - Edit Jupyter notebooks</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-webfetch" checked disabled>
 					<label for="tool-webfetch">WebFetch - Fetch web content</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-todowrite" checked disabled>
+					<label for="tool-todowrite">TodoWrite - Manage task lists</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-websearch" checked disabled>
+					<label for="tool-websearch">WebSearch - Search the web</label>
 				</div>
 			</div>
 		</div>

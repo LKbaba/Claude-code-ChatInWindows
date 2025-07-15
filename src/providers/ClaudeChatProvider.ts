@@ -447,7 +447,11 @@ export class ClaudeChatProvider {
 						});
 					},
 					onToolResult: (data: any) => {
-						// Tool results are handled through saveMessage
+						// Send tool result to webview
+						this._panel?.webview.postMessage({
+							type: 'toolResult',
+							data: data
+						});
 					},
 					onTokenUpdate: (tokens: any) => {
 						this._totalTokensInput = tokens.totalTokensInput;
