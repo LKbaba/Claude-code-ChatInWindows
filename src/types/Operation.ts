@@ -58,6 +58,7 @@ export interface OperationData {
   
   // For DIRECTORY operations
   dirPath?: string;
+  files?: Array<{ path: string; content: string }>; // For DIRECTORY_DELETE restoration
   
   // For BASH_COMMAND
   command?: string;

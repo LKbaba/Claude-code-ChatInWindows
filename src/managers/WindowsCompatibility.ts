@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ConfigurationManager } from './ConfigurationManager';
+import { ApiConfigManager } from './config/ApiConfigManager';
 
 export interface ExecutionEnvironment {
     spawnOptions: cp.SpawnOptions;
@@ -12,7 +12,7 @@ export interface ExecutionEnvironment {
 export class WindowsCompatibility {
     constructor(
         private readonly _npmPrefixPromise: Promise<string | undefined>,
-        private readonly _configurationManager: ConfigurationManager
+        private readonly _configurationManager: ApiConfigManager
     ) {}
 
     async getExecutionEnvironment(forTerminal = false): Promise<ExecutionEnvironment> {

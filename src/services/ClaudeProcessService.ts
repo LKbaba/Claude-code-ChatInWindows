@@ -7,7 +7,7 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { WindowsCompatibility, ExecutionEnvironment } from '../managers/WindowsCompatibility';
-import { ConfigurationManager } from '../managers/ConfigurationManager';
+import { ConfigurationManagerFacade } from '../managers/config/ConfigurationManagerFacade';
 import { ConversationManager } from '../managers/ConversationManager';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { getMcpSystemPrompts } from '../utils/mcpPrompts';
@@ -37,7 +37,7 @@ export class ClaudeProcessService {
 
     constructor(
         private _windowsCompatibility: WindowsCompatibility,
-        private _configurationManager: ConfigurationManager,
+        private _configurationManager: ConfigurationManagerFacade,
         private _conversationManager: ConversationManager,
         private _npmPrefixResolver: () => Promise<string | undefined>
     ) {

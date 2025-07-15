@@ -1,6 +1,6 @@
 /**
- * Configuration Manager for Claude Code Chat VS Code Extension
- * Manages all configuration-related operations including settings and MCP
+ * MCP (Model Context Protocol) Configuration Manager
+ * Manages all MCP-related configuration operations
  */
 
 import * as vscode from 'vscode';
@@ -8,16 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-
-export interface Settings {
-    'thinking.intensity': string;
-    'mcp.enabled': boolean;
-    'mcp.servers': any[];
-    'api.useCustomAPI': boolean;
-    'api.key': string;
-    'api.baseUrl': string;
-    [key: string]: any;
-}
+import { expandVariables } from '../../utils/configUtils';
 
 export interface McpStatus {
     status: 'disabled' | 'configured' | 'testing' | 'connected' | 'error';
@@ -25,44 +16,7 @@ export interface McpStatus {
     servers?: any[];
 }
 
-export class ConfigurationManager {
-    /**
-     * Gets current extension settings
-     * @returns Current settings object
-     */
-    public getCurrentSettings(): Settings {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        return {
-            'thinking.intensity': config.get<string>('thinking.intensity', 'think'),
-            'mcp.enabled': config.get<boolean>('mcp.enabled', false),
-            'mcp.servers': config.get<any[]>('mcp.servers', []),
-            'api.useCustomAPI': config.get<boolean>('api.useCustomAPI', false),
-            'api.key': config.get<string>('api.key', ''),
-            'api.baseUrl': config.get<string>('api.baseUrl', 'https://api.anthropic.com')
-        };
-    }
-
-    /**
-     * Updates extension settings
-     * @param settings Settings to update
-     * @returns Promise resolving when settings are updated
-     */
-    public async updateSettings(settings: { [key: string]: any }): Promise<void> {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        
-        try {
-            for (const [key, value] of Object.entries(settings)) {
-                await config.update(key, value, vscode.ConfigurationTarget.Global);
-            }
-            
-            vscode.window.showInformationMessage('Settings updated successfully');
-        } catch (error) {
-            console.error('Failed to update settings:', error);
-            vscode.window.showErrorMessage('Failed to update settings');
-            throw error;
-        }
-    }
-
+export class McpConfigManager {
     /**
      * Gets MCP (Model Context Protocol) status
      * @returns MCP status object
@@ -89,9 +43,11 @@ export class ConfigurationManager {
      * @returns MCP configuration object and temp file path
      */
     public async buildMcpConfig(): Promise<{ config: any, configPath: string | null }> {
-        const settings = this.getCurrentSettings();
+        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
+        const mcpEnabled = config.get<boolean>('mcp.enabled', false);
+        const mcpServers = config.get<any[]>('mcp.servers', []);
         
-        if (!settings['mcp.enabled'] || settings['mcp.servers'].length === 0) {
+        if (!mcpEnabled || mcpServers.length === 0) {
             // Clean up old MCP configs when MCP is disabled or no servers
             await this.cleanupOldMcpConfigs();
             return { config: null, configPath: null };
@@ -104,22 +60,22 @@ export class ConfigurationManager {
             mcpServers: {}
         };
         
-        settings['mcp.servers'].forEach((server) => {
+        mcpServers.forEach((server) => {
             if (server.name && server.command) {
                 // Build server configuration with variable expansion
                 const serverConfig: any = {
-                    command: this.expandVariables(server.command)
+                    command: expandVariables(server.command)
                 };
                 
                 // Add args if provided with variable expansion
                 if (server.args) {
                     if (typeof server.args === 'string') {
                         // If args is a string, split it into array and expand variables
-                        serverConfig.args = server.args.trim().split(/\s+/).map((arg: string) => this.expandVariables(arg));
+                        serverConfig.args = server.args.trim().split(/\s+/).map((arg: string) => expandVariables(arg));
                     } else if (Array.isArray(server.args)) {
                         // Expand variables in each argument
                         serverConfig.args = server.args.map((arg: any) => 
-                            typeof arg === 'string' ? this.expandVariables(arg) : arg
+                            typeof arg === 'string' ? expandVariables(arg) : arg
                         );
                     }
                 }
@@ -136,7 +92,7 @@ export class ConfigurationManager {
                             server.env.split(/\s+/).forEach((pair: string) => {
                                 const [key, value] = pair.split('=');
                                 if (key && value) {
-                                    envObj[key] = this.expandVariables(value);
+                                    envObj[key] = expandVariables(value);
                                 }
                             });
                             serverConfig.env = envObj;
@@ -145,7 +101,7 @@ export class ConfigurationManager {
                         // Expand variables in object values
                         const expandedEnv: any = {};
                         for (const [key, value] of Object.entries(server.env)) {
-                            let expandedValue = typeof value === 'string' ? this.expandVariables(value) : value;
+                            let expandedValue = typeof value === 'string' ? expandVariables(value) : value;
                             
                             // Normalize Windows paths
                             if (typeof expandedValue === 'string' && process.platform === 'win32') {
@@ -206,9 +162,9 @@ export class ConfigurationManager {
     public async testMcpConnection(
         getExecutionEnvironment: () => Promise<{ spawnOptions: cp.SpawnOptions, claudeExecutablePath: string | undefined }>
     ): Promise<McpStatus> {
-        const settings = this.getCurrentSettings();
-        const mcpEnabled = settings['mcp.enabled'];
-        const mcpServers = settings['mcp.servers'];
+        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
+        const mcpEnabled = config.get<boolean>('mcp.enabled', false);
+        const mcpServers = config.get<any[]>('mcp.servers', []);
         
         if (!mcpEnabled || mcpServers.length === 0) {
             return {
@@ -218,7 +174,7 @@ export class ConfigurationManager {
         }
 
         // Build test configuration
-        const { config, configPath } = await this.buildMcpConfig();
+        const { config: mcpConfig, configPath } = await this.buildMcpConfig();
         if (!configPath) {
             return {
                 status: 'error',
@@ -290,101 +246,9 @@ export class ConfigurationManager {
     }
 
     /**
-     * Gets Windows-specific configuration
-     * @returns Windows configuration object
-     */
-    public getWindowsConfig(): {
-        gitBashPath: string;
-    } {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        return {
-            gitBashPath: config.get<string>('windows.gitBashPath', 'C:\\Program Files\\Git\\bin\\bash.exe')
-        };
-    }
-
-    /**
-     * Gets thinking mode configuration
-     * @returns Thinking intensity setting
-     */
-    public getThinkingIntensity(): string {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        return config.get<string>('thinking.intensity', 'think');
-    }
-
-    /**
-     * Gets API configuration
-     * @returns API configuration object
-     */
-    public getApiConfig(): {
-        useCustomAPI: boolean;
-        key: string;
-        baseUrl: string;
-    } {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        return {
-            useCustomAPI: config.get<boolean>('api.useCustomAPI', false),
-            key: config.get<string>('api.key', ''),
-            baseUrl: config.get<string>('api.baseUrl', 'https://api.anthropic.com')
-        };
-    }
-
-    /**
-     * Updates API key securely
-     * @param key API key to store
-     * @returns Promise resolving when key is stored
-     */
-    public async updateApiKey(key: string): Promise<void> {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        await config.update('api.key', key, vscode.ConfigurationTarget.Global);
-    }
-
-    /**
-     * Gets API key from configuration
-     * @returns API key or empty string
-     */
-    public getApiKey(): string {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        return config.get<string>('api.key', '');
-    }
-
-    /**
-     * Expands environment variables in strings (e.g., $HOME, ${VAR})
-     * Supports both $VAR and ${VAR} syntax
-     * @param value String potentially containing environment variables
-     * @returns String with expanded variables
-     */
-    public expandVariables(value: string): string {
-        if (!value || typeof value !== 'string') {
-            return value;
-        }
-
-        // First, handle escaped variables \${VAR} -> ${VAR}
-        value = value.replace(/\\\$\{([^}]+)\}/g, '${$1}');
-
-        // Replace ${VAR} and $VAR with environment variable values
-        return value.replace(/\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, p1, p2) => {
-            const varName = p1 || p2;
-            const envValue = process.env[varName];
-            
-            // If variable exists, return its value; otherwise, return original
-            if (envValue !== undefined) {
-                return envValue;
-            }
-            
-            // Special handling for common variables
-            if (varName === 'HOME' || varName === 'USERPROFILE') {
-                return os.homedir();
-            }
-            
-            // Return original if variable not found
-            return match;
-        });
-    }
-
-    /**
      * Cleans up old MCP configuration files
      */
-    private async cleanupOldMcpConfigs(): Promise<void> {
+    public async cleanupOldMcpConfigs(): Promise<void> {
         try {
             const homeDir = os.homedir();
             const claudeDir = path.join(homeDir, '.claude');
@@ -410,5 +274,4 @@ export class ConfigurationManager {
             console.log('[cleanupOldMcpConfigs] Error cleaning up old MCP configs:', error);
         }
     }
-
 }
