@@ -843,10 +843,10 @@ export class ClaudeChatProvider {
 								score += (segments.length - i) * 2;
 								
 								// Higher score for reasonable length
-								if (segment.length >= 3 && segment.length <= 30) score += 2;
+								if (segment.length >= 3 && segment.length <= 30) {score += 2;}
 								
 								// Lower score for all uppercase (might be acronym, but often system folders)
-								if (segment === segment.toUpperCase() && segment.length > 3) score -= 1;
+								if (segment === segment.toUpperCase() && segment.length > 3) {score -= 1;}
 								
 								candidates.push({ name: segment, score });
 							}
@@ -859,12 +859,12 @@ export class ClaudeChatProvider {
 								const combined = segments.slice(start, start + length);
 								
 								// Skip if any segment in the combination should be skipped
-								if (combined.some((seg: string) => shouldSkip(seg))) continue;
+								if (combined.some((seg: string) => shouldSkip(seg))) {continue;}
 								
 								const combinedName = combined.join('-');
 								
 								// Skip if it's too long
-								if (combinedName.length > 40) continue;
+								if (combinedName.length > 40) {continue;}
 								
 								let score = 0;
 								
