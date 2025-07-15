@@ -13,10 +13,34 @@ export class OperationTracker {
   private _currentSessionId: string | undefined;
   private readonly _maxOperations = 1000; // Limit memory usage
   private _storageUri: vscode.Uri | undefined;
+  private _workspaceId: string | undefined;
 
   constructor(private readonly _context: vscode.ExtensionContext) {
     this._storageUri = _context.globalStorageUri;
+    this._workspaceId = this.calculateWorkspaceId();
     this.initializeStorage();
+  }
+
+  /**
+   * Calculate a unique identifier for the current workspace
+   */
+  private calculateWorkspaceId(): string | undefined {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      return undefined;
+    }
+    
+    // Use workspace folder path as a unique identifier
+    // Create a simple hash from the path to avoid file system issues
+    const path = workspaceFolder.uri.fsPath;
+    let hash = 0;
+    for (let i = 0; i < path.length; i++) {
+      const char = path.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    return Math.abs(hash).toString(36);
   }
 
   private async initializeStorage(): Promise<void> {
@@ -37,6 +61,13 @@ export class OperationTracker {
   }
 
   /**
+   * Get the current workspace ID
+   */
+  getWorkspaceId(): string | undefined {
+    return this._workspaceId;
+  }
+
+  /**
    * Track a new operation
    */
   trackOperation(
@@ -45,6 +76,21 @@ export class OperationTracker {
     messageId?: string,
     toolId?: string
   ): Operation {
+    // For file delete operations, try to read the file content if not provided
+    if (type === OperationType.FILE_DELETE && data.filePath && !data.content) {
+      try {
+        const fsSync = require('fs');
+        if (fsSync.existsSync(data.filePath)) {
+          data.content = fsSync.readFileSync(data.filePath, 'utf8');
+          console.log(`[OperationTracker] Read content for file delete: ${data.filePath}, size: ${data.content?.length || 0}`);
+        } else {
+          console.warn(`[OperationTracker] File not found for delete operation: ${data.filePath}`);
+        }
+      } catch (error) {
+        console.warn(`[OperationTracker] Error reading file for delete operation:`, error);
+      }
+    }
+    
     const operation = new Operation(type, data, messageId);
     
     // Use tool ID if provided
@@ -326,17 +372,20 @@ export class OperationTracker {
    * Save operations to disk
    */
   async saveOperations(): Promise<void> {
-    if (!this._storageUri) return;
+    if (!this._storageUri || !this._workspaceId) return;
 
     try {
       const data = {
         operations: Array.from(this._operations.entries()),
         operationsByMessage: Array.from(this._operationsByMessage.entries()),
         operationsBySession: Array.from(this._operationsBySession.entries()),
-        currentSessionId: this._currentSessionId
+        currentSessionId: this._currentSessionId,
+        workspaceId: this._workspaceId
       };
 
-      const filePath = vscode.Uri.joinPath(this._storageUri, 'operations.json');
+      // Use workspace-specific filename
+      const filename = `operations-${this._workspaceId}.json`;
+      const filePath = vscode.Uri.joinPath(this._storageUri, filename);
       await vscode.workspace.fs.writeFile(
         filePath,
         Buffer.from(JSON.stringify(data, null, 2))
@@ -350,12 +399,20 @@ export class OperationTracker {
    * Load operations from disk
    */
   async loadOperations(): Promise<void> {
-    if (!this._storageUri) return;
+    if (!this._storageUri || !this._workspaceId) return;
 
     try {
-      const filePath = vscode.Uri.joinPath(this._storageUri, 'operations.json');
+      // Use workspace-specific filename
+      const filename = `operations-${this._workspaceId}.json`;
+      const filePath = vscode.Uri.joinPath(this._storageUri, filename);
       const content = await vscode.workspace.fs.readFile(filePath);
       const data = JSON.parse(content.toString());
+
+      // Verify workspace ID matches
+      if (data.workspaceId !== this._workspaceId) {
+        console.warn('Workspace ID mismatch in operations file');
+        return;
+      }
 
       // Restore operations
       this._operations.clear();
@@ -369,7 +426,7 @@ export class OperationTracker {
       this._currentSessionId = data.currentSessionId;
     } catch (error) {
       // File might not exist yet
-      console.log('No saved operations found');
+      console.log(`No saved operations found for workspace ${this._workspaceId}`);
     }
   }
 
