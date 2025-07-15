@@ -20,10 +20,11 @@
 * ✅ **MCP 適配**：適配各種MCP，支援動態查詢MCP工具。
 * ✅ **第三方API適配**：適配各種第三方API，包括anyrouter/tuziapi等，以及Kimi K2。
 * ✅ **支援圖片複製貼上/檔案檢索**：把多模態的模型用到極致，不能貼上圖片怎麼行？
+* ✅ **多語言支援**：多語種交流，程式碼註解。
 * ✅ **「Vibe Coding」絕配**：流暢UI介面，營造極致舒適的編程環境。
 * 🔄 **操作歷史記錄**：即時顯示所有檔案操作，一鍵撤銷/重做
 
-待更新：Token&Fee visualization，Language mode.
+待更新: Token & Fee visualization, VSCode integration-code awareness.
 
 ---
 
