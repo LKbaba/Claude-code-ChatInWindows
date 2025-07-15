@@ -20,10 +20,11 @@
 * ✅ **MCP Adaptation**: Adapts to various MCPs with support for dynamic MCP tool queries.
 * ✅ **Third-party API Adaptation**: Supports various third-party APIs including anyrouter/tuziapi, as well as Kimi K2.
 * ✅ **Image Copy-Paste/File Retrieval Support**: Maximize the use of multimodal models - image pasting is essential!
+* ✅ **Multi-language Support**: Multi-language communication and code comments.
 * ✅ **Perfect for "Vibe Coding"**: Smooth UI interface for an ultra-comfortable coding environment.
 * 🔄 **Operation History**: Real-time display of all file operations with one-click undo/redo
 
-Coming soon: Token&Fee visualization, Language mode.
+Coming soon: Token & Fee visualization, VSCode integration-code awareness.
 
 ---
 

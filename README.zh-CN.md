@@ -19,11 +19,12 @@
 * ✅ **实时费用统计**：Token 和费用实时显示，明明白白消费。
 * ✅ **MCP 适配**：适配各种MCP，支持动态查询MCP工具。
 * ✅ **第三方API适配**：适配各种第三方API，包括anyrouter/tuziapi等，以及Kimi K2 。
-* ✅ **支持图片复制粘贴/文件检索**：把多模态的模型用到极致，不能粘贴图片怎么行？
+* ✅ **支持图片复制粘贴/文件检索**：想把多模态的模型用到极致，不能粘贴图片怎么行？
+* ✅ **多语言支持**：多语种交流，代码注释。
 * ✅ **「Vibe Coding」绝配**：流畅UI界面，营造极致舒适的编程环境。
 * 🔄 **操作历史记录**：实时显示所有文件操作，一键撤销/重做
 
-待更新：Token&Fee visualization，Language mode.
+待更新: Token & Fee visualization, VSCode integration-code awareness.
 
 ---
 
