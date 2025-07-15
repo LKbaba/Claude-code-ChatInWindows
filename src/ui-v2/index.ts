@@ -4,8 +4,6 @@
  */
 
 import { StateManager } from './services/StateManager';
-import { MessageRenderer } from './services/MessageRenderer';
-import { ModalManager } from './services/ModalManager';
 import { EventHandlers } from './services/EventHandlers';
 import { formatDiff } from './utils/formatters/diff-formatter';
 import { formatToolInputUI as formatToolInput } from './utils/formatters/tool-formatter';
@@ -13,14 +11,7 @@ import { parseMarkdown } from './utils/markdown';
 import { VscodeApi } from './types';
 import { getCombinedStyles } from './styles';
 import { getBodyContent } from './getBodyContent';
-import { uiScript } from './script-loader';
-
-// Import components
-import { Layout, Header, Panel } from './components/layout';
-import { MessageList } from './components/message/MessageList';
-import { InputArea } from './components/message/InputArea';
-import { SettingsModal } from './components/modal/SettingsModal';
-import { Button } from './components/base/Button';
+import { uiScript } from './ui-script';
 
 // Generate the main UI HTML
 export function generateUIHtml(): string {
