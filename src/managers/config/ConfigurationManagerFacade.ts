@@ -14,6 +14,8 @@ export interface Settings extends VsCodeSettings {
     'api.useCustomAPI': boolean;
     'api.key': string;
     'api.baseUrl': string;
+    'language.enabled': boolean;
+    'language.selected': string | null;
 }
 
 export class ConfigurationManagerFacade {
@@ -40,7 +42,9 @@ export class ConfigurationManagerFacade {
             'mcp.servers': vsCodeSettings['mcp.servers'] || [],
             'api.useCustomAPI': apiConfig.useCustomAPI,
             'api.key': apiConfig.key,
-            'api.baseUrl': apiConfig.baseUrl
+            'api.baseUrl': apiConfig.baseUrl,
+            'language.enabled': vsCodeSettings['language.enabled'] || false,
+            'language.selected': vsCodeSettings['language.selected'] || null
         };
     }
 

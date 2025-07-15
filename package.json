@@ -204,6 +204,27 @@
             "required": ["name", "command"]
           }
         },
+        "claudeCodeChatUI.language.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable language mode for Claude responses"
+        },
+        "claudeCodeChatUI.language.selected": {
+          "type": ["string", "null"],
+          "default": null,
+          "enum": ["zh", "es", "ar", "fr", "de", "ja", "ko", null],
+          "enumDescriptions": [
+            "中文",
+            "Español",
+            "العربية",
+            "Français",
+            "Deutsch",
+            "日本語",
+            "한국어",
+            "Auto-detect"
+          ],
+          "description": "Selected language for Claude responses"
+        },
         "claudeCodeChatUI.api.useCustomAPI": {
           "type": "boolean",
           "default": false,

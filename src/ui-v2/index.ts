@@ -1802,6 +1802,45 @@ function getStylesOld(): string {
         border-color: var(--vscode-focusBorder);
     }
 
+    /* Language selection modal */
+    .language-modal-description {
+        padding: 0px 20px;
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+        line-height: 1.5;
+        text-align: center;
+        margin: 20px;
+        margin-bottom: 0px;
+    }
+
+    .language-title {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+
+    .language-description {
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+        opacity: 0.8;
+    }
+
+    /* Modal closing animation */
+    .modal-closing {
+        animation: modalFadeOut 0.2s ease-out forwards;
+    }
+
+    @keyframes modalFadeOut {
+        from {
+            opacity: 1;
+            transform: scale(1);
+        }
+        to {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+    }
+
     /* Slash commands modal */
     .slash-commands-info {
         padding: 12px 16px;

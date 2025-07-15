@@ -62,6 +62,10 @@ export function getBodyContent(): string {
 					<span id="thinkingModeLabel" onclick="toggleThinkingMode()">Thinking Mode</span>
 					<div class="mode-switch" id="thinkingModeSwitch" onclick="toggleThinkingMode()"></div>
 				</div>
+				<div class="mode-toggle">
+					<span id="languageModeLabel" onclick="handleLanguageLabelClick()">Language Mode</span>
+					<div class="mode-switch" id="languageModeSwitch" onclick="toggleLanguageMode()"></div>
+				</div>
 			</div>
 			<div class="textarea-container">
 				<div class="textarea-wrapper">
@@ -421,6 +425,70 @@ export function getBodyContent(): string {
 				</div>
 				<div class="thinking-modal-actions">
 					<button class="confirm-btn" onclick="confirmThinkingIntensity()">Confirm</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Language selection modal -->
+	<div id="languageModal" class="tools-modal" style="display: none;">
+		<div class="tools-modal-content" style="width: 400px;">
+			<div class="tools-modal-header">
+				<span>Select Language</span>
+				<button class="tools-close-btn" onclick="hideLanguageModal()">✕</button>
+			</div>
+			<div class="language-modal-description">
+				Choose the language for Claude to communicate with you.
+			</div>
+			<div class="tools-list">
+				<div class="tool-item" onclick="selectLanguage('zh')">
+					<input type="radio" name="language" id="language-zh" value="zh">
+					<label for="language-zh">
+						<div class="language-title">中文</div>
+						<div class="language-description">用中文与您交流</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectLanguage('es')">
+					<input type="radio" name="language" id="language-es" value="es">
+					<label for="language-es">
+						<div class="language-title">Español</div>
+						<div class="language-description">Comunicarse en español</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectLanguage('ar')">
+					<input type="radio" name="language" id="language-ar" value="ar">
+					<label for="language-ar">
+						<div class="language-title">العربية</div>
+						<div class="language-description">التواصل بالعربية</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectLanguage('fr')">
+					<input type="radio" name="language" id="language-fr" value="fr">
+					<label for="language-fr">
+						<div class="language-title">Français</div>
+						<div class="language-description">Communiquer en français</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectLanguage('de')">
+					<input type="radio" name="language" id="language-de" value="de">
+					<label for="language-de">
+						<div class="language-title">Deutsch</div>
+						<div class="language-description">Auf Deutsch kommunizieren</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectLanguage('ja')">
+					<input type="radio" name="language" id="language-ja" value="ja">
+					<label for="language-ja">
+						<div class="language-title">日本語</div>
+						<div class="language-description">日本語で会話する</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectLanguage('ko')">
+					<input type="radio" name="language" id="language-ko" value="ko">
+					<label for="language-ko">
+						<div class="language-title">한국어</div>
+						<div class="language-description">한국어로 대화하기</div>
+					</label>
 				</div>
 			</div>
 		</div>
