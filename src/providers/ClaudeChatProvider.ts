@@ -4,7 +4,7 @@ import * as cp from 'child_process';
 import { loadUIHtml } from '../ui-loader';
 import { resolveNpmPrefix, updateClaudeMdWithWindowsInfo } from '../utils/utils';
 import { FileOperationsManager } from '../managers/FileOperationsManager';
-import { ConfigurationManager } from '../managers/ConfigurationManager';
+import { ConfigurationManagerFacade } from '../managers/config/ConfigurationManagerFacade';
 import { CustomCommandsManager } from '../managers/CustomCommandsManager';
 import { ClaudeChatViewProvider } from './ClaudeChatViewProvider';
 import { BackupManager } from '../managers/BackupManager';
@@ -15,6 +15,7 @@ import { MessageProcessor } from '../services/MessageProcessor';
 import { OperationTracker } from '../managers/OperationTracker';
 import { UndoRedoManager } from '../managers/UndoRedoManager';
 import { OperationPreviewService } from '../services/OperationPreview';
+import { expandVariables } from '../utils/configUtils';
 
 export class ClaudeChatProvider {
 	private _panel: vscode.WebviewPanel | undefined;
@@ -28,7 +29,7 @@ export class ClaudeChatProvider {
 	private _selectedModel: string = 'default'; // Default model
 	private _npmPrefixPromise: Promise<string | undefined>;
 	private _fileOperationsManager: FileOperationsManager;
-	private _configurationManager: ConfigurationManager;
+	private _configurationManager: ConfigurationManagerFacade;
 	private _customCommandsManager: CustomCommandsManager;
 	private _backupManager: BackupManager;
 	private _conversationManager: ConversationManager;
@@ -46,7 +47,7 @@ export class ClaudeChatProvider {
 		this._npmPrefixPromise = resolveNpmPrefix();
 		// Initialize managers
 		this._fileOperationsManager = new FileOperationsManager();
-		this._configurationManager = new ConfigurationManager();
+		this._configurationManager = new ConfigurationManagerFacade();
 		this._customCommandsManager = new CustomCommandsManager(this._context);
 		this._backupManager = new BackupManager(this._context);
 		this._conversationManager = new ConversationManager(this._context);
@@ -1136,7 +1137,7 @@ export class ClaudeChatProvider {
 
 	private async _getHtmlForWebview(): Promise<string> {
 		// Load UI based on configuration (which is now hardcoded to v2)
-		return await loadUIHtml(this._configurationManager);
+		return await loadUIHtml();
 	}
 
 	private _sendCurrentSettings(): void {
@@ -1317,8 +1318,8 @@ export class ClaudeChatProvider {
 		try {
 			console.log(`[MCP] Querying tools for server: ${server.name}`);
 
-			// Expand environment variables in command and args using ConfigurationManager
-			const command = this._configurationManager.expandVariables(server.command);
+			// Expand environment variables in command and args using expandVariables function
+			const command = expandVariables(server.command);
 			
 			// Expand variables in args
 			let args: string[] = [];
@@ -1326,12 +1327,12 @@ export class ClaudeChatProvider {
 				if (typeof server.args === 'string') {
 					// If args is a string, split it and expand variables
 					args = server.args.trim().split(/\s+/).map((arg: string) => 
-						this._configurationManager.expandVariables(arg)
+						expandVariables(arg)
 					);
 				} else if (Array.isArray(server.args)) {
 					// Expand variables in each argument
 					args = server.args.map((arg: any) => 
-						typeof arg === 'string' ? this._configurationManager.expandVariables(arg) : arg
+						typeof arg === 'string' ? expandVariables(arg) : arg
 					);
 				}
 			}
@@ -1342,7 +1343,7 @@ export class ClaudeChatProvider {
 				if (typeof server.env === 'object') {
 					for (const [key, value] of Object.entries(server.env)) {
 						let expandedValue = typeof value === 'string' ? 
-							this._configurationManager.expandVariables(value) : value;
+							expandVariables(value) : value;
 						
 						// Normalize Windows paths
 						if (typeof expandedValue === 'string' && process.platform === 'win32') {
