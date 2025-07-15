@@ -447,11 +447,8 @@ export class ClaudeChatProvider {
 						});
 					},
 					onToolResult: (data: any) => {
-						// Send tool result to webview
-						this._panel?.webview.postMessage({
-							type: 'toolResult',
-							data: data
-						});
+						// Tool results are now handled by saveMessage to avoid duplication
+						// The saveMessage callback below will handle sending to webview
 					},
 					onTokenUpdate: (tokens: any) => {
 						this._totalTokensInput = tokens.totalTokensInput;
@@ -493,9 +490,8 @@ export class ClaudeChatProvider {
 					onError: (error: string) => {
 						if (error.includes('login')) {
 							this._handleLoginRequired();
-						} else {
-							this._sendAndSaveMessage({ type: 'error', data: error });
 						}
+						// Error messages are now handled by saveMessage to avoid duplication
 					},
 					sendToWebview: (message: any) => {
 						this._panel?.webview.postMessage(message);
