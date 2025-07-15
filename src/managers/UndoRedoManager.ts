@@ -1,40 +1,34 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import { Operation, OperationType } from '../types/Operation';
 import { OperationTracker } from './OperationTracker';
+import { OperationStrategyRegistry } from './operations/OperationStrategyRegistry';
+import { OperationContext, OperationPreview, UndoRedoResult } from './operations/IOperationStrategy';
 
-/**
- * Result of an undo/redo operation
- */
-export interface UndoRedoResult {
-    success: boolean;
-    message: string;
-    backupPath?: string;
-    affectedOperations?: Operation[];
-}
-
-/**
- * Preview of changes that will occur
- */
-export interface OperationPreview {
-    operation: Operation;
-    changes: string;
-    cascadingOperations: Operation[];
-    warnings: string[];
-}
+// Re-export interfaces from IOperationStrategy
+export { UndoRedoResult, OperationPreview } from './operations/IOperationStrategy';
 
 /**
  * Manages undo and redo operations
  */
 export class UndoRedoManager {
     private _backupDir: vscode.Uri | undefined;
+    private readonly _strategyRegistry: OperationStrategyRegistry;
+    private readonly _operationContext: OperationContext;
 
     constructor(
         private readonly _context: vscode.ExtensionContext,
         private readonly _operationTracker: OperationTracker
     ) {
         this._initializeBackupDir();
+        this._strategyRegistry = new OperationStrategyRegistry();
+        
+        // Create operation context that will be passed to strategies
+        this._operationContext = {
+            backupDir: this._backupDir,
+            backupFile: this._backupFile.bind(this),
+            getBackupUri: this._getBackupUri.bind(this),
+            operationTracker: this._operationTracker
+        };
     }
 
     private async _initializeBackupDir(): Promise<void> {
@@ -55,85 +49,28 @@ export class UndoRedoManager {
         const operation = this._operationTracker.getOperation(operationId);
         if (!operation || operation.undone) return null;
 
+        const strategy = this._strategyRegistry.getStrategy(operation.type);
+        if (!strategy) {
+            return {
+                operation,
+                changes: `Unknown operation type: ${operation.type}`,
+                cascadingOperations: [],
+                warnings: ['No strategy found for this operation type']
+            };
+        }
+
+        const preview = await strategy.previewUndo(operation);
+        
+        // Add cascading operations to the preview
         const cascading = this._operationTracker.getCascadingOperations(operationId, 'undo');
-        const warnings: string[] = [];
-        let changes = '';
-
-        // Generate preview based on operation type
-        switch (operation.type) {
-            case OperationType.FILE_CREATE:
-                changes = `Will delete file: ${operation.data.filePath}`;
-                break;
-
-            case OperationType.FILE_EDIT:
-            case OperationType.MULTI_EDIT:
-                changes = await this._previewFileEditUndo(operation);
-                break;
-
-            case OperationType.FILE_DELETE:
-                changes = `Will restore file: ${operation.data.filePath}`;
-                if (!operation.data.content) {
-                    warnings.push('File content not available - cannot restore');
-                }
-                break;
-
-            case OperationType.FILE_RENAME:
-                changes = `Will rename back: ${operation.data.newPath} → ${operation.data.oldPath}`;
-                break;
-
-            case OperationType.DIRECTORY_CREATE:
-                changes = `Will remove directory: ${operation.data.dirPath}`;
-                break;
-
-            case OperationType.DIRECTORY_DELETE:
-                changes = `Will restore directory: ${operation.data.dirPath}`;
-                break;
-
-            case OperationType.BASH_COMMAND:
-                changes = `Cannot auto-undo command: ${operation.data.command}`;
-                warnings.push('Manual intervention required');
-                break;
-        }
-
         if (cascading.length > 0) {
-            warnings.push(`This will also undo ${cascading.length} dependent operation(s)`);
+            preview.warnings.push(`This will also undo ${cascading.length} dependent operation(s)`);
         }
+        preview.cascadingOperations = cascading;
 
-        return {
-            operation,
-            changes,
-            cascadingOperations: cascading,
-            warnings
-        };
+        return preview;
     }
 
-    /**
-     * Preview file edit undo
-     */
-    private async _previewFileEditUndo(operation: Operation): Promise<string> {
-        if (!operation.data.filePath) return 'No file path specified';
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            const content = await vscode.workspace.fs.readFile(fileUri);
-            const currentContent = content.toString();
-
-            if (operation.type === OperationType.MULTI_EDIT && operation.data.edits) {
-                // For multi-edit, show number of changes
-                return `Will revert ${operation.data.edits.length} edit(s) in ${operation.data.filePath}`;
-            } else if (operation.data.newString) {
-                // For single edit, show what will be changed
-                const preview = currentContent.includes(operation.data.newString)
-                    ? `Will replace "${operation.data.newString}" with "${operation.data.oldString}"`
-                    : 'Target string not found in current file';
-                return preview;
-            }
-
-            return `Will revert changes to ${operation.data.filePath}`;
-        } catch (error) {
-            return `File not accessible: ${operation.data.filePath}`;
-        }
-    }
 
     /**
      * Undo an operation
@@ -148,6 +85,9 @@ export class UndoRedoManager {
             return { success: false, message: 'Operation already undone' };
         }
 
+        // Update context with current backup directory
+        this._operationContext.backupDir = this._backupDir;
+
         // Get cascading operations
         const cascading = this._operationTracker.getCascadingOperations(operationId, 'undo');
         const allOperations = [...cascading, operation];
@@ -155,7 +95,16 @@ export class UndoRedoManager {
         // Undo in reverse order (newest first)
         const results: UndoRedoResult[] = [];
         for (const op of allOperations) {
-            const result = await this._undoSingleOperation(op);
+            const strategy = this._strategyRegistry.getStrategy(op.type);
+            if (!strategy) {
+                results.push({ 
+                    success: false, 
+                    message: `No strategy found for operation type: ${op.type}` 
+                });
+                break;
+            }
+
+            const result = await strategy.undo(op, this._operationContext);
             results.push(result);
             
             if (result.success) {
@@ -176,276 +125,6 @@ export class UndoRedoManager {
         };
     }
 
-    /**
-     * Undo a single operation
-     */
-    private async _undoSingleOperation(operation: Operation): Promise<UndoRedoResult> {
-        switch (operation.type) {
-            case OperationType.FILE_CREATE:
-                return await this._undoFileCreate(operation);
-            case OperationType.FILE_EDIT:
-                return await this._undoFileEdit(operation);
-            case OperationType.MULTI_EDIT:
-                return await this._undoMultiEdit(operation);
-            case OperationType.FILE_DELETE:
-                return await this._undoFileDelete(operation);
-            case OperationType.FILE_RENAME:
-                return await this._undoFileRename(operation);
-            case OperationType.DIRECTORY_CREATE:
-                return await this._undoDirectoryCreate(operation);
-            case OperationType.DIRECTORY_DELETE:
-                return await this._undoDirectoryDelete(operation);
-            case OperationType.BASH_COMMAND:
-                return await this._undoBashCommand(operation);
-            default:
-                return { success: false, message: `Unknown operation type: ${operation.type}` };
-        }
-    }
-
-    /**
-     * Undo file creation
-     */
-    private async _undoFileCreate(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.filePath) {
-            return { success: false, message: 'No file path specified' };
-        }
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            
-            // Check if file exists before trying to delete it
-            try {
-                await vscode.workspace.fs.stat(fileUri);
-                
-                // Backup file before deletion
-                const backupPath = await this._backupFile(operation.id, fileUri);
-                
-                // Delete the file
-                await vscode.workspace.fs.delete(fileUri);
-                
-                return {
-                    success: true,
-                    message: `File deleted: ${operation.data.filePath}`,
-                    backupPath
-                };
-            } catch (statError: any) {
-                // File doesn't exist, but we still mark the operation as undone
-                if (statError.code === 'FileNotFound' || statError.code === 'EntryNotFound') {
-                    return {
-                        success: true,
-                        message: `File already deleted: ${operation.data.filePath}`
-                    };
-                }
-                throw statError;
-            }
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to undo file creation: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Undo file edit
-     */
-    private async _undoFileEdit(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.filePath) {
-            return { success: false, message: 'No file path specified' };
-        }
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            const content = await vscode.workspace.fs.readFile(fileUri);
-            let currentContent = content.toString();
-
-            // Backup current state
-            const backupPath = await this._backupFile(operation.id + '-current', fileUri);
-
-            // Revert the edit
-            if (operation.data.oldString !== undefined && operation.data.newString) {
-                if (operation.data.replaceAll) {
-                    currentContent = currentContent.split(operation.data.newString).join(operation.data.oldString);
-                } else {
-                    currentContent = currentContent.replace(operation.data.newString, operation.data.oldString);
-                }
-            } else {
-                return {
-                    success: false,
-                    message: 'Insufficient data to undo edit'
-                };
-            }
-
-            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(currentContent));
-
-            return {
-                success: true,
-                message: `File edit reverted: ${operation.data.filePath}`,
-                backupPath
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to undo file edit: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Undo multi-edit operation
-     */
-    private async _undoMultiEdit(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.filePath || !operation.data.edits) {
-            return { success: false, message: 'No file path or edits specified' };
-        }
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            const content = await vscode.workspace.fs.readFile(fileUri);
-            let currentContent = content.toString();
-
-            // Backup current state
-            const backupPath = await this._backupFile(operation.id + '-current', fileUri);
-
-            // Revert edits in reverse order
-            for (let i = operation.data.edits.length - 1; i >= 0; i--) {
-                const edit = operation.data.edits[i];
-                if (edit.newString && edit.oldString !== undefined) {
-                    if (currentContent.includes(edit.newString)) {
-                        currentContent = currentContent.replace(edit.newString, edit.oldString);
-                    }
-                }
-            }
-
-            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(currentContent));
-
-            return {
-                success: true,
-                message: `Multi-edit reverted: ${operation.data.filePath}`,
-                backupPath
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to undo multi-edit: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Undo file deletion
-     */
-    private async _undoFileDelete(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.filePath) {
-            return { success: false, message: 'No file path specified' };
-        }
-
-        if (!operation.data.content) {
-            return {
-                success: false,
-                message: 'Cannot restore file: content not available'
-            };
-        }
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(operation.data.content));
-
-            return {
-                success: true,
-                message: `File restored: ${operation.data.filePath}`
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to restore file: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Undo file rename
-     */
-    private async _undoFileRename(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.oldPath || !operation.data.newPath) {
-            return { success: false, message: 'Missing path information' };
-        }
-
-        try {
-            const oldUri = vscode.Uri.file(operation.data.oldPath);
-            const newUri = vscode.Uri.file(operation.data.newPath);
-            
-            await vscode.workspace.fs.rename(newUri, oldUri);
-
-            return {
-                success: true,
-                message: `File renamed back: ${operation.data.newPath} → ${operation.data.oldPath}`
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to undo rename: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Undo directory creation
-     */
-    private async _undoDirectoryCreate(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.dirPath) {
-            return { success: false, message: 'No directory path specified' };
-        }
-
-        try {
-            const dirUri = vscode.Uri.file(operation.data.dirPath);
-            await vscode.workspace.fs.delete(dirUri, { recursive: false });
-
-            return {
-                success: true,
-                message: `Directory removed: ${operation.data.dirPath}`
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to remove directory: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Undo directory deletion
-     */
-    private async _undoDirectoryDelete(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.dirPath) {
-            return { success: false, message: 'No directory path specified' };
-        }
-
-        try {
-            const dirUri = vscode.Uri.file(operation.data.dirPath);
-            await vscode.workspace.fs.createDirectory(dirUri);
-
-            return {
-                success: true,
-                message: `Directory restored: ${operation.data.dirPath}`
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to restore directory: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Undo bash command
-     */
-    private async _undoBashCommand(operation: Operation): Promise<UndoRedoResult> {
-        return {
-            success: false,
-            message: `Cannot auto-undo bash command: ${operation.data.command}\nManual intervention required.`
-        };
-    }
 
     /**
      * Preview what will happen if an operation is redone
@@ -454,56 +133,33 @@ export class UndoRedoManager {
         const operation = this._operationTracker.getOperation(operationId);
         if (!operation || !operation.undone) return null;
 
+        const strategy = this._strategyRegistry.getStrategy(operation.type);
+        if (!strategy) {
+            return {
+                operation,
+                changes: `Unknown operation type: ${operation.type}`,
+                cascadingOperations: [],
+                warnings: ['No strategy found for this operation type']
+            };
+        }
+
+        const preview = await strategy.previewRedo(operation);
+        
+        // Add cascading operations to the preview
         const cascading = this._operationTracker.getCascadingOperations(operationId, 'redo');
-        const warnings: string[] = [];
-        let changes = '';
-
-        // Generate preview based on operation type
-        switch (operation.type) {
-            case OperationType.FILE_CREATE:
-                changes = `Will recreate file: ${operation.data.filePath}`;
-                if (!operation.data.content && !this._hasBackup(operation.id)) {
-                    warnings.push('File content not available - cannot recreate');
-                }
-                break;
-
-            case OperationType.FILE_EDIT:
-            case OperationType.MULTI_EDIT:
-                changes = `Will reapply edit to: ${operation.data.filePath}`;
-                break;
-
-            case OperationType.FILE_DELETE:
-                changes = `Will delete file again: ${operation.data.filePath}`;
-                break;
-
-            case OperationType.FILE_RENAME:
-                changes = `Will rename again: ${operation.data.oldPath} → ${operation.data.newPath}`;
-                break;
-
-            case OperationType.DIRECTORY_CREATE:
-                changes = `Will recreate directory: ${operation.data.dirPath}`;
-                break;
-
-            case OperationType.DIRECTORY_DELETE:
-                changes = `Will delete directory again: ${operation.data.dirPath}`;
-                break;
-
-            case OperationType.BASH_COMMAND:
-                changes = `Cannot auto-redo command: ${operation.data.command}`;
-                warnings.push('Manual intervention required');
-                break;
-        }
-
         if (cascading.length > 0) {
-            warnings.push(`This will also redo ${cascading.length} dependent operation(s)`);
+            preview.warnings.push(`This will also redo ${cascading.length} dependent operation(s)`);
+        }
+        preview.cascadingOperations = cascading;
+
+        // Check for backup availability if needed
+        if (operation.type === OperationType.FILE_CREATE && 
+            !operation.data.content && 
+            !await this._hasBackup(operation.id)) {
+            preview.warnings.push('File content not available - cannot recreate');
         }
 
-        return {
-            operation,
-            changes,
-            cascadingOperations: cascading,
-            warnings
-        };
+        return preview;
     }
 
     /**
@@ -519,6 +175,9 @@ export class UndoRedoManager {
             return { success: false, message: 'Operation not undone' };
         }
 
+        // Update context with current backup directory
+        this._operationContext.backupDir = this._backupDir;
+
         // Get cascading operations
         const cascading = this._operationTracker.getCascadingOperations(operationId, 'redo');
         const allOperations = [...cascading, operation];
@@ -526,7 +185,16 @@ export class UndoRedoManager {
         // Redo in order (oldest first)
         const results: UndoRedoResult[] = [];
         for (const op of allOperations) {
-            const result = await this._redoSingleOperation(op);
+            const strategy = this._strategyRegistry.getStrategy(op.type);
+            if (!strategy) {
+                results.push({ 
+                    success: false, 
+                    message: `No strategy found for operation type: ${op.type}` 
+                });
+                break;
+            }
+
+            const result = await strategy.redo(op, this._operationContext);
             results.push(result);
             
             if (result.success) {
@@ -547,291 +215,6 @@ export class UndoRedoManager {
         };
     }
 
-    /**
-     * Redo a single operation
-     */
-    private async _redoSingleOperation(operation: Operation): Promise<UndoRedoResult> {
-        switch (operation.type) {
-            case OperationType.FILE_CREATE:
-                return await this._redoFileCreate(operation);
-            case OperationType.FILE_EDIT:
-                return await this._redoFileEdit(operation);
-            case OperationType.MULTI_EDIT:
-                return await this._redoMultiEdit(operation);
-            case OperationType.FILE_DELETE:
-                return await this._redoFileDelete(operation);
-            case OperationType.FILE_RENAME:
-                return await this._redoFileRename(operation);
-            case OperationType.DIRECTORY_CREATE:
-                return await this._redoDirectoryCreate(operation);
-            case OperationType.DIRECTORY_DELETE:
-                return await this._redoDirectoryDelete(operation);
-            case OperationType.BASH_COMMAND:
-                return await this._redoBashCommand(operation);
-            default:
-                return { success: false, message: `Unknown operation type: ${operation.type}` };
-        }
-    }
-
-    /**
-     * Redo file creation
-     */
-    private async _redoFileCreate(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.filePath) {
-            return { success: false, message: 'No file path specified' };
-        }
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            
-            // Check if file already exists
-            try {
-                await vscode.workspace.fs.stat(fileUri);
-                return {
-                    success: false,
-                    message: `Cannot redo: file already exists at ${operation.data.filePath}`
-                };
-            } catch {
-                // File doesn't exist, proceed
-            }
-
-            // Try to restore from backup or use original content
-            let content = '';
-            const backupUri = await this._getBackupUri(operation.id);
-            if (backupUri) {
-                try {
-                    const backupContent = await vscode.workspace.fs.readFile(backupUri);
-                    content = backupContent.toString();
-                } catch {
-                    // Backup not found
-                }
-            }
-
-            if (!content && operation.data.content) {
-                content = operation.data.content;
-            }
-
-            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(content));
-
-            return {
-                success: true,
-                message: `File recreated: ${operation.data.filePath}`
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to redo file creation: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Redo file edit
-     */
-    private async _redoFileEdit(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.filePath) {
-            return { success: false, message: 'No file path specified' };
-        }
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            const content = await vscode.workspace.fs.readFile(fileUri);
-            let currentContent = content.toString();
-
-            // Backup current state
-            const backupPath = await this._backupFile(operation.id + '-redo', fileUri);
-
-            // Reapply the edit
-            if (operation.data.oldString !== undefined && operation.data.newString) {
-                if (operation.data.replaceAll) {
-                    currentContent = currentContent.split(operation.data.oldString).join(operation.data.newString);
-                } else {
-                    currentContent = currentContent.replace(operation.data.oldString, operation.data.newString);
-                }
-            } else {
-                return {
-                    success: false,
-                    message: 'Insufficient data to redo edit'
-                };
-            }
-
-            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(currentContent));
-
-            return {
-                success: true,
-                message: `File edit redone: ${operation.data.filePath}`,
-                backupPath
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to redo file edit: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Redo multi-edit operation
-     */
-    private async _redoMultiEdit(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.filePath || !operation.data.edits) {
-            return { success: false, message: 'No file path or edits specified' };
-        }
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            const content = await vscode.workspace.fs.readFile(fileUri);
-            let currentContent = content.toString();
-
-            // Backup current state
-            const backupPath = await this._backupFile(operation.id + '-redo', fileUri);
-
-            // Reapply edits in order
-            for (const edit of operation.data.edits) {
-                if (edit.oldString !== undefined && edit.newString) {
-                    if (currentContent.includes(edit.oldString)) {
-                        currentContent = currentContent.replace(edit.oldString, edit.newString);
-                    }
-                }
-            }
-
-            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(currentContent));
-
-            return {
-                success: true,
-                message: `Multi-edit redone: ${operation.data.filePath}`,
-                backupPath
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to redo multi-edit: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Redo file deletion
-     */
-    private async _redoFileDelete(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.filePath) {
-            return { success: false, message: 'No file path specified' };
-        }
-
-        try {
-            const fileUri = vscode.Uri.file(operation.data.filePath);
-            
-            // Check if file exists
-            try {
-                await vscode.workspace.fs.stat(fileUri);
-            } catch {
-                return {
-                    success: false,
-                    message: `Cannot redo deletion: file does not exist at ${operation.data.filePath}`
-                };
-            }
-
-            // Backup before deletion
-            const backupPath = await this._backupFile(operation.id + '-redo-deleted', fileUri);
-
-            await vscode.workspace.fs.delete(fileUri);
-
-            return {
-                success: true,
-                message: `File deleted again: ${operation.data.filePath}`,
-                backupPath
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to redo file deletion: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Redo file rename
-     */
-    private async _redoFileRename(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.oldPath || !operation.data.newPath) {
-            return { success: false, message: 'Missing path information' };
-        }
-
-        try {
-            const oldUri = vscode.Uri.file(operation.data.oldPath);
-            const newUri = vscode.Uri.file(operation.data.newPath);
-            
-            await vscode.workspace.fs.rename(oldUri, newUri);
-
-            return {
-                success: true,
-                message: `File renamed again: ${operation.data.oldPath} → ${operation.data.newPath}`
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to redo rename: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Redo directory creation
-     */
-    private async _redoDirectoryCreate(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.dirPath) {
-            return { success: false, message: 'No directory path specified' };
-        }
-
-        try {
-            const dirUri = vscode.Uri.file(operation.data.dirPath);
-            await vscode.workspace.fs.createDirectory(dirUri);
-
-            return {
-                success: true,
-                message: `Directory created again: ${operation.data.dirPath}`
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to recreate directory: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Redo directory deletion
-     */
-    private async _redoDirectoryDelete(operation: Operation): Promise<UndoRedoResult> {
-        if (!operation.data.dirPath) {
-            return { success: false, message: 'No directory path specified' };
-        }
-
-        try {
-            const dirUri = vscode.Uri.file(operation.data.dirPath);
-            await vscode.workspace.fs.delete(dirUri, { recursive: false });
-
-            return {
-                success: true,
-                message: `Directory deleted again: ${operation.data.dirPath}`
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                message: `Failed to redo directory deletion: ${error.message}`
-            };
-        }
-    }
-
-    /**
-     * Redo bash command
-     */
-    private async _redoBashCommand(operation: Operation): Promise<UndoRedoResult> {
-        return {
-            success: false,
-            message: `Cannot auto-redo bash command: ${operation.data.command}\nPlease manually re-run the command.`
-        };
-    }
 
     /**
      * Backup a file before modification

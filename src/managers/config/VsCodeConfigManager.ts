@@ -21,11 +21,22 @@ export class VsCodeConfigManager {
             'thinking.intensity': config.get<string>('thinking.intensity', 'think')
         };
         
-        // Get all configuration properties
-        const allConfig = config;
-        for (const key in allConfig) {
-            if (allConfig.hasOwnProperty(key) && typeof allConfig[key] !== 'function') {
-                settings[key] = allConfig[key];
+        // Get specific configuration values
+        // We need to explicitly get each configuration value
+        settings['mcp.enabled'] = config.get<boolean>('mcp.enabled', false);
+        settings['mcp.servers'] = config.get<any[]>('mcp.servers', []);
+        settings['api.useCustomAPI'] = config.get<boolean>('api.useCustomAPI', false);
+        settings['api.key'] = config.get<string>('api.key', '');
+        settings['api.baseUrl'] = config.get<string>('api.baseUrl', 'https://api.anthropic.com');
+        
+        // Get any other settings that might be needed
+        const allKeys = Object.keys(config);
+        for (const key of allKeys) {
+            if (!settings.hasOwnProperty(key)) {
+                const value = config.get(key);
+                if (value !== undefined) {
+                    settings[key] = value;
+                }
             }
         }
         
