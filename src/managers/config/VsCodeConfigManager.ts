@@ -57,11 +57,30 @@ export class VsCodeConfigManager {
         
         for (const [key, value] of Object.entries(settings)) {
             try {
+                // 尝试更新配置
                 await config.update(key, value, vscode.ConfigurationTarget.Global);
             } catch (error: any) {
-                const errorMessage = error?.message || 'Unknown error';
-                vscode.window.showErrorMessage(`Failed to update setting ${key}: ${errorMessage}`);
-                throw error;
+                // 如果是配置未注册的错误，尝试使用工作区配置
+                if (error?.message?.includes('没有注册配置') || error?.message?.includes('No configuration found')) {
+                    try {
+                        // 尝试使用工作区目标
+                        await config.update(key, value, vscode.ConfigurationTarget.Workspace);
+                    } catch (workspaceError) {
+                        // 如果仍然失败，记录错误但不抛出
+                        console.error(`无法更新配置 ${key}:`, error);
+                        // 只显示一次错误消息
+                        if (key === 'language.enabled') {
+                            vscode.window.showWarningMessage(`语言模式设置暂时无法保存，但当前会话仍然有效。`);
+                        }
+                        // 不抛出错误，让UI继续工作
+                        continue;
+                    }
+                } else {
+                    // 其他错误仍然显示并抛出
+                    const errorMessage = error?.message || 'Unknown error';
+                    vscode.window.showErrorMessage(`Failed to update setting ${key}: ${errorMessage}`);
+                    throw error;
+                }
             }
         }
     }
