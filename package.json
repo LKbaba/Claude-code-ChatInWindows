@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -49,8 +49,12 @@
   ],
   "icon": "icon.png",
   "main": "./out/extension.js",
-  "extensionKind": ["ui"],
-  "os": ["win32"],
+  "extensionKind": [
+    "ui"
+  ],
+  "os": [
+    "win32"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -201,7 +205,10 @@
                 "description": "Environment variables for the MCP server"
               }
             },
-            "required": ["name", "command"]
+            "required": [
+              "name",
+              "command"
+            ]
           }
         },
         "claudeCodeChatUI.language.enabled": {
@@ -210,9 +217,21 @@
           "description": "Enable language mode for Claude responses"
         },
         "claudeCodeChatUI.language.selected": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
-          "enum": ["zh", "es", "ar", "fr", "de", "ja", "ko", null],
+          "enum": [
+            "zh",
+            "es",
+            "ar",
+            "fr",
+            "de",
+            "ja",
+            "ko",
+            null
+          ],
           "enumDescriptions": [
             "中文",
             "Español",
@@ -253,6 +272,9 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "package": "vsce package"
+  },
+  "dependencies": {
+    "glob": "^10.3.10"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

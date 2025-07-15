@@ -16,6 +16,7 @@ import { OperationTracker } from '../managers/OperationTracker';
 import { UndoRedoManager } from '../managers/UndoRedoManager';
 import { OperationPreviewService } from '../services/OperationPreview';
 import { expandVariables } from '../utils/configUtils';
+import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
 
 export class ClaudeChatProvider {
 	private _panel: vscode.WebviewPanel | undefined;
@@ -40,6 +41,18 @@ export class ClaudeChatProvider {
 	private _operationTracker: OperationTracker;
 	private _undoRedoManager: UndoRedoManager;
 	private _operationPreviewService: OperationPreviewService;
+	private _statisticsCache: StatisticsCache;
+	
+	// 静态模型定价数据（使用 Map 提高查找效率）
+	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
+		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],
+		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],
+		['claude-3-5-sonnet-20241022', { input: 3.00, output: 15.00 }],
+		['claude-3-5-sonnet-20240620', { input: 3.00, output: 15.00 }],
+		['claude-3-sonnet-20240229', { input: 3.00, output: 15.00 }],
+		['claude-3-haiku-20240307', { input: 0.25, output: 1.25 }],
+		// 添加更多模型价格
+	]);
 
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
@@ -73,6 +86,9 @@ export class ClaudeChatProvider {
 			this._operationTracker,
 			workspaceFolder?.uri.fsPath
 		);
+		
+		// Initialize statistics cache
+		this._statisticsCache = new StatisticsCache();
 		
 		// Initialize conversations
 		this._conversationManager.initializeConversations();
@@ -714,39 +730,70 @@ export class ClaudeChatProvider {
 	}
 
 	private async _loadStatistics(type: string): Promise<any> {
-		// This is a simplified implementation. In a full implementation,
-		// you would read from ~/.claude/projects/**/*.jsonl files
-		// and aggregate the data like CCusage does.
+		// 使用增量更新机制，提高性能
 		
 		const os = require('os');
 		const path = require('path');
 		const fs = require('fs').promises;
+		const readline = require('readline');
+		const { createReadStream } = require('fs');
 		
-		// Determine Claude config directory
+		// 确定 Claude 配置目录
 		const homeDir = os.homedir();
 		const claudeDir = path.join(homeDir, '.claude', 'projects');
 		
+		// 首先检查是否有缓存的聚合结果
+		const cacheKey = `${claudeDir}_${type}`;
+		const cachedResult = this._statisticsCache.getAggregatedCache(cacheKey, type);
+		if (cachedResult) {
+			console.log(`[Statistics] 使用缓存的聚合结果: ${type}`);
+			return cachedResult;
+		}
+		
 		try {
-			// Find all JSONL files using VS Code's file system API
-			const files: string[] = [];
+			// 定期清理过期缓存
+			this._statisticsCache.cleanExpiredCache();
 			
-			async function findJsonlFiles(dir: string): Promise<void> {
-				try {
-					const entries = await fs.readdir(dir, { withFileTypes: true });
-					for (const entry of entries) {
-						const fullPath = path.join(dir, entry.name);
-						if (entry.isDirectory()) {
-							await findJsonlFiles(fullPath);
-						} else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
-							files.push(fullPath);
-						}
-					}
-				} catch (e) {
-					// Skip directories that can't be read
+			// 清理当前类型的去重集合，确保不同统计类型之间不会相互影响
+			// 这样每个统计类型都会有独立的去重逻辑
+			this._statisticsCache.clearProcessedHashes();
+			
+			// 使用 glob pattern 直接查找所有 JSONL 文件
+			const globPattern = path.join(claudeDir, '**/*.jsonl').replace(/\\/g, '/');
+			
+			// 在 VS Code 扩展环境中使用不同的导入方式
+			let files: string[] = [];
+			try {
+				// 尝试使用 glob 的默认导出
+				const globModule = require('glob');
+				if (typeof globModule.glob === 'function') {
+					// glob v10+ 使用 glob.glob
+					files = await globModule.glob(globPattern, {
+						windowsPathsNoEscape: true  // Windows 路径兼容性
+					});
+				} else if (typeof globModule === 'function') {
+					// glob v7-9 使用回调方式
+					files = await new Promise((resolve, reject) => {
+						globModule(globPattern, { 
+							windowsPathsNoEscape: true 
+						}, (err: any, matches: string[]) => {
+							if (err) reject(err);
+							else resolve(matches);
+						});
+					});
+				} else {
+					throw new Error('无法找到可用的 glob 函数');
 				}
+			} catch (globError) {
+				console.error('Glob 加载失败，使用备用方案:', globError);
+				// 备用方案：使用 VS Code API
+				const vscodeFiles = await vscode.workspace.findFiles(
+					new vscode.RelativePattern(claudeDir, '**/*.jsonl'),
+					null,
+					10000 // 最多 10000 个文件
+				);
+				files = vscodeFiles.map(uri => uri.fsPath);
 			}
-			
-			await findJsonlFiles(claudeDir);
 			
 			if (files.length === 0) {
 				return {
@@ -760,58 +807,194 @@ export class ClaudeChatProvider {
 				};
 			}
 			
-			// Read and parse all JSONL files
-			const allEntries = [];
-			for (const file of files) {
+			// 累积所有条目（缓存的 + 新的）
+			const allEntries: StatisticsEntry[] = [];
+			
+			// 10MB 阈值（以字节为单位）
+			const FILE_SIZE_THRESHOLD = 10 * 1024 * 1024;
+			
+			// 并行处理文件，但只处理需要更新的文件
+			await Promise.all(files.map(async (file) => {
 				try {
-					const content = await fs.readFile(file, 'utf-8');
-					const lines = content.split('\n').filter((line: string) => line.trim());
+					const stats = await fs.stat(file);
+					const fileTimestamp = stats.mtimeMs;
 					
-					for (const line of lines) {
-						try {
-							const entry = JSON.parse(line);
-							if (entry.message?.usage) {
-								allEntries.push({
-									timestamp: entry.timestamp,
-									usage: entry.message.usage,
-									costUSD: entry.costUSD || 0,
-									model: entry.message.model,
-									cacheCreationTokens: entry.message.usage.cache_creation_input_tokens || 0,
-									cacheReadTokens: entry.message.usage.cache_read_input_tokens || 0,
-									file: file // Include file path for session grouping
-								});
-							}
-						} catch (e) {
-							// Skip invalid JSON lines
+					// 检查是否需要更新此文件
+					const needsUpdate = await this._statisticsCache.needsUpdate(file);
+					
+					// 如果有缓存且不需要更新，使用缓存数据
+					if (!needsUpdate) {
+						const cachedEntries = this._statisticsCache.getCachedEntries(file);
+						if (cachedEntries) {
+							allEntries.push(...cachedEntries);
+							console.log(`[Statistics] 使用缓存数据: ${file} (${cachedEntries.length} 条)`);
+							return;
 						}
 					}
+					
+					console.log(`[Statistics] 读取文件: ${file}`);
+					const fileEntries: StatisticsEntry[] = [];
+					const fileSize = stats.size;
+					
+					if (fileSize < FILE_SIZE_THRESHOLD) {
+						// 小文件：直接读取整个文件
+						const content = await fs.readFile(file, 'utf-8');
+						const lines = content.split('\n').filter((line: string) => line.trim());
+						
+						for (const line of lines) {
+							try {
+								const entry = JSON.parse(line);
+								
+								// 生成唯一哈希用于去重
+								const messageHash = this._generateMessageHash(entry);
+								if (this._statisticsCache.isProcessed(messageHash)) {
+									continue; // 跳过已处理的消息
+								}
+								this._statisticsCache.markAsProcessed(messageHash);
+								
+								if (entry.message?.usage) {
+									const statsEntry: StatisticsEntry = {
+										timestamp: entry.timestamp,
+										usage: entry.message.usage,
+										costUSD: entry.costUSD || 0,
+										model: entry.message.model,
+										cacheCreationTokens: entry.message.usage.cache_creation_input_tokens || 0,
+										cacheReadTokens: entry.message.usage.cache_read_input_tokens || 0,
+										file: file
+									};
+									fileEntries.push(statsEntry);
+								}
+							} catch (e) {
+								// 跳过无效的 JSON 行
+							}
+						}
+					} else {
+						// 大文件：使用流式读取，减少内存占用
+						await new Promise<void>((resolve, reject) => {
+							const rl = readline.createInterface({
+								input: createReadStream(file),
+								crlfDelay: Infinity
+							});
+							
+							rl.on('line', (line: string) => {
+								if (!line.trim()) return;
+								
+								try {
+									const entry = JSON.parse(line);
+									
+									// 生成唯一哈希用于去重
+									const messageHash = this._generateMessageHash(entry);
+									if (this._statisticsCache.isProcessed(messageHash)) {
+										return; // 跳过已处理的消息
+									}
+									this._statisticsCache.markAsProcessed(messageHash);
+									
+									if (entry.message?.usage) {
+										const statsEntry: StatisticsEntry = {
+											timestamp: entry.timestamp,
+											usage: entry.message.usage,
+											costUSD: entry.costUSD || 0,
+											model: entry.message.model,
+											cacheCreationTokens: entry.message.usage.cache_creation_input_tokens || 0,
+											cacheReadTokens: entry.message.usage.cache_read_input_tokens || 0,
+											file: file
+										};
+										fileEntries.push(statsEntry);
+									}
+								} catch (e) {
+									// 跳过无效的 JSON 行
+								}
+							});
+							
+							rl.on('close', () => resolve());
+							rl.on('error', (err: Error) => reject(err));
+						});
+					}
+					
+					// 更新此文件的缓存
+					if (fileEntries.length > 0) {
+						this._statisticsCache.updateCache(file, fileEntries, fileTimestamp);
+						allEntries.push(...fileEntries);
+					}
+					
 				} catch (e) {
-					// Skip files that can't be read
+					console.warn(`跳过无法读取的文件: ${file}`, e);
 				}
-			}
+			}));
 			
-			// Aggregate data based on type
-			return this._aggregateStatistics(allEntries, type);
+			// 输出缓存统计信息
+			const cacheStats = this._statisticsCache.getCacheStats();
+			console.log(`[Statistics] 缓存统计 - 文件: ${cacheStats.fileCacheSize}, 哈希: ${cacheStats.processedHashesSize}`);
+			
+			// 聚合数据
+			console.log(`[Statistics] 准备聚合 ${allEntries.length} 条数据，类型: ${type}`);
+			const result = this._aggregateStatistics(allEntries, type);
+			console.log(`[Statistics] 聚合完成，结果包含 ${result.rows.length} 行`);
+			
+			// 缓存聚合结果
+			this._statisticsCache.updateAggregatedCache(cacheKey, type, result);
+			
+			return result;
 			
 		} catch (error) {
-			console.error('Error loading statistics:', error);
+			console.error('加载统计数据时出错:', error);
 			throw error;
 		}
 	}
+	
+	// 新增：生成消息的唯一哈希值用于去重
+	private _generateMessageHash(entry: any): string {
+		// 使用消息ID和请求ID的组合作为唯一标识
+		const messageId = entry.message?.id || '';
+		const requestId = entry.requestId || '';
+		const timestamp = entry.timestamp || '';
+		
+		// 如果没有唯一ID，使用时间戳和内容的组合
+		if (!messageId && !requestId) {
+			const usage = entry.message?.usage || {};
+			return `${timestamp}_${usage.input_tokens}_${usage.output_tokens}`;
+		}
+		
+		return `${messageId}_${requestId}`;
+	}
 
 	private _aggregateStatistics(entries: any[], type: string): any {
-		// Pricing data (per million tokens)
-		const modelPricing: { [key: string]: { input: number; output: number } } = {
-			'claude-opus-4-20250514': { input: 15.00, output: 75.00 },
-			'claude-3-opus-20240229': { input: 15.00, output: 75.00 },
-			'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00 },
-			'claude-3-5-sonnet-20240620': { input: 3.00, output: 15.00 },
-			'claude-3-sonnet-20240229': { input: 3.00, output: 15.00 },
-			'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
-			// Add more models as needed
-		};
+		// 使用静态 MODEL_PRICING Map 代替局部对象
+		// 提前退出：如果没有数据，直接返回
+		if (entries.length === 0) {
+			return {
+				rows: [],
+				totals: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheCreationTokens: 0,
+					cacheReadTokens: 0,
+					totalTokens: 0,
+					cost: 0
+				}
+			};
+		}
 		
-		const aggregated = new Map();
+		// 定义聚合数据的类型
+		interface AggregatedStats {
+			inputTokens: number;
+			outputTokens: number;
+			cacheCreationTokens: number;
+			cacheReadTokens: number;
+			totalTokens: number;
+			cost: number;
+			models: Set<string>;
+			lastTimestamp: Date;
+			// 用于5小时块的额外信息
+			blockEntries?: Map<string, number>;
+			hourlyActivity?: number[];
+		}
+		
+		// 使用 Map 存储聚合数据，提高查找效率
+		const aggregated = new Map<string, AggregatedStats>();
+		
+		// 用于调试的键集合
+		const debugKeys = new Set<string>();
 		
 		entries.forEach(entry => {
 			const date = new Date(entry.timestamp);
@@ -951,6 +1134,9 @@ export class ClaudeChatProvider {
 					key = date.toISOString().split('T')[0];
 			}
 			
+			// 记录调试键
+			debugKeys.add(key);
+			
 			if (!aggregated.has(key)) {
 				aggregated.set(key, {
 					inputTokens: 0,
@@ -960,24 +1146,37 @@ export class ClaudeChatProvider {
 					totalTokens: 0,
 					cost: 0,
 					models: new Set(),
-					lastTimestamp: date // Track last activity timestamp
+					lastTimestamp: date, // Track last activity timestamp
+					// 5小时块的额外统计信息
+					...(type === 'blocks' ? { 
+						blockEntries: new Map<string, number>(),
+						hourlyActivity: new Array(5).fill(0) // 每小时活动计数
+					} : {})
 				});
 			}
 			
 			const stats = aggregated.get(key);
+			// TypeScript 类型保护：确保 stats 不是 undefined
+			if (!stats) {
+				console.error(`统计数据未找到，键: ${key}`);
+				return;
+			}
+			
 			stats.inputTokens += entry.usage.input_tokens || 0;
 			stats.outputTokens += entry.usage.output_tokens || 0;
 			stats.cacheCreationTokens += entry.cacheCreationTokens || 0;
 			stats.cacheReadTokens += entry.cacheReadTokens || 0;
 			stats.totalTokens += (entry.usage.input_tokens || 0) + (entry.usage.output_tokens || 0);
 			
-			// Calculate cost if it's 0 or missing
+			// 使用 Map 计算成本，如果为 0 或缺失
 			let cost = entry.costUSD || 0;
-			if (cost === 0 && entry.model && modelPricing[entry.model]) {
-				const pricing = modelPricing[entry.model];
-				const inputCost = ((entry.usage.input_tokens || 0) * pricing.input) / 1000000;
-				const outputCost = ((entry.usage.output_tokens || 0) * pricing.output) / 1000000;
-				cost = inputCost + outputCost;
+			if (cost === 0 && entry.model) {
+				const pricing = ClaudeChatProvider.MODEL_PRICING.get(entry.model);
+				if (pricing) {
+					const inputCost = ((entry.usage.input_tokens || 0) * pricing.input) / 1000000;
+					const outputCost = ((entry.usage.output_tokens || 0) * pricing.output) / 1000000;
+					cost = inputCost + outputCost;
+				}
 			}
 			stats.cost += cost;
 			
@@ -989,7 +1188,25 @@ export class ClaudeChatProvider {
 			if (date > stats.lastTimestamp) {
 				stats.lastTimestamp = date;
 			}
+			
+			// 对于5小时块，记录每小时的活动
+			if (type === 'blocks' && stats.hourlyActivity) {
+				const hour = date.getHours();
+				const blockStartHour = Math.floor(hour / 5) * 5;
+				const hourIndex = hour - blockStartHour; // 0-4 的索引
+				stats.hourlyActivity[hourIndex]++;
+				
+				// 记录每个文件的条目数
+				if (stats.blockEntries) {
+					const fileKey = entry.file;
+					stats.blockEntries.set(fileKey, (stats.blockEntries.get(fileKey) || 0) + 1);
+				}
+			}
 		});
+		
+		// 输出调试信息
+		console.log(`[Statistics] ${type} 统计找到的唯一键: ${debugKeys.size} 个`);
+		console.log(`[Statistics] ${type} 键列表:`, Array.from(debugKeys).sort());
 		
 		// Convert to array and sort
 		const rows = Array.from(aggregated.entries())
@@ -1001,7 +1218,7 @@ export class ClaudeChatProvider {
 				
 				if (type === 'blocks') {
 					result.block = key;
-					// Determine if block is active (has usage in last hour)
+					// 判断块是否活跃（最近5小时内有活动）
 					const now = new Date();
 					const blockDate = new Date(key.split(' ')[0]);
 					const blockStartHour = parseInt(key.split(' ')[1].split('-')[0]);
@@ -1009,6 +1226,24 @@ export class ClaudeChatProvider {
 					
 					const hoursSinceBlock = (now.getTime() - blockDate.getTime()) / (1000 * 60 * 60);
 					result.status = hoursSinceBlock < 5 ? 'active' : 'inactive';
+					
+					// 添加每小时活动统计
+					if (stats.hourlyActivity) {
+						result.hourlyActivity = stats.hourlyActivity;
+						result.peakHour = stats.hourlyActivity.indexOf(Math.max(...stats.hourlyActivity));
+					}
+					
+					// 添加文件分布信息
+					if (stats.blockEntries) {
+						result.fileCount = stats.blockEntries.size;
+						result.topFiles = Array.from(stats.blockEntries.entries())
+							.sort((a, b) => b[1] - a[1])
+							.slice(0, 3)
+							.map(([file, count]) => ({
+								file: file.split('/').pop() || file,
+								count
+							}));
+					}
 				} else {
 					result[type === 'daily' ? 'date' : type === 'monthly' ? 'month' : 'session'] = key;
 					
@@ -1038,22 +1273,30 @@ export class ClaudeChatProvider {
 				return keyB.localeCompare(keyA); // Descending order
 			});
 		
-		// Calculate totals
-		const totals = rows.reduce((acc, row) => ({
-			inputTokens: acc.inputTokens + row.inputTokens,
-			outputTokens: acc.outputTokens + row.outputTokens,
-			cacheCreationTokens: acc.cacheCreationTokens + row.cacheCreationTokens,
-			cacheReadTokens: acc.cacheReadTokens + row.cacheReadTokens,
-			totalTokens: acc.totalTokens + row.totalTokens,
-			cost: acc.cost + row.cost
-		}), {
+		// 优化：提前退出计算总计
+		let totals = {
 			inputTokens: 0,
 			outputTokens: 0,
 			cacheCreationTokens: 0,
 			cacheReadTokens: 0,
 			totalTokens: 0,
 			cost: 0
-		});
+		};
+		
+		// 如果没有数据，直接返回
+		if (rows.length === 0) {
+			return { rows, totals };
+		}
+		
+		// 使用 for 循环代替 reduce，可以更好地控制和优化
+		for (const row of rows) {
+			totals.inputTokens += row.inputTokens;
+			totals.outputTokens += row.outputTokens;
+			totals.cacheCreationTokens += row.cacheCreationTokens;
+			totals.cacheReadTokens += row.cacheReadTokens;
+			totals.totalTokens += row.totalTokens;
+			totals.cost += row.cost;
+		}
 		
 		return { rows, totals };
 	}
