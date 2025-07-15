@@ -169,9 +169,14 @@ export class ClaudeChatProvider {
 					case 'selectImageFile':
 						const imagePaths = await this._fileOperationsManager.selectImageFiles();
 						imagePaths.forEach((filePath: string) => {
+							// 获取webview可访问的URI
+							const fileUri = vscode.Uri.file(filePath);
+							const webviewUri = this._panel?.webview.asWebviewUri(fileUri);
+							
 							this._panel?.webview.postMessage({
 								type: 'imagePath',
-								path: filePath
+								path: filePath,
+								webviewUri: webviewUri?.toString()
 							});
 						});
 						return;
@@ -1091,9 +1096,14 @@ export class ClaudeChatProvider {
 			
 			// Send back the file path to insert into the input
 			const relativePath = vscode.workspace.asRelativePath(imagePath);
+			
+			// 获取webview可访问的URI
+			const webviewUri = this._panel?.webview.asWebviewUri(imagePath);
+			
 			this._panel?.webview.postMessage({
 				type: 'imagePath',
-				path: relativePath
+				path: relativePath,
+				webviewUri: webviewUri?.toString()
 			});
 			
 			// Show info message

@@ -27,6 +27,9 @@ export const uiScript = `
 		let inputHistory = [''];
 		let historyPosition = 0;
 		let isUpdatingFromHistory = false;
+		
+		// 存储图片路径到webview URI的映射
+		const imagePathMap = new Map();
 
 		function addMessage(content, type = 'claude') {
 			const messageDiv = document.createElement('div');
@@ -224,7 +227,7 @@ export const uiScript = `
 			// Special handling for MCP thinking tools - render as Markdown
 			if (data.toolName && data.toolName.startsWith('mcp__') && data.toolName.includes('thinking')) {
 				// Parse and render as Markdown
-				contentDiv.innerHTML = parseSimpleMarkdown(content);
+				contentDiv.innerHTML = parseSimpleMarkdown(content, imagePathMap);
 			} else if (content.length > 200 && !data.isError) {
 				const truncateAt = 197;
 				const truncated = content.substring(0, truncateAt);
@@ -1772,7 +1775,7 @@ export const uiScript = `
 					
 				case 'output':
 					if (message.data.trim()) {
-						addMessage(parseSimpleMarkdown(message.data), 'claude');
+						addMessage(parseSimpleMarkdown(message.data, imagePathMap), 'claude');
 						// Removed token display per user request
 					}
 					updateStatusWithTotals();
@@ -1780,7 +1783,7 @@ export const uiScript = `
 					
 				case 'userInput':
 					if (message.data.trim()) {
-						addMessage(parseSimpleMarkdown(message.data), 'user');
+						addMessage(parseSimpleMarkdown(message.data, imagePathMap), 'user');
 					}
 					break;
 					
@@ -1975,6 +1978,11 @@ export const uiScript = `
 					messageInput.value = currentText + pathIndicator;
 					messageInput.focus();
 					adjustTextareaHeight();
+					
+					// 存储路径到webview URI的映射
+					if (message.webviewUri) {
+						imagePathMap.set(message.path, message.webviewUri);
+					}
 					break;
 					
 				case 'conversationList':
