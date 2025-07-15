@@ -20,6 +20,8 @@ export const uiScript = `
 		let selectedFileIndex = -1;
 		let planModeEnabled = false;
 		let thinkingModeEnabled = false;
+		let languageModeEnabled = false;
+		let selectedLanguage = null;
 		
 		// Undo/Redo history management
 		let inputHistory = [''];
@@ -611,7 +613,9 @@ export const uiScript = `
 					type: 'sendMessage',
 					text: text,
 					planMode: planModeEnabled,
-					thinkingMode: thinkingModeEnabled
+					thinkingMode: thinkingModeEnabled,
+					languageMode: languageModeEnabled,
+					selectedLanguage: selectedLanguage
 				});
 				
 				messageInput.value = '';
@@ -691,6 +695,42 @@ export const uiScript = `
 				if (toggleLabel) {
 					toggleLabel.textContent = 'Thinking Mode';
 				}
+			}
+		}
+
+		function handleLanguageLabelClick() {
+			// If language mode is already enabled, show the modal
+			if (languageModeEnabled) {
+				showLanguageModal();
+			} else {
+				// Otherwise, enable it (same as clicking the switch)
+				toggleLanguageMode();
+			}
+		}
+		
+		function toggleLanguageMode() {
+			languageModeEnabled = !languageModeEnabled;
+			const switchElement = document.getElementById('languageModeSwitch');
+			const toggleLabel = document.getElementById('languageModeLabel');
+			if (languageModeEnabled) {
+				switchElement.classList.add('active');
+				// Show language selection modal when language mode is enabled
+				showLanguageModal();
+			} else {
+				switchElement.classList.remove('active');
+				selectedLanguage = null;
+				// Reset to default "Language Mode" when turned off
+				if (toggleLabel) {
+					toggleLabel.textContent = 'Language Mode';
+				}
+				// Save disabled state to settings
+				vscode.postMessage({
+					type: 'updateSettings',
+					settings: {
+						'language.enabled': false,
+						'language.selected': null
+					}
+				});
 			}
 		}
 
@@ -1309,6 +1349,68 @@ export const uiScript = `
 
 		function hideThinkingIntensityModal() {
 			document.getElementById('thinkingIntensityModal').style.display = 'none';
+		}
+
+		// Language modal functions
+		function showLanguageModal() {
+			// If already enabled and user clicks label, show modal again
+			const labelElement = document.getElementById('languageModeLabel');
+			if (labelElement && labelElement.textContent !== 'Language Mode') {
+				document.getElementById('languageModal').style.display = 'flex';
+				return;
+			}
+			
+			// Request current settings from VS Code first
+			vscode.postMessage({
+				type: 'getSettings'
+			});
+			document.getElementById('languageModal').style.display = 'flex';
+		}
+
+		function hideLanguageModal() {
+			const modal = document.getElementById('languageModal');
+			modal.classList.add('modal-closing');
+			setTimeout(() => {
+				modal.style.display = 'none';
+				modal.classList.remove('modal-closing');
+			}, 200);
+		}
+
+		function selectLanguage(lang) {
+			selectedLanguage = lang;
+			const toggleLabel = document.getElementById('languageModeLabel');
+			
+			// Update label with selected language
+			const languageNames = {
+				'zh': '中文',
+				'es': 'Español',
+				'ar': 'العربية',
+				'fr': 'Français',
+				'de': 'Deutsch',
+				'ja': '日本語',
+				'ko': '한국어'
+			};
+			
+			if (toggleLabel && languageNames[lang]) {
+				toggleLabel.textContent = languageNames[lang];
+			}
+			
+			// Check the radio button
+			const radioElement = document.getElementById('language-' + lang);
+			if (radioElement) {
+				radioElement.checked = true;
+			}
+			
+			// Save to settings
+			vscode.postMessage({
+				type: 'updateSettings',
+				settings: {
+					'language.enabled': true,
+					'language.selected': lang
+				}
+			});
+			
+			hideLanguageModal();
 		}
 
 		function saveThinkingIntensity() {
@@ -1971,6 +2073,42 @@ export const uiScript = `
 				} else {
 					// Update toggle name even if modal isn't open
 					updateThinkingModeToggleName(sliderValue >= 0 ? sliderValue : 0);
+				}
+				
+				// Update language mode settings
+				const savedLanguageMode = message.data['language.enabled'] || false;
+				const savedLanguage = message.data['language.selected'] || null;
+				
+				if (savedLanguageMode && savedLanguage) {
+					languageModeEnabled = true;
+					selectedLanguage = savedLanguage;
+					
+					// Update UI
+					const switchElement = document.getElementById('languageModeSwitch');
+					if (switchElement) {
+						switchElement.classList.add('active');
+					}
+					
+					const toggleLabel = document.getElementById('languageModeLabel');
+					const languageNames = {
+						'zh': '中文',
+						'es': 'Español',
+						'ar': 'العربية',
+						'fr': 'Français',
+						'de': 'Deutsch',
+						'ja': '日本語',
+						'ko': '한국어'
+					};
+					
+					if (toggleLabel && languageNames[savedLanguage]) {
+						toggleLabel.textContent = languageNames[savedLanguage];
+					}
+					
+					// Check the radio button in modal if open
+					const radioElement = document.getElementById('language-' + savedLanguage);
+					if (radioElement) {
+						radioElement.checked = true;
+					}
 				}
 				
 				// Skip WSL settings as those elements don't exist in the UI
@@ -3037,6 +3175,13 @@ export const uiScript = `
 			}
 		});
 
+		// Close language modal when clicking outside
+		document.getElementById('languageModal').addEventListener('click', (e) => {
+			if (e.target === document.getElementById('languageModal')) {
+				hideLanguageModal();
+			}
+		});
+
 		// Close slash commands modal when clicking outside
 		document.getElementById('slashCommandsModal').addEventListener('click', (e) => {
 			if (e.target === document.getElementById('slashCommandsModal')) {
@@ -3072,6 +3217,42 @@ export const uiScript = `
 				} else {
 					// Update toggle name even if modal isn't open
 					updateThinkingModeToggleName(sliderValue >= 0 ? sliderValue : 0);
+				}
+				
+				// Update language mode settings
+				const savedLanguageMode = message.data['language.enabled'] || false;
+				const savedLanguage = message.data['language.selected'] || null;
+				
+				if (savedLanguageMode && savedLanguage) {
+					languageModeEnabled = true;
+					selectedLanguage = savedLanguage;
+					
+					// Update UI
+					const switchElement = document.getElementById('languageModeSwitch');
+					if (switchElement) {
+						switchElement.classList.add('active');
+					}
+					
+					const toggleLabel = document.getElementById('languageModeLabel');
+					const languageNames = {
+						'zh': '中文',
+						'es': 'Español',
+						'ar': 'العربية',
+						'fr': 'Français',
+						'de': 'Deutsch',
+						'ja': '日本語',
+						'ko': '한국어'
+					};
+					
+					if (toggleLabel && languageNames[savedLanguage]) {
+						toggleLabel.textContent = languageNames[savedLanguage];
+					}
+					
+					// Check the radio button in modal if open
+					const radioElement = document.getElementById('language-' + savedLanguage);
+					if (radioElement) {
+						radioElement.checked = true;
+					}
 				}
 				
 				// Skip WSL settings as those elements don't exist in the UI
@@ -3136,6 +3317,9 @@ export const uiScript = `
 		window.hideSettingsModal = hideSettingsModal;
 		window.hideSlashCommandsModal = hideSlashCommandsModal;
 		window.hideThinkingIntensityModal = hideThinkingIntensityModal;
+		window.hideLanguageModal = hideLanguageModal;
+		window.showLanguageModal = showLanguageModal;
+		window.selectLanguage = selectLanguage;
 		window.hideToolsModal = hideToolsModal;
 		window.newSession = newSession;
 		window.selectImage = selectImage;
@@ -3643,6 +3827,8 @@ export const uiScript = `
 
 		window.togglePlanMode = togglePlanMode;
 		window.toggleThinkingMode = toggleThinkingMode;
+		window.toggleLanguageMode = toggleLanguageMode;
+		window.handleLanguageLabelClick = handleLanguageLabelClick;
 		window.confirmThinkingIntensity = confirmThinkingIntensity;
 		window.toggleOperationHistory = toggleOperationHistory;
 		window.undoOperation = undoOperation;

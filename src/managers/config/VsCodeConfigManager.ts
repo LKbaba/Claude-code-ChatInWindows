@@ -7,6 +7,8 @@ import * as vscode from 'vscode';
 
 export interface VsCodeSettings {
     'thinking.intensity': string;
+    'language.enabled': boolean;
+    'language.selected': string | null;
     [key: string]: any;
 }
 
@@ -18,7 +20,9 @@ export class VsCodeConfigManager {
     public getCurrentSettings(): VsCodeSettings {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         const settings: VsCodeSettings = {
-            'thinking.intensity': config.get<string>('thinking.intensity', 'think')
+            'thinking.intensity': config.get<string>('thinking.intensity', 'think'),
+            'language.enabled': config.get<boolean>('language.enabled', false),
+            'language.selected': config.get<string | null>('language.selected', this.getDefaultLanguage())
         };
         
         // Get specific configuration values
@@ -69,5 +73,48 @@ export class VsCodeConfigManager {
     public getThinkingIntensity(): string {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         return config.get<string>('thinking.intensity', 'think');
+    }
+    
+    /**
+     * Gets the default language based on VS Code locale
+     * @returns The default language code or null
+     */
+    private getDefaultLanguage(): string | null {
+        const locale = vscode.env.language;
+        
+        // Map VS Code locales to our language codes
+        const localeMap: { [key: string]: string } = {
+            'zh-cn': 'zh',
+            'zh-tw': 'zh',
+            'es': 'es',
+            'es-es': 'es',
+            'es-mx': 'es',
+            'ar': 'ar',
+            'ar-sa': 'ar',
+            'ar-eg': 'ar',
+            'fr': 'fr',
+            'fr-fr': 'fr',
+            'fr-ca': 'fr',
+            'de': 'de',
+            'de-de': 'de',
+            'de-at': 'de',
+            'de-ch': 'de',
+            'ja': 'ja',
+            'ko': 'ko',
+            'ko-kr': 'ko'
+        };
+        
+        // Check exact match first
+        if (localeMap[locale]) {
+            return localeMap[locale];
+        }
+        
+        // Check prefix match (e.g., 'es-ar' -> 'es')
+        const prefix = locale.split('-')[0];
+        if (localeMap[prefix]) {
+            return localeMap[prefix];
+        }
+        
+        return null;
     }
 }

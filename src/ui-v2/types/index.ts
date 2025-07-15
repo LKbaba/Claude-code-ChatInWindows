@@ -46,6 +46,8 @@ export interface UIState {
     planModeEnabled: boolean;
     thinkingModeEnabled: boolean;
     thinkingIntensity: 'think' | 'think-hard' | 'think-harder' | 'ultrathink';
+    languageModeEnabled: boolean;
+    selectedLanguage: 'zh' | 'es' | 'ar' | 'ru' | 'it' | 'ja' | 'ko' | null;
     
     // Messages
     messages: Message[];
@@ -84,7 +86,7 @@ export interface UIState {
 
 export interface AppState extends UIState {}
 
-export type ModalType = 'settings' | 'stats' | 'filePicker' | 'model' | 'commands' | 'thinkingIntensity' | 'settingsModal' | 'statsModal' | 'modelModal' | 'thinkingIntensityModal' | 'slashCommandsModal' | 'filePickerModal';
+export type ModalType = 'settings' | 'stats' | 'filePicker' | 'model' | 'commands' | 'thinkingIntensity' | 'settingsModal' | 'statsModal' | 'modelModal' | 'thinkingIntensityModal' | 'slashCommandsModal' | 'filePickerModal' | 'languageModal';
 
 export interface UIMessage {
     id: string;
@@ -238,6 +240,7 @@ export interface EventHandlersInterface {
     toggleConversationHistory(): void;
     togglePlanMode(): void;
     toggleThinkingMode(): void;
+    toggleLanguageMode(): void;
     showModelSelector(): void;
     selectModel(model: string): void;
     showFilePicker(): void;

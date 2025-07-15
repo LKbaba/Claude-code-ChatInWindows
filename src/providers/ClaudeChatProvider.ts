@@ -149,7 +149,7 @@ export class ClaudeChatProvider {
 			async message => {
 				switch (message.type) {
 					case 'sendMessage':
-						this._sendMessageToClaude(message.text, message.planMode, message.thinkingMode);
+						this._sendMessageToClaude(message.text, message.planMode, message.thinkingMode, message.languageMode, message.selectedLanguage);
 						return;
 					case 'newSession':
 						this._newSession();
@@ -312,7 +312,7 @@ export class ClaudeChatProvider {
 	 * - The prefixes trigger Claude's built-in behaviors without needing special CLI flags
 	 * - Both modes only affect the current message, not the entire conversation
 	 */
-	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean) {
+	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean, languageMode?: boolean, selectedLanguage?: string) {
 		if (this._processService.isProcessRunning()) {
 			// DEBUG: console.log("A request is already in progress. Please wait.");
 			
@@ -385,6 +385,24 @@ export class ClaudeChatProvider {
 					thinkingPrompt = 'THINK';
 			}
 			actualMessage = windowsEnvironmentInfo + thinkingPrompt + thinkingMessage + actualMessage;
+		}
+		
+		// Language Mode: Add language instruction at the end
+		if (languageMode && selectedLanguage) {
+			const languagePrompts: { [key: string]: string } = {
+				'zh': '\n\n请用中文与我交流。在编写代码时，代码注释也请使用中文。',
+				'es': '\n\nPor favor, comunícate conmigo en español. Al escribir código, también usa español en los comentarios del código.',
+				'ar': '\n\nيرجى التواصل معي بالعربية. عند كتابة الكود، يرجى أيضًا استخدام العربية في تعليقات الكود.',
+				'fr': '\n\nVeuillez communiquer avec moi en français. Lors de l\'écriture du code, veuillez également utiliser le français dans les commentaires du code.',
+				'de': '\n\nBitte kommunizieren Sie mit mir auf Deutsch. Beim Schreiben von Code verwenden Sie bitte auch Deutsch in den Code-Kommentaren.',
+				'ja': '\n\n日本語で私と会話してください。コードを書く際は、コードコメントも日本語で記述してください。',
+				'ko': '\n\n한국어로 대화해 주세요. 코드를 작성할 때 코드 주석도 한국어로 작성해 주세요.'
+			};
+			
+			const languagePrompt = languagePrompts[selectedLanguage];
+			if (languagePrompt) {
+				actualMessage = actualMessage + languagePrompt;
+			}
 		}
 
 		this._sendAndSaveMessage({ type: 'userInput', data: message });
