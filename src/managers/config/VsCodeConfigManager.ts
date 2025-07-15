@@ -68,10 +68,6 @@ export class VsCodeConfigManager {
                     } catch (workspaceError) {
                         // 如果仍然失败，记录错误但不抛出
                         console.error(`无法更新配置 ${key}:`, error);
-                        // 只显示一次错误消息
-                        if (key === 'language.enabled') {
-                            vscode.window.showWarningMessage(`语言模式设置暂时无法保存，但当前会话仍然有效。`);
-                        }
                         // 不抛出错误，让UI继续工作
                         continue;
                     }
