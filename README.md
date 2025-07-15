@@ -13,6 +13,20 @@
 
 ---
 
+## 🎯 Core Advantages
+
+* ✅ **Zero WSL Dependency**: Runs with just Git Bash and Node.js.
+* ✅ **Real-time Cost Tracking**: Instantly see token counts and costs.
+* ✅ **MCP Adaptation**: Adapts to various MCPs with support for dynamic MCP tool queries.
+* ✅ **Third-party API Adaptation**: Supports various third-party APIs including anyrouter/tuziapi, as well as Kimi K2.
+* ✅ **Image Copy-Paste/File Retrieval Support**: Maximize the use of multimodal models - image pasting is essential!
+* ✅ **Perfect for "Vibe Coding"**: Smooth UI interface for an ultra-comfortable coding environment.
+* 🔄 **Operation History**: Real-time display of all file operations with one-click undo/redo
+
+Coming soon: Token&Fee visualization, Language mode.
+
+---
+
 ## 🚩 Why You Need This Project
 
 * **No More WSL Hassle**:
@@ -40,25 +54,13 @@
 
 ---
 
-## 🎯 Core Advantages
-
-* ✅ **Zero WSL Dependency**: Runs with just Git Bash and Node.js.
-* ✅ **Real-time Cost Tracking**: Instantly see token counts and costs.
-* ✅ **Windows Path Compatibility**: Automatically recognizes and handles paths for smooth cross-system interaction.
-* ✅ **Smart Undo/Redo**: Supports undo/redo for file operations with intelligent dependency tracking and automatic backup protection.
-* ✅ **MCP Modular Extensions**: Call external MCP tools with one click, built-in templates, making your Claude Code omnipotent.
-* ✅ **A Detail-Lover's Dream**: HiDPI icons, dynamic theme support, and fluid animations.
-* ✅ **Perfect for "Vibe Coding"**: A pure GUI experience for an ultra-comfortable coding environment.
-
----
-
 ## 🚀 Installation and Usage
 
 > **🎉 Now Available on VS Code Marketplace!** Install with just one click.
 >
 > This guide covers **Environment Setup**, **Extension Installation**, and **Packaging Instructions**.
 
-## recommend not to use version 1.0.51 for now, as prompt adherence is suboptimal and MCP invocation is less effective. Please use version 1.0.48 (2025.07.13) instead
+## We recommend not to use version 1.0.51 for now, as prompt adherence is suboptimal and MCP invocation is less effective. Please use version 1.0.48 instead - 2025.07.13
 
 > ⚡ **Claude Code v1.0.51+ users notice**:
 >
