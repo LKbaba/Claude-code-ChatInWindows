@@ -76,9 +76,11 @@ export class WindowsCompatibility {
             if (gitBashPath && fs.existsSync(gitBashPath)) {
                 spawnOptions.shell = true;
                 spawnOptions.env!.SHELL = gitBashPath;
-            } else {
-                console.error(`Git Bash path is not configured or not found at: ${gitBashPath}`);
+            } else if (gitBashPath) {
+                // Only log warning if path is configured but not found
+                console.warn(`Git Bash path configured but not found at: ${gitBashPath}`);
             }
+            // If no Git Bash path configured, Claude will use the default shell
         }
 
         if (!spawnOptions.shell) {

@@ -1932,8 +1932,12 @@ export const uiScript = `
 					if (!currentOperations) {
 						currentOperations = [];
 					}
-					currentOperations.push(message.data);
-					updateOperationHistoryDisplay();
+					// Check if operation already exists to avoid duplicates
+					const exists = currentOperations.some(op => op.id === message.data.id);
+					if (!exists) {
+						currentOperations.push(message.data);
+						updateOperationHistoryDisplay();
+					}
 					break;
 					
 				case 'operationChanged':
@@ -3186,8 +3190,15 @@ export const uiScript = `
 			const activeCountEl = document.getElementById('activeOperationsCount');
 			const undoneCountEl = document.getElementById('undoneOperationsCount');
 			
-			const activeOps = data.active || [];
-			const undoneOps = data.undone || [];
+			// Sort operations by timestamp (newest first)
+			const sortByTimestamp = (a, b) => {
+				const timeA = new Date(a.timestamp).getTime();
+				const timeB = new Date(b.timestamp).getTime();
+				return timeB - timeA; // Descending order (newest first)
+			};
+			
+			const activeOps = (data.active || []).sort(sortByTimestamp);
+			const undoneOps = (data.undone || []).sort(sortByTimestamp);
 			const allOps = [...activeOps, ...undoneOps];
 			
 			// Update stats
@@ -3209,40 +3220,49 @@ export const uiScript = `
 				return;
 			}
 			
-			let html = '<div class="operation-history-list">';
+			// Use two-column layout
+			let html = '<div class="operation-history-list" style="display: flex; gap: 16px; height: 100%;">';
 			
-			// Render active operations
+			// Left column - Active operations
+			html += '<div class="operation-column" style="flex: 1; overflow-y: auto; max-height: 100%;">';
+			html += '<h4 style="font-size: 13px; margin: 0 0 12px 0; color: var(--vscode-foreground); position: sticky; top: 0; background: var(--vscode-editor-background); padding: 8px 0; z-index: 10;">Active Operations (' + activeOps.length + ')</h4>';
+			html += '<div class="operation-cards">';
+			
 			if (activeOps.length > 0) {
-				html += '<div class="operation-section">';
-				html += '<h4 style="font-size: 13px; margin: 0 0 12px 0; color: var(--vscode-foreground);">Active Operations</h4>';
-				html += '<div class="operation-cards">';
-				
 				activeOps.forEach((op, index) => {
 					html += renderOperationCard(op, index, false);
 				});
-				
-				html += '</div></div>';
+			} else {
+				html += '<div style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground); font-size: 12px;">No active operations</div>';
 			}
 			
-			// Render undone operations
+			html += '</div></div>';
+			
+			// Right column - Undone operations
+			html += '<div class="operation-column" style="flex: 1; overflow-y: auto; max-height: 100%; border-left: 1px solid var(--vscode-panel-border); padding-left: 16px;">';
+			html += '<h4 style="font-size: 13px; margin: 0 0 12px 0; color: var(--vscode-foreground); position: sticky; top: 0; background: var(--vscode-editor-background); padding: 8px 0; z-index: 10;">Undone Operations (' + undoneOps.length + ')</h4>';
+			html += '<div class="operation-cards">';
+			
 			if (undoneOps.length > 0) {
-				html += '<div class="operation-section" style="margin-top: 24px;">';
-				html += '<h4 style="font-size: 13px; margin: 0 0 12px 0; color: var(--vscode-foreground);">Undone Operations</h4>';
-				html += '<div class="operation-cards">';
-				
 				undoneOps.forEach((op, index) => {
 					html += renderOperationCard(op, index, true);
 				});
-				
-				html += '</div></div>';
+			} else {
+				html += '<div style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground); font-size: 12px;">No undone operations</div>';
 			}
+			
+			html += '</div></div>';
 			
 			html += '</div>';
 			historyContent.innerHTML = html;
 		}
 
 		function renderOperationCard(op, index, isUndone) {
-			const timestamp = new Date(op.timestamp).toLocaleTimeString();
+			// Format timestamp with date and time
+			const date = new Date(op.timestamp);
+			const dateStr = date.toLocaleDateString();
+			const timeStr = date.toLocaleTimeString();
+			const timestamp = dateStr + ' ' + timeStr;
 			
 			// 获取操作状态
 			const status = op.status || (isUndone ? 'undone' : 'active');

@@ -25,6 +25,7 @@ export class ClaudeChatProvider {
 	private _totalTokensOutput: number = 0;
 	private _requestCount: number = 0;
 	private _currentSessionId: string | undefined;
+	private _conversationId: string | undefined;  // Main conversation ID that persists across sessions
 	private _treeProvider: ClaudeChatViewProvider | undefined;
 	private _selectedModel: string = 'default'; // Default model
 	private _npmPrefixPromise: Promise<string | undefined>;
@@ -91,6 +92,12 @@ export class ClaudeChatProvider {
 		const latestConversation = this._conversationManager.getLatestConversation();
 		this._currentSessionId = latestConversation?.sessionId;
 		
+		// Set conversationId from latest conversation
+		// This ensures operations from the same conversation are grouped together
+		if (latestConversation?.sessionId) {
+			this._conversationId = latestConversation.sessionId;
+		}
+		
 		// Load saved operations
 		this._operationTracker.loadOperations()
 			.then(() => {
@@ -101,9 +108,9 @@ export class ClaudeChatProvider {
 				console.error('[ClaudeChatProvider] Failed to load operations:', error);
 			});
 		
-		// Set current session in operation tracker
-		if (this._currentSessionId) {
-			this._operationTracker.setCurrentSession(this._currentSessionId);
+		// Set current session in operation tracker using conversationId
+		if (this._conversationId) {
+			this._operationTracker.setCurrentSession(this._conversationId);
 		}
 	}
 
@@ -243,6 +250,11 @@ export class ClaudeChatProvider {
 		// Resume session from latest conversation
 		const latestConversation = this._conversationManager.getLatestConversation();
 		this._currentSessionId = latestConversation?.sessionId;
+		
+		// Ensure conversationId is set
+		if (latestConversation?.sessionId && !this._conversationId) {
+			this._conversationId = latestConversation.sessionId;
+		}
 
 		// Load latest conversation history if available
 		if (latestConversation) {
@@ -337,6 +349,13 @@ export class ClaudeChatProvider {
 			// Also update or create CLAUDE.md in the project root if it doesn't have Windows info
 			await updateClaudeMdWithWindowsInfo(workspaceFolder);
 		}
+		
+		// Ensure conversationId is set before processing
+		if (!this._conversationId && this._currentSessionId) {
+			this._conversationId = this._currentSessionId;
+			console.log('[ClaudeChatProvider] Set conversationId from currentSessionId:', this._conversationId);
+			this._operationTracker.setCurrentSession(this._conversationId);
+		}
 
 		// Prepend mode instructions if enabled
 		let actualMessage = windowsEnvironmentInfo + message;
@@ -390,7 +409,7 @@ export class ClaudeChatProvider {
 		// Reset message processor state for new conversation
 		if (!this._currentSessionId) {
 			this._messageProcessor.reset();
-			this._operationTracker.setCurrentSession('');
+			// Don't reset operation tracker session here, we'll use conversationId
 		}
 
 		// Prepare process options
@@ -441,8 +460,18 @@ export class ClaudeChatProvider {
 					onFinalResult: (result: any) => {
 						if (result.sessionId) {
 							this._currentSessionId = result.sessionId;
-							// Update operation tracker session
-							this._operationTracker.setCurrentSession(result.sessionId);
+							
+							// Set conversationId on first session creation
+							if (!this._conversationId) {
+								this._conversationId = result.sessionId;
+								console.log('[ClaudeChatProvider] Set conversationId:', this._conversationId);
+							}
+							
+							// Update operation tracker with conversationId
+							if (this._conversationId) {
+								this._operationTracker.setCurrentSession(this._conversationId);
+							}
+							
 							this._sendAndSaveMessage({
 								type: 'sessionInfo',
 								data: {
@@ -512,8 +541,9 @@ export class ClaudeChatProvider {
 	// private _processJsonStreamData(jsonData: any) { }
 
 	private _newSession() {
-		// Clear current session
+		// Clear current session and conversation ID
 		this._currentSessionId = undefined;
+		this._conversationId = undefined;
 
 		// Clear conversation
 		this._conversationManager.clearCurrentConversation();
@@ -1547,6 +1577,7 @@ export class ClaudeChatProvider {
 						this._conversationManager.clearCurrentConversation();
 					}
 					this._currentSessionId = undefined;
+					this._conversationId = undefined;
 					this._panel?.webview.postMessage({ type: 'clearMessages' });
 					this._sendAndSaveMessage({
 						type: 'output',
