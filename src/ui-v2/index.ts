@@ -2311,6 +2311,12 @@ function getStylesOld(): string {
         opacity: 0.7;
     }
 
+    /* 语义化颜色 - 仅保留 Cost 颜色 */
+    .stats-cost-value {
+        color: var(--vscode-charts-orange);
+        font-weight: 700;
+    }
+
     /* Statistics Panel Styles */
     .stats-panel {
         position: fixed;
@@ -2574,7 +2580,10 @@ function getStylesOld(): string {
     .stats-table th:nth-child(4),
     .stats-table th:nth-child(5),
     .stats-table th:nth-child(6),
-    .stats-table th:nth-child(7) {
+    .stats-table th:nth-child(7),
+    .stats-table th:nth-child(8),
+    .stats-table th:nth-child(9),
+    .stats-table th:nth-child(10) {
         text-align: right;
     }
     
@@ -2583,20 +2592,23 @@ function getStylesOld(): string {
     .stats-table td:nth-child(4),
     .stats-table td:nth-child(5),
     .stats-table td:nth-child(6),
-    .stats-table td:nth-child(7) {
+    .stats-table td:nth-child(7),
+    .stats-table td:nth-child(8),
+    .stats-table td:nth-child(9),
+    .stats-table td:nth-child(10) {
         text-align: right;
         font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     }
     
-    /* For blocks view status column */
-    .stats-table.blocks-view th:nth-child(8),
-    .stats-table.blocks-view td:nth-child(8) {
+    /* For blocks view status column (10th column) */
+    .stats-table.blocks-view th:nth-child(10),
+    .stats-table.blocks-view td:nth-child(10) {
         text-align: center;
     }
     
-    /* For session view last activity column */
-    .stats-table.session-view th:nth-child(9),
-    .stats-table.session-view td:nth-child(9) {
+    /* For session view last activity column (11th column) */
+    .stats-table.session-view th:nth-child(11),
+    .stats-table.session-view td:nth-child(11) {
         text-align: left;
         font-family: var(--vscode-editor-font-family);
     }
@@ -2631,6 +2643,22 @@ function getStylesOld(): string {
     .stats-table .status-inactive {
         color: var(--vscode-descriptionForeground);
         opacity: 0.7;
+    }
+
+    /* 统计表格数值颜色 - 语义化配色 */
+    .stats-table-input-value {
+        color: var(--vscode-charts-blue);
+        font-weight: 600;
+    }
+
+    .stats-table-output-value {
+        color: var(--vscode-charts-green);
+        font-weight: 600;
+    }
+
+    .stats-table-cost-value {
+        color: var(--vscode-charts-orange);
+        font-weight: 700;
     }
 
     /* MCP template buttons */

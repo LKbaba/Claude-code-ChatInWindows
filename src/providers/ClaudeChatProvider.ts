@@ -1164,18 +1164,33 @@ export class ClaudeChatProvider {
 			
 			stats.inputTokens += entry.usage.input_tokens || 0;
 			stats.outputTokens += entry.usage.output_tokens || 0;
-			stats.cacheCreationTokens += entry.cacheCreationTokens || 0;
-			stats.cacheReadTokens += entry.cacheReadTokens || 0;
-			stats.totalTokens += (entry.usage.input_tokens || 0) + (entry.usage.output_tokens || 0);
+			// 修正：从usage中获取缓存相关的token
+			stats.cacheCreationTokens += entry.usage.cache_creation_input_tokens || 0;
+			stats.cacheReadTokens += entry.usage.cache_read_input_tokens || 0;
+			// 总token应该包含所有类型的token
+			stats.totalTokens += (entry.usage.input_tokens || 0) + 
+			                    (entry.usage.output_tokens || 0) + 
+			                    (entry.usage.cache_creation_input_tokens || 0) + 
+			                    (entry.usage.cache_read_input_tokens || 0);
 			
 			// 使用 Map 计算成本，如果为 0 或缺失
 			let cost = entry.costUSD || 0;
 			if (cost === 0 && entry.model) {
 				const pricing = ClaudeChatProvider.MODEL_PRICING.get(entry.model);
 				if (pricing) {
-					const inputCost = ((entry.usage.input_tokens || 0) * pricing.input) / 1000000;
+					// 计算普通输入token的成本（不包括缓存读取）
+					const normalInputCost = ((entry.usage.input_tokens || 0) * pricing.input) / 1000000;
+					
+					// 计算缓存读取token的成本（输入价格的10%）
+					const cacheReadCost = ((entry.usage.cache_read_input_tokens || 0) * pricing.input * 0.1) / 1000000;
+					
+					// 计算输出token的成本
 					const outputCost = ((entry.usage.output_tokens || 0) * pricing.output) / 1000000;
-					cost = inputCost + outputCost;
+					
+					// 计算缓存创建token的成本（输出价格的25%）
+					const cacheCreationCost = ((entry.usage.cache_creation_input_tokens || 0) * pricing.output * 0.25) / 1000000;
+					
+					cost = normalInputCost + cacheReadCost + outputCost + cacheCreationCost;
 				}
 			}
 			stats.cost += cost;
