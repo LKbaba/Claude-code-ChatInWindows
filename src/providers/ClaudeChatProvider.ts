@@ -1473,12 +1473,16 @@ export class ClaudeChatProvider {
 		try {
 			await this._configurationManager.updateSettings(settings);
 			
+			// 显示成功提示
+			vscode.window.showInformationMessage('Settings updated successfully');
+			
 			// Send updated MCP status
 			if (settings['mcp.enabled']) {
 				this._sendMcpStatus();
 			}
 		} catch (error) {
 			console.error('Failed to update settings:', error);
+			vscode.window.showErrorMessage('Failed to update settings');
 		}
 	}
 	
