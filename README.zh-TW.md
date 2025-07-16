@@ -49,7 +49,7 @@
 
 [![Token HUD](docs/assets/token.png)](docs/assets/token.png)
 
-### **模組化指令 (MCP)**
+### **模型上下文協議 (MCP)**
 
 [![MCP](docs/assets/mcp.png)](docs/assets/mcp.png)
 

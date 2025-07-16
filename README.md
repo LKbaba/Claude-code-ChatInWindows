@@ -49,7 +49,7 @@ Coming soon: Token & Fee visualization, VSCode integration-code awareness.
 
 [![Token HUD](docs/assets/token.png)](docs/assets/token.png)
 
-### **Modular Command Protocol (MCP)**
+### **Model Context Protocol (MCP)**
 
 [![MCP](docs/assets/mcp.png)](docs/assets/mcp.png)
 
