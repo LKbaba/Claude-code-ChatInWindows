@@ -438,7 +438,7 @@ export function getBodyContent(): string {
 				<button class="tools-close-btn" onclick="hideLanguageModal()">✕</button>
 			</div>
 			<div class="language-modal-description">
-				Choose the language for Claude to communicate with you.
+				The language for CC to communicate & write code-comments.
 			</div>
 			<div class="tools-list">
 				<div class="tool-item" onclick="selectLanguage('zh')">
