@@ -56,28 +56,7 @@ export class VsCodeConfigManager {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         
         for (const [key, value] of Object.entries(settings)) {
-            try {
-                // 尝试更新配置
-                await config.update(key, value, vscode.ConfigurationTarget.Global);
-            } catch (error: any) {
-                // 如果是配置未注册的错误，尝试使用工作区配置
-                if (error?.message?.includes('没有注册配置') || error?.message?.includes('No configuration found')) {
-                    try {
-                        // 尝试使用工作区目标
-                        await config.update(key, value, vscode.ConfigurationTarget.Workspace);
-                    } catch (workspaceError) {
-                        // 如果仍然失败，记录错误但不抛出
-                        console.error(`无法更新配置 ${key}:`, error);
-                        // 不抛出错误，让UI继续工作
-                        continue;
-                    }
-                } else {
-                    // 其他错误仍然显示并抛出
-                    const errorMessage = error?.message || 'Unknown error';
-                    vscode.window.showErrorMessage(`Failed to update setting ${key}: ${errorMessage}`);
-                    throw error;
-                }
-            }
+            await config.update(key, value, vscode.ConfigurationTarget.Global);
         }
     }
 
