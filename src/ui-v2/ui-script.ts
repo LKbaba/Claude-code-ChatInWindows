@@ -1914,7 +1914,7 @@ export const uiScript = `
 								'<span class="stats-separator">→</span>' +
 								'<span class="stats-output">' + outputTokens.toLocaleString() + ' out</span>' +
 								'<span class="stats-total">(' + totalTokens.toLocaleString() + ' total)</span>' +
-								'<span class="stats-cost">' + currentCostStr + '</span>' +
+								'<span class="stats-cost"><span class="stats-cost-value">' + currentCostStr + '</span></span>' +
 								'<span class="stats-duration">' + currentDurationStr + '</span>' +
 							'</span>' +
 						'</div>';
@@ -2608,13 +2608,13 @@ export const uiScript = `
 			
 			// Headers based on current tab
 			if (currentStatsTab === 'daily') {
-				html += '<thead><tr><th>Date</th><th>Models</th><th>Input Tokens</th><th>Output Tokens</th><th>Cache Creation</th><th>Cache Read</th><th>Total Tokens</th><th>Cost</th></tr></thead>';
+				html += '<thead><tr><th>Date</th><th>Models</th><th>Cache Read</th><th>Input Tokens</th><th>Cache Creation</th><th>Output Tokens</th><th>Total Input Tokens</th><th>Total Output Tokens</th><th>Total Tokens</th><th>Cost</th></tr></thead>';
 			} else if (currentStatsTab === 'monthly') {
-				html += '<thead><tr><th>Month</th><th>Models</th><th>Input Tokens</th><th>Output Tokens</th><th>Cache Creation</th><th>Cache Read</th><th>Total Tokens</th><th>Cost</th></tr></thead>';
+				html += '<thead><tr><th>Month</th><th>Models</th><th>Cache Read</th><th>Input Tokens</th><th>Cache Creation</th><th>Output Tokens</th><th>Total Input Tokens</th><th>Total Output Tokens</th><th>Total Tokens</th><th>Cost</th></tr></thead>';
 			} else if (currentStatsTab === 'blocks') {
-				html += '<thead><tr><th>Block</th><th>Input Tokens</th><th>Output Tokens</th><th>Cache Creation</th><th>Cache Read</th><th>Total Tokens</th><th>Cost</th><th>Status</th></tr></thead>';
+				html += '<thead><tr><th>Block</th><th>Cache Read</th><th>Input Tokens</th><th>Cache Creation</th><th>Output Tokens</th><th>Total Input Tokens</th><th>Total Output Tokens</th><th>Total Tokens</th><th>Cost</th><th>Status</th></tr></thead>';
 			} else if (currentStatsTab === 'session') {
-				html += '<thead><tr><th>Project</th><th>Models</th><th>Input Tokens</th><th>Output Tokens</th><th>Cache Creation</th><th>Cache Read</th><th>Total Tokens</th><th>Cost</th><th>Last Activity</th></tr></thead>';
+				html += '<thead><tr><th>Project</th><th>Models</th><th>Cache Read</th><th>Input Tokens</th><th>Cache Creation</th><th>Output Tokens</th><th>Total Input Tokens</th><th>Total Output Tokens</th><th>Total Tokens</th><th>Cost</th><th>Last Activity</th></tr></thead>';
 			}
 			
 			html += '<tbody>';
@@ -2625,12 +2625,18 @@ export const uiScript = `
 					html += '<tr>';
 					if (currentStatsTab === 'blocks') {
 						html += '<td>' + (row.block || '-') + '</td>';
-						html += '<td>' + (row.inputTokens || 0).toLocaleString() + '</td>';
-						html += '<td>' + (row.outputTokens || 0).toLocaleString() + '</td>';
-						html += '<td>' + (row.cacheCreationTokens || 0).toLocaleString() + '</td>';
 						html += '<td>' + (row.cacheReadTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.inputTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.cacheCreationTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.outputTokens || 0).toLocaleString() + '</td>';
+						// Total Input Tokens = Input Tokens + Cache Read
+						const totalInputTokens = (row.inputTokens || 0) + (row.cacheReadTokens || 0);
+						html += '<td><span class="stats-table-input-value">' + totalInputTokens.toLocaleString() + '</span></td>';
+						// Total Output Tokens = Output Tokens + Cache Creation
+						const totalOutputTokens = (row.outputTokens || 0) + (row.cacheCreationTokens || 0);
+						html += '<td><span class="stats-table-output-value">' + totalOutputTokens.toLocaleString() + '</span></td>';
 						html += '<td>' + (row.totalTokens || 0).toLocaleString() + '</td>';
-						html += '<td>$' + (row.cost || 0).toFixed(4) + '</td>';
+						html += '<td><span class="stats-table-cost-value">$' + (row.cost || 0).toFixed(4) + '</span></td>';
 						html += '<td class="status-' + (row.status || 'unknown') + '">' + (row.status || '-') + '</td>';
 					} else if (currentStatsTab === 'daily' || currentStatsTab === 'monthly') {
 						// Daily and Monthly views: Date/Month, Models, then numeric columns
@@ -2658,12 +2664,18 @@ export const uiScript = `
 						} else {
 							html += '<td>inactive</td>';
 						}
-						html += '<td>' + (row.inputTokens || 0).toLocaleString() + '</td>';
-						html += '<td>' + (row.outputTokens || 0).toLocaleString() + '</td>';
-						html += '<td>' + (row.cacheCreationTokens || 0).toLocaleString() + '</td>';
 						html += '<td>' + (row.cacheReadTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.inputTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.cacheCreationTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.outputTokens || 0).toLocaleString() + '</td>';
+						// Total Input Tokens = Input Tokens + Cache Read
+						const totalInputTokens = (row.inputTokens || 0) + (row.cacheReadTokens || 0);
+						html += '<td><span class="stats-table-input-value">' + totalInputTokens.toLocaleString() + '</span></td>';
+						// Total Output Tokens = Output Tokens + Cache Creation
+						const totalOutputTokens = (row.outputTokens || 0) + (row.cacheCreationTokens || 0);
+						html += '<td><span class="stats-table-output-value">' + totalOutputTokens.toLocaleString() + '</span></td>';
 						html += '<td>' + (row.totalTokens || 0).toLocaleString() + '</td>';
-						html += '<td>$' + (row.cost || 0).toFixed(4) + '</td>';
+						html += '<td><span class="stats-table-cost-value">$' + (row.cost || 0).toFixed(4) + '</span></td>';
 					} else if (currentStatsTab === 'session') {
 						// Session view: Project name only, Models, numeric columns, Cost, Last Activity
 						const projectName = row.session || '-';
@@ -2691,12 +2703,18 @@ export const uiScript = `
 						} else {
 							html += '<td>inactive</td>';
 						}
-						html += '<td>' + (row.inputTokens || 0).toLocaleString() + '</td>';
-						html += '<td>' + (row.outputTokens || 0).toLocaleString() + '</td>';
-						html += '<td>' + (row.cacheCreationTokens || 0).toLocaleString() + '</td>';
+						// 新列顺序：缓存读取、输入、缓存创建、输出、总输入、总输出、总tokens、成本、最后活动
 						html += '<td>' + (row.cacheReadTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.inputTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.cacheCreationTokens || 0).toLocaleString() + '</td>';
+						html += '<td>' + (row.outputTokens || 0).toLocaleString() + '</td>';
+						// 计算总输入和总输出
+						const totalInput = (row.inputTokens || 0) + (row.cacheReadTokens || 0);
+						const totalOutput = (row.outputTokens || 0) + (row.cacheCreationTokens || 0);
+						html += '<td><span class="stats-table-input-value">' + totalInput.toLocaleString() + '</span></td>';
+						html += '<td><span class="stats-table-output-value">' + totalOutput.toLocaleString() + '</span></td>';
 						html += '<td>' + (row.totalTokens || 0).toLocaleString() + '</td>';
-						html += '<td>$' + (row.cost || 0).toFixed(4) + '</td>';
+						html += '<td><span class="stats-table-cost-value">$' + (row.cost || 0).toFixed(4) + '</span></td>';
 						html += '<td>' + (row.lastActivity || '-') + '</td>';
 					}
 					html += '</tr>';
@@ -2709,27 +2727,43 @@ export const uiScript = `
 					
 					if (currentStatsTab === 'daily' || currentStatsTab === 'monthly') {
 						html += '<td><strong>-</strong></td>'; // Models column
+						// 新列顺序：缓存读取、输入、缓存创建、输出、总输入、总输出、总tokens、成本
+						html += '<td><strong>' + (data.totals.cacheReadTokens || 0).toLocaleString() + '</strong></td>';
+						html += '<td><strong>' + (data.totals.inputTokens || 0).toLocaleString() + '</strong></td>';
+						html += '<td><strong>' + (data.totals.cacheCreationTokens || 0).toLocaleString() + '</strong></td>';
+						html += '<td><strong>' + (data.totals.outputTokens || 0).toLocaleString() + '</strong></td>';
+						// 计算总输入和总输出
+						const totalInputSum = (data.totals.inputTokens || 0) + (data.totals.cacheReadTokens || 0);
+						const totalOutputSum = (data.totals.outputTokens || 0) + (data.totals.cacheCreationTokens || 0);
+						html += '<td><strong><span class="stats-table-input-value">' + totalInputSum.toLocaleString() + '</span></strong></td>';
+						html += '<td><strong><span class="stats-table-output-value">' + totalOutputSum.toLocaleString() + '</span></strong></td>';
+						html += '<td><strong>' + (data.totals.totalTokens || 0).toLocaleString() + '</strong></td>';
+						html += '<td><strong><span class="stats-table-cost-value">$' + (data.totals.cost || 0).toFixed(4) + '</span></strong></td>';
 					} else if (currentStatsTab === 'session') {
 						html += '<td><strong>-</strong></td>'; // Models column
+						// Session视图的新列顺序
+						html += '<td><strong>' + (data.totals.cacheReadTokens || 0).toLocaleString() + '</strong></td>';
+						html += '<td><strong>' + (data.totals.inputTokens || 0).toLocaleString() + '</strong></td>';
+						html += '<td><strong>' + (data.totals.cacheCreationTokens || 0).toLocaleString() + '</strong></td>';
+						html += '<td><strong>' + (data.totals.outputTokens || 0).toLocaleString() + '</strong></td>';
+						// 计算总输入和总输出
+						const totalInputSum = (data.totals.inputTokens || 0) + (data.totals.cacheReadTokens || 0);
+						const totalOutputSum = (data.totals.outputTokens || 0) + (data.totals.cacheCreationTokens || 0);
+						html += '<td><strong><span class="stats-table-input-value">' + totalInputSum.toLocaleString() + '</span></strong></td>';
+						html += '<td><strong><span class="stats-table-output-value">' + totalOutputSum.toLocaleString() + '</span></strong></td>';
+						html += '<td><strong>' + (data.totals.totalTokens || 0).toLocaleString() + '</strong></td>';
+						html += '<td><strong><span class="stats-table-cost-value">$' + (data.totals.cost || 0).toFixed(4) + '</span></strong></td>';
+						html += '<td><strong>-</strong></td>'; // Last Activity column
 					}
-					
-					html += '<td><strong>' + (data.totals.inputTokens || 0).toLocaleString() + '</strong></td>';
-					html += '<td><strong>' + (data.totals.outputTokens || 0).toLocaleString() + '</strong></td>';
-					html += '<td><strong>' + (data.totals.cacheCreationTokens || 0).toLocaleString() + '</strong></td>';
-					html += '<td><strong>' + (data.totals.cacheReadTokens || 0).toLocaleString() + '</strong></td>';
-					html += '<td><strong>' + (data.totals.totalTokens || 0).toLocaleString() + '</strong></td>';
-					html += '<td><strong>$' + (data.totals.cost || 0).toFixed(4) + '</strong></td>';
 					
 					if (currentStatsTab === 'blocks') {
 						html += '<td><strong>-</strong></td>'; // Status column
-					} else if (currentStatsTab === 'session') {
-						html += '<td><strong>-</strong></td>'; // Last Activity column
 					}
 					
 					html += '</tr>';
 				}
 			} else {
-				const colspanValue = currentStatsTab === 'session' ? '9' : '8';
+				const colspanValue = currentStatsTab === 'session' ? '11' : (currentStatsTab === 'daily' || currentStatsTab === 'monthly' ? '10' : '10');
 				html += '<tr><td colspan="' + colspanValue + '" class="stats-empty">No data available</td></tr>';
 			}
 			
