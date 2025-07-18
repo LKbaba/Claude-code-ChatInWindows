@@ -61,8 +61,18 @@ Coming soon: Token & Fee visualization, VSCode integration-code awareness.
 >
 > This guide covers **Environment Setup**, **Extension Installation**, and **Packaging Instructions**.
 
-## We recommend not to use version 1.0.51 for now, as prompt adherence is suboptimal and MCP invocation is less effective. Please use version 1.0.48 instead - 2025.07.13
+## Version Compatibility Notice
 
+> ⚠️ **Important Version Notice (Updated 2025.07.18)**:
+>
+> Claude Code official has released v1.0.54, but this version has compatibility issues with this plugin's MCP functionality (official SDK and Windows platform adaptation are not yet complete). For the full experience of this plugin's features, we recommend using v1.0.48.
+>
+> **Downgrade Guide**: If you need to downgrade from a higher version to v1.0.48, please follow these steps:
+>
+> 1. Add `C:\Program Files\Git\bin` and `C:\Program Files\Git\bin\bash.exe` to system environment variables
+> 2. Delete the `shell-snapshots` folder in `C:\Users\<yourname>\.claude` folder
+> 3. Uninstall the current version and reinstall v1.0.48
+>
 > ⚡ **Claude Code v1.0.51+ users notice**:
 >
 > * Ensure your system PATH does NOT contain `Git\bin`, or you'll encounter startup errors
