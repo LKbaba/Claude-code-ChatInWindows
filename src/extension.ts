@@ -67,7 +67,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 	statusBarItem.text = "Claude";
 	statusBarItem.tooltip = "Open Claude Code Chat (Ctrl+Shift+C)";
-	statusBarItem.command = 'claude-code-chat.openChat';
+	statusBarItem.command = 'claude-code-chatui.openChat';
 	statusBarItem.show();
 
 	context.subscriptions.push(disposable, loadConversationDisposable, operationTrackedCommand, operationChangedCommand, statusBarItem);
