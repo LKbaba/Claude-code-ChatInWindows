@@ -3079,7 +3079,7 @@ export const uiScript = `
 				'basic-memory': {
 					name: 'basic-memory',
 					command: 'uvx',
-					args: ['--from', 'basic-memory', 'basic-memory', 'mcp'],
+					args: ['basic-memory', 'mcp'],
 					env: {
 						'BASIC_MEMORY_HOME': '\${HOME}/.claude/memory'
 					}
