@@ -301,6 +301,9 @@ export class ClaudeChatProvider {
 
 			// Send operation history after ready
 			this._sendOperationHistory();
+			
+			// 发送初始token使用情况
+			this._sendTokenUsage();
 
 			// Send current model to webview
 			this._panel?.webview.postMessage({
@@ -496,6 +499,8 @@ export class ClaudeChatProvider {
 							type: 'updateTokens',
 							data: tokens
 						});
+						// 发送token使用情况到UI
+						this._sendTokenUsage();
 					},
 					onFinalResult: (result: any) => {
 						if (result.sessionId) {
@@ -592,6 +597,9 @@ export class ClaudeChatProvider {
 		this._totalTokensInput = 0;
 		this._totalTokensOutput = 0;
 		this._requestCount = 0;
+
+		// 发送token使用情况到UI
+		this._sendTokenUsage();
 
 		// Reset message processor
 		this._messageProcessor.reset();
@@ -1417,6 +1425,9 @@ export class ClaudeChatProvider {
 		this._totalTokensInput = conversationData.totalTokens?.input || 0;
 		this._totalTokensOutput = conversationData.totalTokens?.output || 0;
 		
+		// 发送token使用情况到UI
+		this._sendTokenUsage();
+		
 		// Reset message processor and update its state
 		this._messageProcessor.reset();
 		// Note: MessageProcessor state will be automatically updated when messages are processed
@@ -1531,11 +1542,13 @@ export class ClaudeChatProvider {
 				return;
 			}
 			
-			// Try to dynamically query the MCP server for tools
+			// 尝试动态查询MCP服务器的工具
+			console.log(`[MCP] Attempting to dynamically query tools for ${serverName}`);
 			const dynamicTools = await this._queryMcpServerTools(server);
 			
 			if (dynamicTools && dynamicTools.length > 0) {
-				// Successfully got tools from server
+				// 成功获取工具列表
+				console.log(`[MCP] Successfully got ${dynamicTools.length} tools from ${serverName} via dynamic query`);
 				this._panel?.webview.postMessage({
 					type: 'mcpToolsData',
 					data: {
@@ -1543,80 +1556,18 @@ export class ClaudeChatProvider {
 						serverName: serverName
 					}
 				});
-				return;
-			}
-			
-			// Fallback to hardcoded tool lists
-			const toolLists: { [key: string]: any[] } = {
-				'basic-memory': [
-					{
-						name: 'write_note',
-						description: 'Create or update knowledge notes'
-					},
-					{
-						name: 'read_note',
-						description: 'Read specific note content'
-					},
-					{
-						name: 'search_notes',
-						description: 'Full-text search across knowledge base'
-					},
-					{
-						name: 'recent_activity',
-						description: 'View recent activities and updates'
-					},
-					{
-						name: 'build_context',
-						description: 'Build relevant context'
-					},
-					{
-						name: 'canvas',
-						description: 'Create visual knowledge graphs'
-					}
-				],
-				'sequential-thinking': [
-					{
-						name: 'sequential_thinking',
-						description: 'Process complex problems with structured thinking, breaking tasks into multiple thought steps'
-					}
-				],
-				'context7': [
-					{
-						name: 'resolve-library-id',
-						description: 'Resolve library name to Context7-compatible library ID'
-					},
-					{
-						name: 'get-library-docs',
-						description: 'Get latest official documentation and code examples for specific versions'
-					}
-				]
-			};
-			
-			// Get tools for the server from hardcoded list
-			const tools = toolLists[serverName] || [];
-			
-			// If no hardcoded tools and it's a custom server
-			if (tools.length === 0 && server.command) {
+			} else {
+				// 动态查询失败，显示错误信息
+				console.log(`[MCP] Dynamic query failed or returned no tools for ${serverName}`);
 				this._panel?.webview.postMessage({
 					type: 'mcpToolsData',
 					data: {
-						tools: [{
-							name: 'Dynamic tools',
-							description: `Unable to fetch tool list dynamically. MCP server may not be running or doesn't support tool discovery.\nCommand: ${server.command} ${server.args?.join(' ') || ''}`
-						}]
+						error: `Failed to retrieve tools from ${serverName}. The MCP server might not be running, not installed, or doesn't support tool discovery.`,
+						serverName: serverName,
+						command: `${server.command} ${server.args?.join(' ') || ''}`
 					}
 				});
-				return;
 			}
-			
-			// Send tools data
-			this._panel?.webview.postMessage({
-				type: 'mcpToolsData',
-				data: {
-					tools: tools,
-					serverName: serverName
-				}
-			});
 			
 		} catch (error: any) {
 			this._panel?.webview.postMessage({
@@ -1707,7 +1658,7 @@ export class ClaudeChatProvider {
 					}
 					console.log(`[MCP] Timeout waiting for response from ${server.name}`);
 					resolve(null);
-				}, 5000); // 5-second timeout for the whole process
+				}, 5000); // 5秒超时
 
 				const cleanup = () => {
 					clearTimeout(timeout);
@@ -1726,30 +1677,52 @@ export class ClaudeChatProvider {
 							try {
 								const response = JSON.parse(line);
 
-								if (response.id === 1 && response.result) { // Initialization response
+								if (response.id === 1 && response.result) { // 初始化响应
 									console.log(`[MCP] Initialized with ${server.name}.`);
+									console.log(`[MCP] Server capabilities:`, JSON.stringify(response.result.capabilities));
+									
+									// 发送 initialized 通知
+									const initializedNotification = {
+										jsonrpc: '2.0',
+										method: 'notifications/initialized'
+									};
+									mcpStdin.write(JSON.stringify(initializedNotification) + '\n');
+									
 									if (response.result.capabilities?.tools) {
-										const toolListRequest = {
-											jsonrpc: '2.0',
-											id: 2,
-											method: 'tools/list',
-											params: {}
-										};
-										mcpStdin.write(JSON.stringify(toolListRequest) + '\n');
+										// 延迟一下确保初始化完成
+										setTimeout(() => {
+											const toolListRequest = {
+												jsonrpc: '2.0',
+												id: 2,
+												method: 'tools/list'
+												// 不发送 params 字段
+											};
+											console.log(`[MCP] Sending tools/list request`);
+											mcpStdin.write(JSON.stringify(toolListRequest) + '\n');
+										}, 500);
 									} else {
 										console.log(`[MCP] ${server.name} does not support tools.`);
 										cleanup();
 										resolve([]);
 									}
-								} else if (response.id === 2 && response.result) { // tools/list response
+								} else if (response.id === 2 && response.result) { // tools/list 响应
 									const tools = response.result.tools || [];
 									const toolList = tools.map((tool: any) => ({
 										name: tool.name || 'Unknown Tool',
 										description: tool.description || 'No description available.'
 									}));
 									console.log(`[MCP] Retrieved ${toolList.length} tools from ${server.name}.`);
+									// 输出前几个工具名称用于调试
+									if (toolList.length > 0) {
+										console.log(`[MCP] First few tools:`, toolList.slice(0, 3).map((t: any) => t.name).join(', '));
+									}
 									cleanup();
 									resolve(toolList);
+								} else if (response.id === 2 && response.error) { // tools/list 错误响应
+									console.error(`[MCP] Error getting tools from ${server.name}:`, response.error);
+									console.error(`[MCP] Error details:`, JSON.stringify(response.error));
+									cleanup();
+									resolve(null);
 								}
 							} catch (e) {
 								console.error(`[MCP] Error parsing JSON from ${server.name}:`, line, e);
@@ -1760,7 +1733,12 @@ export class ClaudeChatProvider {
 				});
 
 				mcpStderr.on('data', (data: Buffer) => {
-					errorData += data.toString();
+					const stderr = data.toString();
+					errorData += stderr;
+					// 输出stderr以便调试（过滤掉INFO日志）
+					if (!stderr.includes('INFO') && !stderr.includes('Starting MCP server')) {
+						console.error(`[MCP] stderr from ${server.name}:`, stderr.trim());
+					}
 				});
 
 				mcpProcess.on('error', (error: any) => {
@@ -2061,6 +2039,18 @@ export class ClaudeChatProvider {
 		});
 	}
 
+	// 发送token使用情况到UI
+	private _sendTokenUsage(): void {
+		const usage = this._conversationManager.getCurrentTokenUsage(
+			this._totalTokensInput,
+			this._totalTokensOutput
+		);
+		
+		this._panel?.webview.postMessage({
+			type: 'tokenUsage',
+			data: usage
+		});
+	}
 
 	public dispose() {
 		if (this._panel) {

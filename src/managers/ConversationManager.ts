@@ -209,4 +209,31 @@ export class ConversationManager {
             return undefined;
         }
     }
+
+    // 获取当前token使用情况
+    getCurrentTokenUsage(currentTokensInput: number, currentTokensOutput: number): {
+        used: number;
+        total: number;
+        percentage: number;
+        inputTokens: number;
+        outputTokens: number;
+    } {
+        const TOTAL_TOKENS = 200000; // Claude的200K上下文窗口
+        const SAFETY_BUFFER = 10000; // 安全缓冲区，预留10K
+        const effectiveTotal = TOTAL_TOKENS - SAFETY_BUFFER;
+        
+        const totalUsed = currentTokensInput + currentTokensOutput;
+        const usedPercentage = (totalUsed / effectiveTotal) * 100;
+        // 计算剩余百分比
+        const remainingPercentage = Math.max(0, 100 - usedPercentage);
+        
+        return {
+            used: totalUsed,
+            total: effectiveTotal,
+            percentage: Math.round(remainingPercentage), // 返回剩余百分比
+            inputTokens: currentTokensInput,
+            outputTokens: currentTokensOutput
+        };
+    }
+
 }

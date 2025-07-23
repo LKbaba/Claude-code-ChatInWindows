@@ -793,6 +793,62 @@ export const uiScript = `
 			}
 		}
 
+		// 更新token使用指示器
+		function updateTokenUsageIndicator(usage) {
+			// 查找或创建token指示器容器
+			let indicatorContainer = document.getElementById('tokenUsageIndicator');
+			if (!indicatorContainer) {
+				// 如果不存在，创建并添加到输入模式区域
+				const inputModes = document.querySelector('.input-modes');
+				if (inputModes) {
+					indicatorContainer = document.createElement('div');
+					indicatorContainer.id = 'tokenUsageIndicator';
+					indicatorContainer.className = 'token-usage-indicator';
+					indicatorContainer.style.marginLeft = 'auto'; // 推到最右侧
+					inputModes.appendChild(indicatorContainer);
+				} else {
+					return; // 如果找不到输入模式区域，退出
+				}
+			}
+			
+			// 计算分段数（5个分段）
+			const segmentCount = 5;
+			const filledSegments = Math.round((usage.percentage / 100) * segmentCount);
+			
+			// 根据剩余百分比确定颜色类
+			let colorClass = 'usage-green';
+			if (usage.percentage < 20) {
+				colorClass = 'usage-red';
+			} else if (usage.percentage < 60) {
+				colorClass = 'usage-yellow';
+			}
+			
+			// 生成分段HTML
+			let segmentsHtml = '';
+			for (let i = 0; i < segmentCount; i++) {
+				const isFilled = i < filledSegments;
+				let segmentColor = 'rgba(255, 255, 255, 0.2)';
+				if (isFilled) {
+					if (colorClass === 'usage-green') segmentColor = '#66BB6A';
+					else if (colorClass === 'usage-yellow') segmentColor = '#FFCA28';
+					else if (colorClass === 'usage-red') segmentColor = '#EF5350';
+				}
+				segmentsHtml += \`<span class="usage-segment\${isFilled ? ' filled ' + colorClass : ''}" style="display:inline-block; color: \${segmentColor}; font-weight: bold;">█</span>\`;
+			}
+			
+			// 更新指示器内容
+			indicatorContainer.innerHTML = \`
+				<div class="usage-display">
+					<span class="usage-label">Context Window</span>
+					<span class="usage-text">\${usage.percentage}%</span>
+					<span class="usage-segments">\${segmentsHtml}</span>
+				</div>
+			\`;
+			
+			// 添加工具提示
+			indicatorContainer.title = \`Tokens remaining \${usage.percentage}% in this chat\`;
+		}
+
 		function startRequestTimer() {
 			requestStartTime = Date.now();
 			spinnerFrame = 0;
@@ -2065,6 +2121,11 @@ export const uiScript = `
 					// Display operation preview
 					displayOperationPreview(message.data);
 					break;
+					
+				case 'tokenUsage':
+					// 更新token使用指示器
+					updateTokenUsageIndicator(message.data);
+					break;
 			}
 
 			if (message.type === 'settingsData') {
@@ -2138,6 +2199,7 @@ export const uiScript = `
 				const serversList = document.getElementById('mcpServersList');
 				serversList.innerHTML = ''; // Clear existing servers
 				mcpServerCount = 0; // Reset counter
+				mcpServerExpandStates.clear(); // 清除展开状态
 				
 				mcpServers.forEach(server => {
 					addMcpServer(server);
@@ -2866,50 +2928,101 @@ export const uiScript = `
 		}
 
 		let mcpServerCount = 0;
+		// 存储每个服务器的展开状态
+		const mcpServerExpandStates = new Map();
 		
 		function addMcpServer(serverConfig = null) {
 			mcpServerCount++;
 			const serverId = 'mcp-server-' + mcpServerCount;
 			const serversList = document.getElementById('mcpServersList');
 			
+			// 初始化为折叠状态
+			mcpServerExpandStates.set(serverId, false);
+			
 			const serverDiv = document.createElement('div');
 			serverDiv.className = 'mcp-server-item';
 			serverDiv.id = serverId;
-			serverDiv.style.cssText = 'border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 12px; margin-bottom: 12px;';
+			serverDiv.style.cssText = 'border: 1px solid var(--vscode-panel-border); border-radius: 4px; margin-bottom: 12px; overflow: hidden; transition: box-shadow 0.2s;';
 			
+			// 创建始终显示的header部分
 			const headerDiv = document.createElement('div');
-			headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;';
+			headerDiv.className = 'mcp-server-header';
+			headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; cursor: pointer; user-select: none; transition: background-color 0.2s;';
 			
-			const title = document.createElement('h4');
-			title.style.cssText = 'margin: 0; font-size: 12px; font-weight: 600;';
-			title.textContent = 'MCP Server';
+			// 添加鼠标悬停效果
+			headerDiv.onmouseenter = () => {
+				headerDiv.style.backgroundColor = 'var(--vscode-list-hoverBackground)';
+			};
+			headerDiv.onmouseleave = () => {
+				headerDiv.style.backgroundColor = 'transparent';
+			};
 			
+			// 左侧：展开图标 + 服务器名称
+			const titleSection = document.createElement('div');
+			titleSection.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+			
+			// 展开/折叠图标 - 使用绿色高亮
+			const expandIcon = document.createElement('span');
+			expandIcon.className = 'mcp-expand-icon';
+			expandIcon.style.cssText = 'display: inline-block; width: 12px; transition: transform 0.2s; font-size: 10px; color: var(--vscode-charts-green);';
+			expandIcon.textContent = '▶';
+			
+			// 服务器名称（动态更新）
+			const serverNameDisplay = document.createElement('span');
+			serverNameDisplay.className = 'mcp-server-name-display';
+			serverNameDisplay.style.cssText = 'font-size: 13px; font-weight: 500;';
+			serverNameDisplay.textContent = serverConfig?.name || 'MCP Server';
+			
+			titleSection.appendChild(expandIcon);
+			titleSection.appendChild(serverNameDisplay);
+			
+			// 右侧：操作按钮
 			const buttonsDiv = document.createElement('div');
 			buttonsDiv.style.cssText = 'display: flex; gap: 4px;';
 			
 			const viewToolsBtn = document.createElement('button');
 			viewToolsBtn.className = 'btn outlined';
-			viewToolsBtn.style.cssText = 'font-size: 11px; padding: 2px 6px;';
+			viewToolsBtn.style.cssText = 'font-size: 11px; padding: 3px 8px; min-height: 22px;';
 			viewToolsBtn.textContent = 'View Tools';
-			viewToolsBtn.onclick = () => toggleMcpTools(serverId);
+			viewToolsBtn.onclick = (e) => {
+				e.stopPropagation(); // 防止触发header的点击事件
+				toggleMcpTools(serverId);
+			};
 			
 			const removeBtn = document.createElement('button');
 			removeBtn.className = 'btn outlined';
-			removeBtn.style.cssText = 'font-size: 11px; padding: 2px 6px;';
+			removeBtn.style.cssText = 'font-size: 11px; padding: 3px 8px; min-height: 22px;';
 			removeBtn.textContent = 'Remove';
-			removeBtn.onclick = () => removeMcpServer(serverId);
+			removeBtn.onclick = (e) => {
+				e.stopPropagation(); // 防止触发header的点击事件
+				removeMcpServer(serverId);
+			};
 			
 			buttonsDiv.appendChild(viewToolsBtn);
 			buttonsDiv.appendChild(removeBtn);
 			
-			headerDiv.appendChild(title);
+			headerDiv.appendChild(titleSection);
 			headerDiv.appendChild(buttonsDiv);
+			
+			// 创建可折叠的详情部分
+			const detailsDiv = document.createElement('div');
+			detailsDiv.className = 'mcp-server-details';
+			detailsDiv.style.cssText = 'max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out;';
+			
+			const detailsContent = document.createElement('div');
+			detailsContent.style.cssText = 'padding: 0 12px 12px 12px;';
 			
 			const fieldsDiv = document.createElement('div');
 			fieldsDiv.style.cssText = 'display: grid; gap: 8px;';
 			
 			// Name field
 			const nameDiv = createField('Name', 'mcp-server-name', 'my-server', serverConfig?.name || '');
+			// 监听名称变化，更新header显示
+			const nameInput = nameDiv.querySelector('input');
+			nameInput.oninput = () => {
+				serverNameDisplay.textContent = nameInput.value || 'MCP Server';
+			};
+			
 			// Command field
 			const commandDiv = createField('Command', 'mcp-server-command', 'npx -y @modelcontextprotocol/server-sqlite', serverConfig?.command || '');
 			// Args field
@@ -2922,16 +3035,54 @@ export const uiScript = `
 			fieldsDiv.appendChild(argsDiv);
 			fieldsDiv.appendChild(envDiv);
 			
-			serverDiv.appendChild(headerDiv);
-			serverDiv.appendChild(fieldsDiv);
+			detailsContent.appendChild(fieldsDiv);
 			
-			// Tools section (initially hidden)
+			// Tools section (作为details的一部分)
 			const toolsSection = document.createElement('div');
 			toolsSection.id = \`tools-\${serverId}\`;
 			toolsSection.style.cssText = 'display: none; margin-top: 12px; padding: 12px; background: var(--vscode-editor-background); border-radius: 4px;';
 			toolsSection.innerHTML = '<p style="text-align: center; color: var(--vscode-descriptionForeground);">Loading tools...</p>';
 			
-			serverDiv.appendChild(toolsSection);
+			detailsContent.appendChild(toolsSection);
+			detailsDiv.appendChild(detailsContent);
+			
+			// 点击header切换展开/折叠
+			headerDiv.onclick = (e) => {
+				// 如果点击的是按钮，不处理
+				if (e.target instanceof HTMLButtonElement) return;
+				
+				const isExpanded = mcpServerExpandStates.get(serverId);
+				mcpServerExpandStates.set(serverId, !isExpanded);
+				
+				if (!isExpanded) {
+					// 展开
+					expandIcon.style.transform = 'rotate(90deg)';
+					detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
+					serverDiv.style.boxShadow = '0 0 0 1px var(--vscode-focusBorder)';
+				} else {
+					// 折叠
+					expandIcon.style.transform = 'rotate(0deg)';
+					detailsDiv.style.maxHeight = '0';
+					serverDiv.style.boxShadow = 'none';
+					// 如果工具列表是展开的，也要隐藏
+					if (toolsSection.style.display !== 'none') {
+						toolsSection.style.display = 'none';
+						viewToolsBtn.textContent = 'View Tools';
+					}
+				}
+			};
+			
+			// 支持键盘操作
+			headerDiv.setAttribute('tabindex', '0');
+			headerDiv.onkeydown = (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					headerDiv.click();
+				}
+			};
+			
+			serverDiv.appendChild(headerDiv);
+			serverDiv.appendChild(detailsDiv);
 			serversList.appendChild(serverDiv);
 			
 			function createField(label, className, placeholder, value) {
@@ -2968,6 +3119,14 @@ export const uiScript = `
 			const serverEl = document.getElementById(serverId);
 			if (!serverEl) return;
 			
+			// 首先确保详情部分是展开的
+			const isExpanded = mcpServerExpandStates.get(serverId);
+			if (!isExpanded) {
+				// 如果服务器配置是折叠的，先展开它
+				const headerDiv = serverEl.querySelector('.mcp-server-header');
+				headerDiv.click();
+			}
+			
 			const toolsSection = document.getElementById(\`tools-\${serverId}\`);
 			if (!toolsSection) return;
 			
@@ -2978,6 +3137,11 @@ export const uiScript = `
 				// Show tools
 				toolsSection.style.display = 'block';
 				viewToolsBtn.textContent = 'Hide Tools';
+				
+				// 重新计算details的高度
+				const detailsDiv = serverEl.querySelector('.mcp-server-details');
+				const detailsContent = detailsDiv.querySelector('div');
+				detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
 				
 				// Load tools if not already loaded
 				if (!toolsSection.hasAttribute('data-loaded')) {
@@ -2994,6 +3158,11 @@ export const uiScript = `
 				// Hide tools
 				toolsSection.style.display = 'none';
 				viewToolsBtn.textContent = 'View Tools';
+				
+				// 重新计算details的高度
+				const detailsDiv = serverEl.querySelector('.mcp-server-details');
+				const detailsContent = detailsDiv.querySelector('div');
+				detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
 			}
 		}
 		
@@ -3020,21 +3189,28 @@ export const uiScript = `
 			
 			if (data.error) {
 				toolsSection.innerHTML = \`
-					<div style="text-align: center; padding: 20px; color: var(--vscode-errorForeground);">
-						<p>Failed to get tool list</p>
-						<p style="font-size: 12px; margin-top: 8px;">\${data.error}</p>
+					<div style="padding: 20px; color: var(--vscode-errorForeground);">
+						<p style="font-weight: 600; margin-bottom: 8px;">Failed to get tool list</p>
+						<p style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-bottom: 12px;">\${data.error}</p>
+						\${data.command ? \`<p style="font-size: 11px; font-family: 'Cascadia Mono', monospace; color: var(--vscode-descriptionForeground);">Command: <code>\${data.command}</code></p>\` : ''}
+						<p style="font-size: 11px; margin-top: 12px; color: var(--vscode-descriptionForeground);">
+							Please ensure the MCP server is installed and running correctly.
+						</p>
 					</div>
 				\`;
+				updateDetailsHeight(targetServerId);
 				return;
 			}
 			
 			const tools = data.tools || [];
+			
 			if (tools.length === 0) {
 				toolsSection.innerHTML = \`
 					<div style="text-align: center; padding: 20px; color: var(--vscode-descriptionForeground);">
 						<p>This server does not provide any tools</p>
 					</div>
 				\`;
+				updateDetailsHeight(targetServerId);
 				return;
 			}
 			
@@ -3053,6 +3229,24 @@ export const uiScript = `
 					</div>
 				</div>
 			\`;
+			
+			// 更新详情容器的高度
+			updateDetailsHeight(targetServerId);
+		}
+		
+		// 辅助函数：更新详情容器高度
+		function updateDetailsHeight(serverId) {
+			const serverEl = document.getElementById(serverId);
+			if (!serverEl) return;
+			
+			const detailsDiv = serverEl.querySelector('.mcp-server-details');
+			const detailsContent = detailsDiv.querySelector('div');
+			if (detailsDiv && detailsContent) {
+				// 使用setTimeout确保DOM已更新
+				setTimeout(() => {
+					detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
+				}, 10);
+			}
 		}
 		
 		function addMcpFromTemplate() {
@@ -3316,6 +3510,7 @@ export const uiScript = `
 				const serversList = document.getElementById('mcpServersList');
 				serversList.innerHTML = ''; // Clear existing servers
 				mcpServerCount = 0; // Reset counter
+				mcpServerExpandStates.clear(); // 清除展开状态
 				
 				mcpServers.forEach(server => {
 					addMcpServer(server);

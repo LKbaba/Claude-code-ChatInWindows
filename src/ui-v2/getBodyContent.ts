@@ -13,7 +13,7 @@ export function getBodyContent(): string {
 				<span class="session-label">session</span>
 			</div> -->
 		</div>
-		<div style="display: flex; gap: 8px; align-items: center;">
+		<div class="header-buttons" style="display: flex; gap: 8px; align-items: center;">
 			<div id="sessionStatus" class="session-status" style="display: none;">No session</div>
 			<button class="btn outlined" id="settingsBtn" onclick="toggleSettings()" title="Settings">⚙️</button>
 			<button class="btn outlined" id="statsBtn" onclick="toggleStats()" title="Usage Statistics">📈</button>
