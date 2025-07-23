@@ -337,4 +337,103 @@ export const layoutStyles = `
 .overflow-auto { overflow: auto; }
 .overflow-y-auto { overflow-y: auto; }
 .overflow-x-hidden { overflow-x: hidden; }
+
+/* Input Modes */
+.input-modes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+/* Token Usage Indicator */
+.token-usage-indicator {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+}
+
+.usage-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-segments {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.usage-segment {
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.15);
+  margin-right: 1px;
+  transition: all 0.3s ease;
+  display: inline-block;
+  opacity: 0.5;
+}
+
+.usage-segment.filled {
+  opacity: 1;
+  color: #4CAF50;
+  text-shadow: 0 0 3px currentColor;
+  font-weight: bold;
+}
+
+.usage-segment.filled.usage-green {
+  color: #66BB6A;
+  text-shadow: 0 0 3px #4CAF50;
+}
+
+.usage-segment.filled.usage-yellow {
+  color: #FFCA28;
+  text-shadow: 0 0 3px #FFC107;
+}
+
+.usage-segment.filled.usage-red {
+  color: #EF5350;
+  text-shadow: 0 0 3px #F44336;
+}
+
+.usage-label {
+  font-size: var(--font-size-xs);
+  color: var(--vscode-descriptionForeground);
+  margin-right: 8px;
+  opacity: 0.8;
+}
+
+.usage-text {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-xs);
+  min-width: 35px;
+  text-align: right;
+  margin-right: 4px;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.9;
+}
+
+/* Compact Button */
+.compact-btn {
+  font-size: var(--font-size-sm);
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--grad-primary-start) 20%, transparent);
+  border: 1px solid var(--grad-primary-start);
+  transition: all 0.2s ease;
+}
+
+.compact-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--grad-primary-start) 30%, transparent);
+  border-color: var(--grad-primary-mid);
+}
+
+.compact-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 `;
