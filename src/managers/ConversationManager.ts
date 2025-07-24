@@ -218,22 +218,42 @@ export class ConversationManager {
         inputTokens: number;
         outputTokens: number;
     } {
-        const TOTAL_TOKENS = 200000; // Claude的200K上下文窗口
-        const SAFETY_BUFFER = 10000; // 安全缓冲区，预留10K
-        const effectiveTotal = TOTAL_TOKENS - SAFETY_BUFFER;
+        const TOTAL_TOKENS = 200000; // Claude的200K上下文窗口，固定值
         
+        // 使用实际的累计值（类似 usage statistics）
+        // 这些值是从 MessageProcessor 传递过来的实际使用量
         const totalUsed = currentTokensInput + currentTokensOutput;
-        const usedPercentage = (totalUsed / effectiveTotal) * 100;
+        
+        // 计算已使用的百分比
+        const usedPercentage = (totalUsed / TOTAL_TOKENS) * 100;
+        
         // 计算剩余百分比
         const remainingPercentage = Math.max(0, 100 - usedPercentage);
         
         return {
             used: totalUsed,
-            total: effectiveTotal,
+            total: TOTAL_TOKENS,
             percentage: Math.round(remainingPercentage), // 返回剩余百分比
             inputTokens: currentTokensInput,
             outputTokens: currentTokensOutput
         };
+    }
+
+    // 获取对话内容用于生成摘要
+    getConversationForSummary(): { userMessages: string[], assistantMessages: string[] } {
+        const userMessages: string[] = [];
+        const assistantMessages: string[] = [];
+        
+        // 遍历当前对话的所有消息
+        for (const message of this._currentConversation) {
+            if (message.messageType === 'user' && message.data) {
+                userMessages.push(message.data);
+            } else if (message.messageType === 'assistant' && message.data) {
+                assistantMessages.push(message.data);
+            }
+        }
+        
+        return { userMessages, assistantMessages };
     }
 
 }

@@ -722,10 +722,16 @@ export class MessageProcessor {
     private _updateTokens(usage: any, callbacks: MessageCallbacks): void {
         const inputTokens = usage.input_tokens || 0;
         const outputTokens = usage.output_tokens || 0;
+        // 缓存相关的 tokens 也应该被计入输入 tokens
+        const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
+        const cacheReadTokens = usage.cache_read_input_tokens || 0;
         
-        this._totalTokensInput += inputTokens;
+        // 将缓存 tokens 加入到输入 tokens 的总计中
+        const totalInputTokens = inputTokens + cacheCreationTokens + cacheReadTokens;
+        
+        this._totalTokensInput += totalInputTokens;
         this._totalTokensOutput += outputTokens;
-        this._currentRequestTokensInput += inputTokens;
+        this._currentRequestTokensInput += totalInputTokens;
         this._currentRequestTokensOutput += outputTokens;
 
         callbacks.onTokenUpdate({
@@ -733,8 +739,8 @@ export class MessageProcessor {
             totalTokensOutput: this._totalTokensOutput,
             currentInputTokens: inputTokens,
             currentOutputTokens: outputTokens,
-            cacheCreationTokens: usage.cache_creation_input_tokens,
-            cacheReadTokens: usage.cache_read_input_tokens
+            cacheCreationTokens: cacheCreationTokens,
+            cacheReadTokens: cacheReadTokens
         });
     }
 
