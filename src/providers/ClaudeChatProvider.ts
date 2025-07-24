@@ -262,6 +262,9 @@ export class ClaudeChatProvider {
 					case 'getOperationHistory':
 						this._sendOperationHistory();
 						return;
+					case 'compactConversation':
+						this._compactConversation();
+						return;
 				}
 			},
 			null,
@@ -2050,6 +2053,78 @@ export class ClaudeChatProvider {
 			type: 'tokenUsage',
 			data: usage
 		});
+	}
+
+	// 压缩对话功能
+	private async _compactConversation(): Promise<void> {
+		try {
+			// 发送准备状态
+			this._panel?.webview.postMessage({
+				type: 'compactProgress',
+				data: 'Preparing to compact conversation...'
+			});
+
+			// 获取当前对话内容
+			const conversationData = this._conversationManager.getConversationForSummary();
+			
+			if (!conversationData || (conversationData.userMessages.length === 0 && conversationData.assistantMessages.length === 0)) {
+				this._panel?.webview.postMessage({
+					type: 'compactError',
+					data: 'No conversation to compact'
+				});
+				return;
+			}
+
+			// 格式化对话内容
+			let conversationText = '';
+			const maxMessages = Math.max(conversationData.userMessages.length, conversationData.assistantMessages.length);
+			
+			for (let i = 0; i < maxMessages; i++) {
+				if (i < conversationData.userMessages.length) {
+					conversationText += `User: ${conversationData.userMessages[i]}\n\n`;
+				}
+				if (i < conversationData.assistantMessages.length) {
+					conversationText += `Assistant: ${conversationData.assistantMessages[i]}\n\n`;
+				}
+			}
+
+			// 构造压缩提示
+			const compactPrompt = `Please summarize the following conversation in English within 500 words. Focus on:
+1. The main topics discussed
+2. Key decisions made
+3. Important code changes
+4. Any unresolved issues
+
+Conversation:
+${conversationText}
+
+Please provide a concise summary in English.`;
+
+			// 发送状态更新
+			this._panel?.webview.postMessage({
+				type: 'compactProgress',
+				data: 'Generating conversation summary...'
+			});
+
+			// 创建新会话
+			this._newSession();
+
+			// 发送摘要请求到Claude
+			this._sendMessageToClaude(compactPrompt, false, false, false, undefined);
+
+			// 发送完成状态
+			this._panel?.webview.postMessage({
+				type: 'compactComplete',
+				data: 'Conversation compacted successfully'
+			});
+
+		} catch (error: any) {
+			console.error('Failed to compact conversation:', error);
+			this._panel?.webview.postMessage({
+				type: 'compactError',
+				data: `Failed to compact conversation: ${error.message}`
+			});
+		}
 	}
 
 	public dispose() {

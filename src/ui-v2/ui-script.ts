@@ -839,14 +839,25 @@ export const uiScript = `
 			// 更新指示器内容
 			indicatorContainer.innerHTML = \`
 				<div class="usage-display">
-					<span class="usage-label">Context Window</span>
-					<span class="usage-text">\${usage.percentage}%</span>
+					<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">Context Window</span>
+					<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">\${usage.percentage}%</span>
 					<span class="usage-segments">\${segmentsHtml}</span>
+					<span class="compact-label" style="margin-left: 8px; color: var(--vscode-descriptionForeground); opacity: 0.8;">Compact</span>
+					<div class="mode-switch" onclick="compactConversation()" title="Compact context" style="
+						display: inline-block;
+						vertical-align: middle;
+						margin-left: 4px;
+					"></div>
 				</div>
 			\`;
 			
 			// 添加工具提示
-			indicatorContainer.title = \`Tokens remaining \${usage.percentage}% in this chat\`;
+			const usageDisplay = indicatorContainer.querySelector('.usage-display');
+			if (usageDisplay) {
+				const usedK = Math.round(usage.used / 1000);
+				const totalK = Math.round(usage.total / 1000);
+				usageDisplay.title = \`Used: \${usedK}K / \${totalK}K tokens\nRemaining: \${usage.percentage}%\`;
+			}
 		}
 
 		function startRequestTimer() {
@@ -2230,6 +2241,17 @@ export const uiScript = `
 			});
 		}
 
+		// 压缩对话功能
+		function compactConversation() {
+			// 显示提示信息
+			addMessage('Preparing to compact conversation...', 'system');
+			
+			// 发送压缩请求到后端
+			vscode.postMessage({
+				type: 'compactConversation'
+			});
+		}
+
 		function restoreToCommit(commitSha) {
 			console.log('Restore button clicked for commit:', commitSha);
 			vscode.postMessage({
@@ -3559,6 +3581,7 @@ export const uiScript = `
 		window.selectLanguage = selectLanguage;
 		window.hideToolsModal = hideToolsModal;
 		window.newSession = newSession;
+		window.compactConversation = compactConversation;
 		window.selectImage = selectImage;
 		window.selectModel = selectModel;
 		window.sendMessage = sendMessage;
