@@ -246,9 +246,9 @@ export class ConversationManager {
         
         // 遍历当前对话的所有消息
         for (const message of this._currentConversation) {
-            if (message.messageType === 'user' && message.data) {
+            if (message.messageType === 'userInput' && message.data) {
                 userMessages.push(message.data);
-            } else if (message.messageType === 'assistant' && message.data) {
+            } else if (message.messageType === 'output' && message.data) {
                 assistantMessages.push(message.data);
             }
         }

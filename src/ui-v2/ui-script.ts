@@ -2295,12 +2295,14 @@ export const uiScript = `
 				}, 2000);
 			}
 			
-			// 显示提示信息
-			addMessage('Preparing to compact conversation...', 'system');
+			// 发送压缩请求到后端，包含语言设置
+			const languageModeSwitch = document.getElementById('languageModeSwitch');
+			const isLanguageModeOn = languageModeSwitch ? languageModeSwitch.checked : false;
 			
-			// 发送压缩请求到后端
 			vscode.postMessage({
-				type: 'compactConversation'
+				type: 'compactConversation',
+				languageMode: isLanguageModeOn,
+				selectedLanguage: selectedLanguage
 			});
 		}
 
