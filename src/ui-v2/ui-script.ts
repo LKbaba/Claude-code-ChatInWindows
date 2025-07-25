@@ -812,45 +812,44 @@ export const uiScript = `
 					return; // 如果找不到输入模式区域，退出
 				}
 			}
-			
-			// 计算分段数（5个分段）
-			const segmentCount = 5;
-			const filledSegments = Math.round((usage.percentage / 100) * segmentCount);
-			
-			// 根据剩余百分比确定颜色类
-			let colorClass = 'usage-green';
+			// 根据剩余百分比确定颜色
+			let barColor = '#66BB6A'; // Green
 			if (usage.percentage < 20) {
-				colorClass = 'usage-red';
+				barColor = '#EF5350'; // Red
 			} else if (usage.percentage < 60) {
-				colorClass = 'usage-yellow';
-			}
-			
-			// 生成分段HTML
-			let segmentsHtml = '';
-			for (let i = 0; i < segmentCount; i++) {
-				const isFilled = i < filledSegments;
-				let segmentColor = 'rgba(255, 255, 255, 0.2)';
-				if (isFilled) {
-					if (colorClass === 'usage-green') segmentColor = '#66BB6A';
-					else if (colorClass === 'usage-yellow') segmentColor = '#FFCA28';
-					else if (colorClass === 'usage-red') segmentColor = '#EF5350';
-				}
-				segmentsHtml += \`<span class="usage-segment\${isFilled ? ' filled ' + colorClass : ''}" style="display:inline-block; color: \${segmentColor}; font-weight: bold;">█</span>\`;
+				barColor = '#FFCA28'; // Yellow
 			}
 			
 			// 更新指示器内容
 			indicatorContainer.innerHTML = \`
-				<div class="usage-display">
-					<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">Context Window</span>
-					<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">\${usage.percentage}%</span>
-					<span class="usage-segments">\${segmentsHtml}</span>
-					<span class="compact-label" style="margin-left: 8px; color: var(--vscode-descriptionForeground); opacity: 0.8;">Compact</span>
-					<div class="mode-switch" id="compactButton" onclick="compactConversation()" title="Compact context" style="
-						display: inline-block;
-						vertical-align: middle;
-						margin-left: 6px;
-						margin-bottom: -2px;
-					"></div>
+				<div class="usage-display" style="display: inline-flex; align-items: center; gap: 12px;">
+					<div style="display: flex; align-items: center; gap: 6px;">
+						<span class="compact-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">Compact</span>
+						<div class="mode-switch" id="compactButton" onclick="compactConversation()" title="Compact context"></div>
+					</div>
+					<div style="display: inline-flex; flex-direction: column; align-items: flex-start;">
+						<div style="display: flex; align-items: center; gap: 6px;">
+							<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">Context Window</span>
+							<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">\${usage.percentage}%</span>
+						</div>
+						<div style="
+							width: 100px;
+							height: 4px;
+							background-color: rgba(255, 255, 255, 0.15);
+							border-radius: 2px;
+							margin-top: 2px;
+							overflow: hidden;
+							position: relative;
+						">
+							<div style="
+								width: \${usage.percentage}%;
+								height: 100%;
+								background-color: \${barColor};
+								transition: width 0.3s ease, background-color 0.3s ease;
+								border-radius: 2px;
+							"></div>
+						</div>
+					</div>
 				</div>
 			\`;
 			
@@ -2190,13 +2189,14 @@ export const uiScript = `
 				const savedLanguageMode = message.data['language.enabled'] || false;
 				const savedLanguage = message.data['language.selected'] || null;
 				
-				if (savedLanguageMode && savedLanguage) {
+				// Only update if the current state doesn't match the saved state
+				if (savedLanguageMode && savedLanguage && !languageModeEnabled) {
 					languageModeEnabled = true;
 					selectedLanguage = savedLanguage;
 					
 					// Update UI
 					const switchElement = document.getElementById('languageModeSwitch');
-					if (switchElement) {
+					if (switchElement && !switchElement.classList.contains('active')) {
 						switchElement.classList.add('active');
 					}
 					
@@ -3533,13 +3533,14 @@ export const uiScript = `
 				const savedLanguageMode = message.data['language.enabled'] || false;
 				const savedLanguage = message.data['language.selected'] || null;
 				
-				if (savedLanguageMode && savedLanguage) {
+				// Only update if the current state doesn't match the saved state
+				if (savedLanguageMode && savedLanguage && !languageModeEnabled) {
 					languageModeEnabled = true;
 					selectedLanguage = savedLanguage;
 					
 					// Update UI
 					const switchElement = document.getElementById('languageModeSwitch');
-					if (switchElement) {
+					if (switchElement && !switchElement.classList.contains('active')) {
 						switchElement.classList.add('active');
 					}
 					

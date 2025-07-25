@@ -1171,6 +1171,25 @@ function getStylesOld(): string {
     .mode-toggle span {
         cursor: pointer;
         transition: opacity 0.2s ease;
+        display: inline-block;
+    }
+
+    #planModeLabel {
+        min-width: auto;
+    }
+
+    #thinkingModeLabel {
+        min-width: 60px;
+    }
+
+    #languageModeLabel {
+        text-align: right;
+        width: 70px;
+        min-width: 70px;
+        padding-right: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .mode-toggle span:hover {
