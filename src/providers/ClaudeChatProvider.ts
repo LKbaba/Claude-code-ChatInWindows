@@ -42,6 +42,8 @@ export class ClaudeChatProvider {
 	private _undoRedoManager: UndoRedoManager;
 	private _operationPreviewService: OperationPreviewService;
 	private _statisticsCache: StatisticsCache;
+	private _isCompactMode: boolean = false; // 压缩模式标志
+	private _compactSummaryBuffer: string = ''; // 压缩总结缓冲区
 	
 	// 静态模型定价数据（使用 Map 提高查找效率）
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
@@ -263,7 +265,7 @@ export class ClaudeChatProvider {
 						this._sendOperationHistory();
 						return;
 					case 'compactConversation':
-						this._compactConversation();
+						this._compactConversation(message.languageMode, message.selectedLanguage);
 						return;
 				}
 			},
@@ -432,23 +434,29 @@ export class ClaudeChatProvider {
 			}
 		}
 
-		this._sendAndSaveMessage({ type: 'userInput', data: message });
+		// 在压缩模式下不显示用户输入
+		if (!this._isCompactMode) {
+			this._sendAndSaveMessage({ type: 'userInput', data: message });
+		}
 		this._panel?.webview.postMessage({ type: 'setProcessing', data: true });
 
-		// Create backup commit
-		console.log('[ClaudeChatProvider] Creating backup commit for message:', message.substring(0, 50));
-		const commitInfo = await this._backupManager.createBackupCommit(message);
-		console.log('[ClaudeChatProvider] Backup commit result:', commitInfo);
-		
-		if (commitInfo) {
-			// Show restore option in UI and save to conversation
-			console.log('[ClaudeChatProvider] Sending showRestoreOption message to UI');
-			this._sendAndSaveMessage({
-				type: 'showRestoreOption',
-				data: commitInfo
-			});
-		} else {
-			console.log('[ClaudeChatProvider] No backup commit created (no changes or error)');
+		// 在压缩模式下不创建备份提交
+		if (!this._isCompactMode) {
+			// Create backup commit
+			console.log('[ClaudeChatProvider] Creating backup commit for message:', message.substring(0, 50));
+			const commitInfo = await this._backupManager.createBackupCommit(message);
+			console.log('[ClaudeChatProvider] Backup commit result:', commitInfo);
+			
+			if (commitInfo) {
+				// Show restore option in UI and save to conversation
+				console.log('[ClaudeChatProvider] Sending showRestoreOption message to UI');
+				this._sendAndSaveMessage({
+					type: 'showRestoreOption',
+					data: commitInfo
+				});
+			} else {
+				console.log('[ClaudeChatProvider] No backup commit created (no changes or error)');
+			}
 		}
 
 		// Reset message processor state for new conversation
@@ -476,11 +484,16 @@ export class ClaudeChatProvider {
 						// Handle system messages if needed
 					},
 					onAssistantMessage: (text: string) => {
-						// Display Claude's response
-						this._sendAndSaveMessage({
-							type: 'output',
-							data: text
-						});
+						if (this._isCompactMode) {
+							// 在压缩模式下，收集总结而不是立即显示
+							this._compactSummaryBuffer += text;
+						} else {
+							// 正常模式下，显示 Claude 的响应
+							this._sendAndSaveMessage({
+								type: 'output',
+								data: text
+							});
+						}
 					},
 					onToolStatus: (toolName: string, details: string) => {
 						this._panel?.webview.postMessage({
@@ -565,6 +578,19 @@ export class ClaudeChatProvider {
 				}
 			},
 			onClose: (code: number | null) => {
+				// 在压缩模式下，显示格式化的总结
+				if (this._isCompactMode && this._compactSummaryBuffer.trim()) {
+					const summaryMessage = `## ⚓️ 对话总结\n\n${this._compactSummaryBuffer}\n\n---\n*以上是之前对话的总结。现在开始新的对话。*`;
+					
+					this._sendAndSaveMessage({
+						type: 'output',
+						data: summaryMessage
+					});
+					
+					// 清空缓冲区
+					this._compactSummaryBuffer = '';
+				}
+				
 				this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
 				if (code !== 0) {
 					// Error handling is done through onError callback
@@ -2056,20 +2082,27 @@ export class ClaudeChatProvider {
 	}
 
 	// 压缩对话功能
-	private async _compactConversation(): Promise<void> {
+	private async _compactConversation(languageMode?: boolean, selectedLanguage?: string): Promise<void> {
 		try {
-			// 发送准备状态
+			// 设置处理状态
 			this._panel?.webview.postMessage({
-				type: 'compactProgress',
-				data: 'Preparing to compact conversation...'
+				type: 'setProcessing',
+				data: true
 			});
 
 			// 获取当前对话内容
 			const conversationData = this._conversationManager.getConversationForSummary();
 			
 			if (!conversationData || (conversationData.userMessages.length === 0 && conversationData.assistantMessages.length === 0)) {
+				// 恢复处理状态
 				this._panel?.webview.postMessage({
-					type: 'compactError',
+					type: 'setProcessing',
+					data: false
+				});
+				
+				// 显示错误消息
+				this._panel?.webview.postMessage({
+					type: 'error',
 					data: 'No conversation to compact'
 				});
 				return;
@@ -2088,43 +2121,77 @@ export class ClaudeChatProvider {
 				}
 			}
 
-			// 构造压缩提示
-			const compactPrompt = `Please summarize the following conversation in English within 500 words. Focus on:
+			// 构造压缩提示词（英文提示词）
+			const compactPrompt = `Please summarize the following conversation within 500 words. Focus on:
 1. The main topics discussed
 2. Key decisions made
-3. Important code changes
-4. Any unresolved issues
+3. Important code changes (list filenames and change types)
+4. Any unresolved issues or todos
+5. Any errors or issues that need attention
 
 Conversation:
 ${conversationText}
 
-Please provide a concise summary in English.`;
+Please provide a well-structured summary.`;
 
-			// 发送状态更新
-			this._panel?.webview.postMessage({
-				type: 'compactProgress',
-				data: 'Generating conversation summary...'
-			});
+			// 保存当前对话历史（压缩前）
+			const currentSessionId = Date.now().toString();
+			await this._conversationManager.saveCurrentConversation(
+				currentSessionId,
+				this._totalCost,
+				this._totalTokensInput,
+				this._totalTokensOutput
+			);
 
 			// 创建新会话
 			this._newSession();
-
-			// 发送摘要请求到Claude
-			this._sendMessageToClaude(compactPrompt, false, false, false, undefined);
-
-			// 发送完成状态
+			
+			// 在新会话中显示"正在总结中"提示
 			this._panel?.webview.postMessage({
-				type: 'compactComplete',
-				data: 'Conversation compacted successfully'
+				type: 'output',
+				data: '⏳ Generating conversation summary...'
+			});
+
+			// 后台生成总结（不显示提示词）
+			await this._generateCompactSummary(compactPrompt, conversationData, languageMode, selectedLanguage);
+
+			// 恢复处理状态
+			this._panel?.webview.postMessage({
+				type: 'setProcessing',
+				data: false
 			});
 
 		} catch (error: any) {
 			console.error('Failed to compact conversation:', error);
+			
+			// 恢复处理状态
 			this._panel?.webview.postMessage({
-				type: 'compactError',
+				type: 'setProcessing',
+				data: false
+			});
+			
+			// 显示错误消息
+			this._panel?.webview.postMessage({
+				type: 'error',
 				data: `Failed to compact conversation: ${error.message}`
 			});
 		}
+	}
+
+	// 后台生成压缩总结
+	private async _generateCompactSummary(prompt: string, conversationData: any, languageMode?: boolean, selectedLanguage?: string): Promise<void> {
+		// 如果没有指定语言模式，默认使用英文
+		let actualPrompt = prompt;
+		
+		// 使用特殊的压缩模式发送消息
+		this._isCompactMode = true;
+		
+		// 发送压缩提示（不会在 UI 显示）
+		// 传递语言设置以支持 Language Mode
+		await this._sendMessageToClaude(actualPrompt, false, false, languageMode || false, selectedLanguage);
+		
+		// 重置压缩模式标志
+		this._isCompactMode = false;
 	}
 
 	public dispose() {
