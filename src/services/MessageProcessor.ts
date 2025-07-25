@@ -722,16 +722,13 @@ export class MessageProcessor {
     private _updateTokens(usage: any, callbacks: MessageCallbacks): void {
         const inputTokens = usage.input_tokens || 0;
         const outputTokens = usage.output_tokens || 0;
-        // 缓存相关的 tokens 也应该被计入输入 tokens
+        // 缓存相关的 tokens 不计入总数，只传递给前端显示
         const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
         const cacheReadTokens = usage.cache_read_input_tokens || 0;
         
-        // 将缓存 tokens 加入到输入 tokens 的总计中
-        const totalInputTokens = inputTokens + cacheCreationTokens + cacheReadTokens;
-        
-        this._totalTokensInput += totalInputTokens;
+        this._totalTokensInput += inputTokens;
         this._totalTokensOutput += outputTokens;
-        this._currentRequestTokensInput += totalInputTokens;
+        this._currentRequestTokensInput += inputTokens;
         this._currentRequestTokensOutput += outputTokens;
 
         callbacks.onTokenUpdate({

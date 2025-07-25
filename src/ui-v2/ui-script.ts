@@ -747,6 +747,8 @@ export const uiScript = `
 		let requestTimer = null;
 		let spinnerFrame = 0;
 		const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+		let lastContextTokens = 0; // Track latest context window usage
+		let maxContextTokensInSession = 0; // Track maximum context usage in current session
 		
 		// Tool execution tracking
 		let currentToolExecution = null;
@@ -843,10 +845,11 @@ export const uiScript = `
 					<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">\${usage.percentage}%</span>
 					<span class="usage-segments">\${segmentsHtml}</span>
 					<span class="compact-label" style="margin-left: 8px; color: var(--vscode-descriptionForeground); opacity: 0.8;">Compact</span>
-					<div class="mode-switch" onclick="compactConversation()" title="Compact context" style="
+					<div class="mode-switch" id="compactButton" onclick="compactConversation()" title="Compact context" style="
 						display: inline-block;
 						vertical-align: middle;
-						margin-left: 4px;
+						margin-left: 6px;
+						margin-bottom: -2px;
 					"></div>
 				</div>
 			\`;
@@ -1942,6 +1945,28 @@ export const uiScript = `
 					totalTokensInput = message.data.totalTokensInput || 0;
 					totalTokensOutput = message.data.totalTokensOutput || 0;
 					
+					// Calculate actual context window usage
+					lastContextTokens = (message.data.currentInputTokens || 0) + 
+					                   (message.data.cacheReadTokens || 0);
+					
+					// Only update if this is higher than previous max (prevents jumping)
+					if (lastContextTokens > maxContextTokensInSession) {
+						maxContextTokensInSession = lastContextTokens;
+						
+						// Update Context Window indicator with correct usage
+						const TOTAL_CONTEXT = 200000;
+						const usedPercentage = (maxContextTokensInSession / TOTAL_CONTEXT) * 100;
+						const remainingPercentage = Math.max(0, 100 - usedPercentage);
+						
+						updateTokenUsageIndicator({
+							used: maxContextTokensInSession,
+							total: TOTAL_CONTEXT,
+							percentage: Math.round(remainingPercentage),
+							inputTokens: message.data.currentInputTokens || 0,
+							outputTokens: 0 // Not relevant for context window
+						});
+					}
+					
 					// Update status bar immediately with real-time token info
 					updateStatusWithTotals();
 					
@@ -2006,6 +2031,8 @@ export const uiScript = `
 					totalTokensInput = 0;
 					totalTokensOutput = 0;
 					requestCount = 0;
+					lastContextTokens = 0; // Reset context window tracking
+					maxContextTokensInSession = 0; // Reset max context tracking
 					updateStatusWithTotals();
 					break;
 					
@@ -2134,8 +2161,12 @@ export const uiScript = `
 					break;
 					
 				case 'tokenUsage':
-					// 更新token使用指示器
-					updateTokenUsageIndicator(message.data);
+					// Skip updating if we have lastContextTokens from updateTokens
+					// The tokenUsage message uses incorrect calculation (input + output)
+					// We only update if we haven't received proper context data yet
+					if (lastContextTokens === 0) {
+						updateTokenUsageIndicator(message.data);
+					}
 					break;
 			}
 
@@ -2236,6 +2267,17 @@ export const uiScript = `
 		
 		// Session management functions
 		function newSession() {
+			// Reset context window immediately
+			lastContextTokens = 0;
+			maxContextTokensInSession = 0;
+			updateTokenUsageIndicator({
+				used: 0,
+				total: 200000,
+				percentage: 100,
+				inputTokens: 0,
+				outputTokens: 0
+			});
+			
 			vscode.postMessage({
 				type: 'newSession'
 			});
@@ -2243,6 +2285,16 @@ export const uiScript = `
 
 		// 压缩对话功能
 		function compactConversation() {
+			// 添加按钮激活效果
+			const compactBtn = document.getElementById('compactButton');
+			if (compactBtn) {
+				compactBtn.classList.add('active');
+				// 2秒后移除激活状态
+				setTimeout(() => {
+					compactBtn.classList.remove('active');
+				}, 2000);
+			}
+			
 			// 显示提示信息
 			addMessage('Preparing to compact conversation...', 'system');
 			

@@ -1181,35 +1181,86 @@ function getStylesOld(): string {
         opacity: 1;
     }
 
+    /* Compact 按钮样式 - 小白点设计 */
     .mode-switch {
         position: relative;
-        width: 26px;
-        height: 14px;
-        background-color: var(--vscode-panel-border);
-        border-radius: 7px;
+        width: 20px;
+        height: 20px;
         cursor: pointer;
-        transition: background-color 0.2s ease;
+        display: inline-block;
     }
 
-    .mode-switch.active {
-        background-color: var(--vscode-button-background);
-    }
-
+    /* 小白点本体 */
     .mode-switch::after {
         content: '';
         position: absolute;
-        top: 2px;
-        left: 2px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
         width: 10px;
         height: 10px;
         background-color: var(--vscode-foreground);
         border-radius: 50%;
-        transition: transform 0.2s ease;
+        transition: all 0.2s ease;
+        opacity: 0.8;
     }
 
+    /* 悬停效果 - 发光 */
+    .mode-switch:hover::after {
+        opacity: 1;
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.6),
+                    0 0 12px rgba(255, 255, 255, 0.4);
+    }
+
+    /* 科技感涟漪效果 */
+    .mode-switch::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0);
+        transition: all 0.3s ease;
+    }
+
+    /* 点击时的涟漪扩散 */
+    .mode-switch:active::before {
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 0;
+    }
+
+    /* 点击时小白点缩小 */
+    .mode-switch:active::after {
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+
+    /* 科技感旋转动画 */
+    @keyframes techSpin {
+        0% {
+            transform: translate(-50%, -50%) rotate(0deg) scale(1);
+            box-shadow: 0 0 10px rgba(100, 200, 255, 0.8),
+                        0 0 20px rgba(100, 200, 255, 0.4);
+        }
+        50% {
+            transform: translate(-50%, -50%) rotate(180deg) scale(1.2);
+            box-shadow: 0 0 15px rgba(100, 200, 255, 1),
+                        0 0 30px rgba(100, 200, 255, 0.6);
+        }
+        100% {
+            transform: translate(-50%, -50%) rotate(360deg) scale(1);
+            box-shadow: 0 0 10px rgba(100, 200, 255, 0.8),
+                        0 0 20px rgba(100, 200, 255, 0.4);
+        }
+    }
+
+    /* 激活状态 - 蓝色发光 + 旋转 */
     .mode-switch.active::after {
-        transform: translateX(10px);
-        background-color: var(--vscode-button-foreground);
+        background-color: rgba(100, 200, 255, 0.9);
+        animation: techSpin 0.8s ease-out;
     }
 
     .textarea-container {
