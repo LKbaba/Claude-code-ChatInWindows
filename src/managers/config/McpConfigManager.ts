@@ -62,22 +62,51 @@ export class McpConfigManager {
         
         mcpServers.forEach((server) => {
             if (server.name && server.command) {
-                // Build server configuration with variable expansion
+                let command = expandVariables(server.command);
+                let args: string[] = [];
+                let originalCommand = command; // 保存原始命令用于日志
+                
+                // 在Windows上，某些命令需要使用cmd /c包装器
+                const windowsCommandsNeedingWrapper = ['npx', 'npm', 'node'];
+                const needsWindowsWrapper = process.platform === 'win32' && 
+                    windowsCommandsNeedingWrapper.includes(command.toLowerCase());
+                
+                if (needsWindowsWrapper) {
+                    // 将命令转换为cmd /c格式
+                    command = 'cmd';
+                    args = ['/c', originalCommand];
+                    
+                    // 添加原始的args
+                    if (server.args) {
+                        if (typeof server.args === 'string') {
+                            args.push(...server.args.trim().split(/\s+/).map((arg: string) => expandVariables(arg)));
+                        } else if (Array.isArray(server.args)) {
+                            args.push(...server.args.map((arg: any) => 
+                                typeof arg === 'string' ? expandVariables(arg) : arg
+                            ));
+                        }
+                    }
+                } else {
+                    // 非Windows或非npx命令，使用原始逻辑
+                    if (server.args) {
+                        if (typeof server.args === 'string') {
+                            args = server.args.trim().split(/\s+/).map((arg: string) => expandVariables(arg));
+                        } else if (Array.isArray(server.args)) {
+                            args = server.args.map((arg: any) => 
+                                typeof arg === 'string' ? expandVariables(arg) : arg
+                            );
+                        }
+                    }
+                }
+                
+                // Build server configuration
                 const serverConfig: any = {
-                    command: expandVariables(server.command)
+                    command: command
                 };
                 
-                // Add args if provided with variable expansion
-                if (server.args) {
-                    if (typeof server.args === 'string') {
-                        // If args is a string, split it into array and expand variables
-                        serverConfig.args = server.args.trim().split(/\s+/).map((arg: string) => expandVariables(arg));
-                    } else if (Array.isArray(server.args)) {
-                        // Expand variables in each argument
-                        serverConfig.args = server.args.map((arg: any) => 
-                            typeof arg === 'string' ? expandVariables(arg) : arg
-                        );
-                    }
+                // Add args if any
+                if (args.length > 0) {
+                    serverConfig.args = args;
                 }
                 
                 // Add env if provided
@@ -116,6 +145,15 @@ export class McpConfigManager {
                 }
                 
                 mcpConfig.mcpServers[server.name] = serverConfig;
+                
+                // 记录Windows下的配置转换
+                if (process.platform === 'win32' && originalCommand !== serverConfig.command) {
+                    console.log(`[McpConfigManager] Windows cmd wrapper applied for server '${server.name}':`, {
+                        originalCommand: originalCommand,
+                        convertedCommand: serverConfig.command,
+                        args: serverConfig.args
+                    });
+                }
             }
         });
 
