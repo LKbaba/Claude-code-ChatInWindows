@@ -65,7 +65,7 @@ Coming soon: Token & Fee visualization, VSCode integration-code awareness.
 
 > ⚠️ **Important Version Notice (Updated 2025.07.18)**:
 >
-> Claude Code official has released v1.0.54, but this version has compatibility issues with this plugin's MCP functionality (official SDK and Windows platform adaptation are not yet complete). For the full experience of this plugin's features, we recommend using v1.0.48.
+> Claude Code official has released v1.0.62, but this version can be directly installed using methods compatible with v1.0.48. We recommend using v1.0.62 with plugin version 1.5.1.
 >
 > **Downgrade Guide**: If you need to downgrade from a higher version to v1.0.48, please follow these steps:
 >
@@ -73,11 +73,13 @@ Coming soon: Token & Fee visualization, VSCode integration-code awareness.
 > 2. Delete the `shell-snapshots` folder in `C:\Users\<yourname>\.claude` folder
 > 3. Uninstall the current version and reinstall v1.0.48
 >
-> ⚡ **Claude Code v1.0.51+ users notice**:
+> ⚡ **Claude Code v1.0.51-54 users notice**:
 >
 > * Ensure your system PATH does NOT contain `Git\bin`, or you'll encounter startup errors
 > * You must **restart your computer** after modifying system environment variables
 > * See [Environment Setup](#-step-1-set-up-your-environment-one-time-only) for details
+>
+> ⚠️ **Note**: Versions between v1.0.54-v1.0.62 have not been tested. If you encounter issues, please contact the author.
 
 ### 🔹 Step 1: Set Up Your Environment (One-Time Only)
 
@@ -108,8 +110,8 @@ setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
 ### 🔹 Step 2: Install and Verify Claude Code CLI
 
 ```powershell
-# 1. In a [new] terminal window, globally install the Claude Code CLI, recommend v1.0.48
-npm install -g @anthropic-ai/claude-code@1.0.48
+# 1. In a [new] terminal window, globally install the Claude Code CLI, recommend v1.0.62
+npm install -g @anthropic-ai/claude-code@1.0.62
 
 # ⚠️ If you encounter PowerShell script execution policy errors, try these solutions:
 # Error example: "cannot be loaded because running scripts is disabled on this system"
