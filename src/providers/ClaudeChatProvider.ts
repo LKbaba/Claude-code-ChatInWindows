@@ -416,6 +416,10 @@ export class ClaudeChatProvider {
 				case 'ultrathink':
 					thinkingPrompt = 'ULTRATHINK';
 					break;
+				case 'sequential-thinking':
+					// 使用 MCP Sequential Thinking 工具进行结构化思考
+					thinkingPrompt = 'USE THE MCP SEQUENTIAL THINKING TOOL (mcp__sequential-thinking__sequentialthinking) TO';
+					break;
 				default:
 					thinkingPrompt = 'THINK';
 			}

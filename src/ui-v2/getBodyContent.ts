@@ -416,12 +416,13 @@ export function getBodyContent(): string {
 			</div>
 			<div class="tools-list">
 				<div class="thinking-slider-container">
-					<input type="range" min="0" max="3" value="0" step="1" class="thinking-slider" id="thinkingIntensitySlider" oninput="updateThinkingIntensityDisplay(this.value)">
+					<input type="range" min="0" max="4" value="0" step="1" class="thinking-slider" id="thinkingIntensitySlider" oninput="updateThinkingIntensityDisplay(this.value)">
 					<div class="slider-labels">
 						<div class="slider-label active" id="thinking-label-0" onclick="setThinkingIntensityValue(0)">Think</div>
 						<div class="slider-label" id="thinking-label-1" onclick="setThinkingIntensityValue(1)">Think Hard</div>
 						<div class="slider-label" id="thinking-label-2" onclick="setThinkingIntensityValue(2)">Think Harder</div>
 						<div class="slider-label" id="thinking-label-3" onclick="setThinkingIntensityValue(3)">Ultrathink</div>
+						<div class="slider-label" id="thinking-label-4" onclick="setThinkingIntensityValue(4)">Sequential (MCP)</div>
 					</div>
 				</div>
 				<div class="thinking-modal-actions">
