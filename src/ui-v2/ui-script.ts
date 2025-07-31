@@ -1487,7 +1487,7 @@ export const uiScript = `
 
 		function saveThinkingIntensity() {
 			const thinkingSlider = document.getElementById('thinkingIntensitySlider');
-			const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink'];
+			const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
 			const thinkingIntensity = intensityValues[thinkingSlider.value] || 'think';
 			
 			// Send settings to VS Code
@@ -1500,7 +1500,7 @@ export const uiScript = `
 		}
 
 		function updateThinkingModeToggleName(intensityValue) {
-			const intensityNames = ['Thinking', 'Think Hard', 'Think Harder', 'Ultrathink'];
+			const intensityNames = ['Thinking', 'Think Hard', 'Think Harder', 'Ultrathink', 'Sequential(MCP)'];
 			const modeName = intensityNames[intensityValue] || 'Thinking';
 			const toggleLabel = document.getElementById('thinkingModeLabel');
 			if (toggleLabel) {
@@ -1510,7 +1510,7 @@ export const uiScript = `
 
 		function updateThinkingIntensityDisplay(value) {
 			// Update label highlighting for thinking intensity modal
-			for (let i = 0; i < 4; i++) {
+			for (let i = 0; i < 5; i++) {
 				const label = document.getElementById('thinking-label-' + i);
 				if (i == value) {
 					label.classList.add('active');
@@ -2172,7 +2172,7 @@ export const uiScript = `
 			if (message.type === 'settingsData') {
 				// Update UI with current settings
 				const thinkingIntensity = message.data['thinking.intensity'] || 'think';
-				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink'];
+				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
 				const sliderValue = intensityValues.indexOf(thinkingIntensity);
 				
 				// Update thinking intensity modal if it exists
@@ -3524,7 +3524,7 @@ export const uiScript = `
 			if (message.type === 'settingsData') {
 				// Update UI with current settings
 				const thinkingIntensity = message.data['thinking.intensity'] || 'think';
-				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink'];
+				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
 				const sliderValue = intensityValues.indexOf(thinkingIntensity);
 				
 				// Update thinking intensity modal if it exists

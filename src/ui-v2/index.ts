@@ -1793,13 +1793,15 @@ function getStylesOld(): string {
     }
 
     .slider-label {
-        font-size: 12px;
+        font-size: 11px;
         color: var(--vscode-descriptionForeground);
         opacity: 0.7;
         transition: all 0.2s ease;
         text-align: center;
-        width: 100px;
+        flex: 1;
         cursor: pointer;
+        padding: 0 4px;
+        white-space: nowrap;
     }
 
     .slider-label:hover {
@@ -1814,11 +1816,11 @@ function getStylesOld(): string {
     }
 
     .slider-label:first-child {
-        margin-left: -50px;
+        text-align: left;
     }
 
     .slider-label:last-child {
-        margin-right: -50px;
+        text-align: right;
     }
 
     .settings-group {
