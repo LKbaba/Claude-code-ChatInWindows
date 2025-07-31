@@ -1500,8 +1500,8 @@ export const uiScript = `
 		}
 
 		function updateThinkingModeToggleName(intensityValue) {
-			const intensityNames = ['Thinking', 'Think Hard', 'Think Harder', 'Ultrathink', 'Sequential(MCP)'];
-			const modeName = intensityNames[intensityValue] || 'Thinking';
+			const intensityNames = ['Think', 'Think Hard', 'Think Harder', 'Ultrathink', 'Sequential (MCP)'];
+			const modeName = intensityNames[intensityValue] || 'Think';
 			const toggleLabel = document.getElementById('thinkingModeLabel');
 			if (toggleLabel) {
 				toggleLabel.textContent = modeName + ' Mode';
