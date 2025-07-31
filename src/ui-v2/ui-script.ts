@@ -3353,6 +3353,12 @@ export const uiScript = `
 					env: {
 						'BASIC_MEMORY_HOME': '\${HOME}/.claude/memory'
 					}
+				},
+				'playwright': {
+					name: 'playwright',
+					command: 'npx',
+					args: ['-y', '@executeautomation/playwright-mcp-server'],
+					env: {}
 				}
 			};
 			

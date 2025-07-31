@@ -142,6 +142,12 @@ export class ClaudeChatProvider {
 		
 		// Ensure backup repository is initialized
 		await this._backupManager.initializeBackupRepo();
+		
+		// 更新 CLAUDE.md 文件（添加 Windows 环境信息和 Playwright MCP 使用指南）
+		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+		if (workspaceFolder) {
+			await updateClaudeMdWithWindowsInfo(workspaceFolder);
+		}
 
 		this._panel = vscode.window.createWebviewPanel(
 			'claudeChat',
@@ -1666,6 +1672,7 @@ export class ClaudeChatProvider {
 			};
 			
 			console.log(`[MCP] Spawning process - command: ${command}, args:`, args);
+			const startTime = Date.now();
 			const mcpProcess = cp.spawn(command, args, spawnOptions);
 
 			if (!mcpProcess.stdout || !mcpProcess.stderr || !mcpProcess.stdin) {
@@ -1681,13 +1688,16 @@ export class ClaudeChatProvider {
 				let responseData = '';
 				let errorData = '';
 
+				// Python MCP 服务器需要更长的启动时间
+				const timeoutDuration = command === 'uvx' || command.includes('python') ? 15000 : 8000;
+				
 				const timeout = setTimeout(() => {
 					if (!mcpProcess.killed) {
 						mcpProcess.kill();
 					}
-					console.log(`[MCP] Timeout waiting for response from ${server.name}`);
+					console.log(`[MCP] Timeout waiting for response from ${server.name} (waited ${timeoutDuration/1000}s)`);
 					resolve(null);
-				}, 5000); // 5秒超时
+				}, timeoutDuration);
 
 				const cleanup = () => {
 					clearTimeout(timeout);
@@ -1707,7 +1717,8 @@ export class ClaudeChatProvider {
 								const response = JSON.parse(line);
 
 								if (response.id === 1 && response.result) { // 初始化响应
-									console.log(`[MCP] Initialized with ${server.name}.`);
+									const elapsedTime = Date.now() - startTime;
+									console.log(`[MCP] Initialized with ${server.name} (took ${elapsedTime}ms).`);
 									console.log(`[MCP] Server capabilities:`, JSON.stringify(response.result.capabilities));
 									
 									// 发送 initialized 通知
@@ -1735,12 +1746,13 @@ export class ClaudeChatProvider {
 										resolve([]);
 									}
 								} else if (response.id === 2 && response.result) { // tools/list 响应
+									const elapsedTime = Date.now() - startTime;
 									const tools = response.result.tools || [];
 									const toolList = tools.map((tool: any) => ({
 										name: tool.name || 'Unknown Tool',
 										description: tool.description || 'No description available.'
 									}));
-									console.log(`[MCP] Retrieved ${toolList.length} tools from ${server.name}.`);
+									console.log(`[MCP] Retrieved ${toolList.length} tools from ${server.name} (total time: ${elapsedTime}ms).`);
 									// 输出前几个工具名称用于调试
 									if (toolList.length > 0) {
 										console.log(`[MCP] First few tools:`, toolList.slice(0, 3).map((t: any) => t.name).join(', '));
@@ -1754,7 +1766,26 @@ export class ClaudeChatProvider {
 									resolve(null);
 								}
 							} catch (e) {
-								console.error(`[MCP] Error parsing JSON from ${server.name}:`, line, e);
+								// 忽略已知的非 JSON 消息
+								const trimmedLine = line.trim();
+								
+								// 添加调试信息
+								console.log(`[MCP DEBUG] Received non-JSON line from ${server.name}: "${trimmedLine}"`);
+								console.log(`[MCP DEBUG] Line length: ${trimmedLine.length}, Original line: "${line}"`);
+								
+								if (trimmedLine === 'Shutdown signal received' || 
+								    trimmedLine.toLowerCase().includes('shutdown signal') ||
+								    trimmedLine.toLowerCase().includes('shutting down')) {
+									// 这是 MCP 关闭时的正常消息，不需要记录错误
+									console.log(`[MCP] ${server.name} shutting down (handled gracefully)`);
+								} else if (trimmedLine === '') {
+									// 忽略空行
+									console.log(`[MCP] Ignoring empty line from ${server.name}`);
+								} else {
+									// 其他未知的 JSON 解析错误才记录为普通日志
+									console.log(`[MCP] Non-JSON message from ${server.name}: "${line}"`);
+									console.log(`[MCP] Parse attempt failed:`, (e as Error).message || e);
+								}
 								// continue to next line
 							}
 						}
@@ -1764,9 +1795,13 @@ export class ClaudeChatProvider {
 				mcpStderr.on('data', (data: Buffer) => {
 					const stderr = data.toString();
 					errorData += stderr;
-					// 输出stderr以便调试（过滤掉INFO日志）
-					if (!stderr.includes('INFO') && !stderr.includes('Starting MCP server')) {
-						console.error(`[MCP] stderr from ${server.name}:`, stderr.trim());
+					// 输出stderr以便调试（过滤掉INFO日志和已知的关闭消息）
+					if (!stderr.includes('INFO') && 
+					    !stderr.includes('Starting MCP server') && 
+					    !stderr.includes('Shutdown signal received')) {
+						console.log(`[MCP] stderr from ${server.name}:`, stderr.trim());
+					} else if (stderr.includes('Shutdown signal received')) {
+						console.log(`[MCP] ${server.name} shutting down (from stderr)`);
 					}
 				});
 
