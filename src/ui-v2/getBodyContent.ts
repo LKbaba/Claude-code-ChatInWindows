@@ -288,6 +288,7 @@ export function getBodyContent(): string {
 								<option value="sequential-thinking">Sequential Thinking</option>
 								<option value="context7">Context7</option>
 								<option value="basic-memory">Basic Memory</option>
+								<option value="playwright">Playwright</option>
 							</select>
 						</div>
 						<div style="margin-top: 12px; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">

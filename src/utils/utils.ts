@@ -176,13 +176,15 @@ export function optimizeToolInput(
 }
 
 /**
- * Updates CLAUDE.md file with Windows environment information
+ * Updates CLAUDE.md file with Windows environment information and Playwright MCP usage guide
  * @param workspaceFolder The current workspace folder
  */
 export async function updateClaudeMdWithWindowsInfo(workspaceFolder: vscode.WorkspaceFolder | undefined): Promise<void> {
     if (!workspaceFolder) return;
 
     const claudeMdPath = path.join(workspaceFolder.uri.fsPath, 'CLAUDE.md');
+    
+    // Windows 环境信息
     const windowsSection = `## Development Environment
 - OS: Windows ${require('os').release()}
 - Shell: Git Bash
@@ -190,18 +192,32 @@ export async function updateClaudeMdWithWindowsInfo(workspaceFolder: vscode.Work
 - File system: Case-insensitive
 - Line endings: CRLF (configure Git autocrlf)`;
 
+    // Playwright MCP 指南（精简版）
+    const playwrightSection = `## Playwright MCP Guide
+
+File paths:
+- Screenshots: \`./CCimages/screenshots/\`
+- PDFs: \`./CCimages/pdfs/\`
+
+Browser error fix: \`npx playwright install\``;
+
     try {
         let content = '';
         let hasWindowsInfo = false;
+        let hasPlaywrightInfo = false;
 
         // Check if CLAUDE.md exists
         if (fs.existsSync(claudeMdPath)) {
             content = fs.readFileSync(claudeMdPath, 'utf8');
             // Check if it already has Windows environment info
             hasWindowsInfo = content.includes('Development Environment') && content.includes('Windows');
+            // Check if it already has Playwright MCP info
+            hasPlaywrightInfo = content.includes('Playwright MCP');
         }
 
-        // If no Windows info, add it
+        let needsUpdate = false;
+        
+        // 添加 Windows 信息（如果没有）
         if (!hasWindowsInfo) {
             if (content.length > 0 && !content.endsWith('\n')) {
                 content += '\n';
@@ -210,12 +226,27 @@ export async function updateClaudeMdWithWindowsInfo(workspaceFolder: vscode.Work
                 content += '\n';
             }
             content += windowsSection + '\n';
-            
+            needsUpdate = true;
+        }
+        
+        // 添加 Playwright MCP 信息（如果没有）
+        if (!hasPlaywrightInfo) {
+            if (content.length > 0 && !content.endsWith('\n')) {
+                content += '\n';
+            }
+            content += '\n' + playwrightSection + '\n';
+            needsUpdate = true;
+        }
+        
+        // 只有在需要更新时才写入文件
+        if (needsUpdate) {
             fs.writeFileSync(claudeMdPath, content, 'utf8');
-            // DEBUG: console.log('Updated CLAUDE.md with Windows environment information');
+            console.log('[updateClaudeMd] Successfully updated CLAUDE.md with:', 
+                !hasWindowsInfo ? 'Windows info' : '', 
+                !hasPlaywrightInfo ? 'Playwright MCP guide' : '');
         }
     } catch (error) {
-        console.error('Failed to update CLAUDE.md:', error);
+        console.error('[updateClaudeMd] Failed to update CLAUDE.md:', error);
         // Don't throw - this is not critical
     }
 }
