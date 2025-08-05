@@ -5,7 +5,7 @@
 /**
  * Valid model names for Claude
  */
-export const VALID_MODELS = ['opus', 'sonnet', 'default'] as const;
+export const VALID_MODELS = ['opus', 'sonnet', 'default', 'claude-opus-4-1-20250805'] as const;
 export type ValidModel = typeof VALID_MODELS[number];
 
 /**

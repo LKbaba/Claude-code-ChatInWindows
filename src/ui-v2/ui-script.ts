@@ -1739,6 +1739,7 @@ export const uiScript = `
 			// Update the display text
 			const displayNames = {
 				'opus': 'Opus',
+				'claude-opus-4-1-20250805': 'Opus 4.1',
 				'sonnet': 'Sonnet',
 				'default': 'Model'
 			};
@@ -1756,7 +1757,12 @@ export const uiScript = `
 			}
 			
 			// Update radio button if modal is open
-			const radioButton = document.getElementById('model-' + model);
+			// Special handling for long model names
+			let radioId = 'model-' + model;
+			if (model === 'claude-opus-4-1-20250805') {
+				radioId = 'model-opus-4-1';
+			}
+			const radioButton = document.getElementById(radioId);
 			if (radioButton) {
 				radioButton.checked = true;
 			}
@@ -1768,6 +1774,7 @@ export const uiScript = `
 		currentModel = 'opus';
 		const displayNames = {
 			'opus': 'Opus',
+			'claude-opus-4-1-20250805': 'Opus 4.1',
 			'sonnet': 'Sonnet',
 			'default': 'Default'
 		};

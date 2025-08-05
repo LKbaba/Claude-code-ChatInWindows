@@ -17,6 +17,7 @@ import { UndoRedoManager } from '../managers/UndoRedoManager';
 import { OperationPreviewService } from '../services/OperationPreview';
 import { expandVariables } from '../utils/configUtils';
 import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
+import { VALID_MODELS, ValidModel } from '../utils/constants';
 
 export class ClaudeChatProvider {
 	private _panel: vscode.WebviewPanel | undefined;
@@ -1850,8 +1851,7 @@ export class ClaudeChatProvider {
 
 	private _setSelectedModel(model: string): void {
 		// Validate model name to prevent issues mentioned in the GitHub issue
-		const validModels = ['opus', 'sonnet', 'default'];
-		if (validModels.includes(model)) {
+		if (VALID_MODELS.includes(model as ValidModel)) {
 			this._selectedModel = model;
 			// DEBUG: console.log('Model selected:', model);
 			
@@ -1859,10 +1859,11 @@ export class ClaudeChatProvider {
 			this._context.workspaceState.update('claude.selectedModel', model);
 			
 			// Show confirmation
-			vscode.window.showInformationMessage(`Claude model switched to: ${model.charAt(0).toUpperCase() + model.slice(1)}`);
+			const displayName = model === 'claude-opus-4-1-20250805' ? 'Opus 4.1' : model.charAt(0).toUpperCase() + model.slice(1);
+			vscode.window.showInformationMessage(`Claude model switched to: ${displayName}`);
 		} else {
 			console.error('Invalid model selected:', model);
-			vscode.window.showErrorMessage(`Invalid model: ${model}. Please select Opus, Sonnet, or Default.`);
+			vscode.window.showErrorMessage(`Invalid model: ${model}. Please select one of: ${VALID_MODELS.join(', ')}.`);
 		}
 	}
 
@@ -1950,7 +1951,7 @@ export class ClaudeChatProvider {
 					// Show model selection info
 					this._sendAndSaveMessage({
 						type: 'output',
-						data: `## Model Selection\n\nCurrent model: ${this._selectedModel || 'opus'}\n\nAvailable models:\n• opus - Claude 3 Opus (most capable)\n• sonnet - Claude 3.5 Sonnet (balanced)\n• haiku - Claude 3 Haiku (fastest)\n\nTo change model, use the model selector dropdown in the UI.`
+						data: `## Model Selection\n\nCurrent model: ${this._selectedModel || 'opus'}\n\nAvailable models:\n• opus - Claude 3 Opus (most capable)\n• claude-opus-4-1-20250805 - Opus 4.1 (latest flagship model)\n• sonnet - Claude 3.5 Sonnet (balanced)\n• default - User configured\n\nTo change model, use the model selector dropdown in the UI.`
 					});
 					return;
 					
