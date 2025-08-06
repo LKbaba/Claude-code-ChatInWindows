@@ -35,7 +35,7 @@ export function getBodyContent(): string {
 
 	<div id="statsPanel" class="stats-panel" style="display: none;">
 		<div class="stats-header">
-			<h3>Usage Statistics <span style="font-size: 12px; color: var(--vscode-descriptionForeground); font-weight: normal;">(Price calculated based on Opus-4 model)</span></h3>
+			<h3>Usage Statistics <span style="font-size: 12px; color: var(--vscode-descriptionForeground); font-weight: normal;">(Price calculated based on actual model used)</span></h3>
 			<button class="btn" onclick="toggleStats()">✕ Close</button>
 		</div>
 		<div class="stats-tabs">

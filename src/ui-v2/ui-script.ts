@@ -2794,11 +2794,21 @@ export const uiScript = `
 								if (modelParts[0] === 'claude' && modelParts.length > 2) {
 									// Handle claude-3-opus, claude-3-5-sonnet, claude-opus-4, etc.
 									if (modelParts[1] === '3' && modelParts[2] === '5') {
-										return modelParts[3]; // claude-3-5-sonnet -> sonnet
+										// claude-3-5-sonnet -> Sonnet 3.5
+										const modelName = modelParts[3];
+										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3.5';
 									} else if (modelParts[1] === '3') {
-										return modelParts[2]; // claude-3-opus -> opus
+										// claude-3-opus -> Opus 3, claude-3-haiku -> Haiku 3
+										const modelName = modelParts[2];
+										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3';
 									} else if (modelParts[1] === 'opus' && modelParts[2] === '4') {
-										return 'opus-4'; // claude-opus-4 -> opus-4
+										// 检查是否是opus-4-1
+										if (modelParts[3] === '1') {
+											return 'Opus 4.1'; // claude-opus-4-1-20250805 -> Opus 4.1
+										}
+										return 'Opus 4'; // claude-opus-4 -> Opus 4
+									} else if (modelParts[1] === 'sonnet' && modelParts[2] === '4') {
+										return 'Sonnet 4'; // claude-sonnet-4 -> Sonnet 4
 									} else {
 										return modelParts[1]; // fallback
 									}
@@ -2833,11 +2843,21 @@ export const uiScript = `
 								if (modelParts[0] === 'claude' && modelParts.length > 2) {
 									// Handle claude-3-opus, claude-3-5-sonnet, claude-opus-4, etc.
 									if (modelParts[1] === '3' && modelParts[2] === '5') {
-										return modelParts[3]; // claude-3-5-sonnet -> sonnet
+										// claude-3-5-sonnet -> Sonnet 3.5
+										const modelName = modelParts[3];
+										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3.5';
 									} else if (modelParts[1] === '3') {
-										return modelParts[2]; // claude-3-opus -> opus
+										// claude-3-opus -> Opus 3, claude-3-haiku -> Haiku 3
+										const modelName = modelParts[2];
+										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3';
 									} else if (modelParts[1] === 'opus' && modelParts[2] === '4') {
-										return 'opus-4'; // claude-opus-4 -> opus-4
+										// 检查是否是opus-4-1
+										if (modelParts[3] === '1') {
+											return 'Opus 4.1'; // claude-opus-4-1-20250805 -> Opus 4.1
+										}
+										return 'Opus 4'; // claude-opus-4 -> Opus 4
+									} else if (modelParts[1] === 'sonnet' && modelParts[2] === '4') {
+										return 'Sonnet 4'; // claude-sonnet-4 -> Sonnet 4
 									} else {
 										return modelParts[1]; // fallback
 									}

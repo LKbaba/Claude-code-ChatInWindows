@@ -49,7 +49,9 @@ export class ClaudeChatProvider {
 	// 静态模型定价数据（使用 Map 提高查找效率）
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],
+		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }], // Opus 4.1 最新旗舰模型
 		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],
+		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }], // Sonnet 4 最新模型
 		['claude-3-5-sonnet-20241022', { input: 3.00, output: 15.00 }],
 		['claude-3-5-sonnet-20240620', { input: 3.00, output: 15.00 }],
 		['claude-3-sonnet-20240229', { input: 3.00, output: 15.00 }],
