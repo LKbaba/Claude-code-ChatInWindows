@@ -3366,6 +3366,20 @@ export const uiScript = `
 					command: 'npx',
 					args: ['-y', '@executeautomation/playwright-mcp-server'],
 					env: {}
+				},
+				'n8n': {
+					name: 'n8n',
+					command: 'npx',
+					args: ['n8n-mcp'],
+					env: {
+						// 必需的基础配置
+						'MCP_MODE': 'stdio',
+						'LOG_LEVEL': 'error',
+						'DISABLE_CONSOLE_OUTPUT': 'true',
+						// 可选：用户可以配置这两个环境变量来连接他们的n8n实例
+						'N8N_API_URL': '', // 例如: https://your-n8n-instance.com 或 http://localhost:5678
+						'N8N_API_KEY': ''  // 你的n8n API密钥
+					}
 				}
 			};
 			

@@ -1,4 +1,5 @@
 ## Development Environment
+
 - OS: Windows 10.0.19045
 - Shell: Git Bash
 - Path format: Windows (use forward slashes in Git Bash)
@@ -8,6 +9,7 @@
 ## Playwright MCP Guide
 
 File paths:
+
 - Screenshots: `./CCimages/screenshots/`
 - PDFs: `./CCimages/pdfs/`
 

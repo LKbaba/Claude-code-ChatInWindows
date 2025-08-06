@@ -31,7 +31,15 @@ export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
 **Purpose**: Browser automation - web scraping, form filling, UI testing
 **Core**: navigate, screenshot, click, fill, evaluate, save_as_pdf
 **File paths**: Screenshots→./CCimages/screenshots/ PDFs→./CCimages/pdfs/
-**Installation**: See browser install guide in CLAUDE.md`
+**Installation**: See browser install guide in CLAUDE.md`,
+
+    'n8n': `
+## n8n 
+**Purpose**: n8n workflow automation - 532+ node documentation access
+**Core tools**: tools_documentation, list_nodes, get_node_info, search_nodes
+**Coverage**: 99% properties | 63% operations | 90% docs | 263 AI nodes
+**Workflow management**: Requires N8N_API_URL and N8N_API_KEY configuration
+**Important**: See detailed usage guide in CLAUDE.md's n8n MCP section`
 };
 
 /**
