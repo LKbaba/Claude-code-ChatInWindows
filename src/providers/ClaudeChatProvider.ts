@@ -144,10 +144,12 @@ export class ClaudeChatProvider {
 		// Ensure backup repository is initialized
 		await this._backupManager.initializeBackupRepo();
 		
-		// 更新 CLAUDE.md 文件（添加 Windows 环境信息和 Playwright MCP 使用指南）
+		// 更新 CLAUDE.md 文件（添加 Windows 环境信息和 MCP 使用指南）
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 		if (workspaceFolder) {
-			await updateClaudeMdWithWindowsInfo(workspaceFolder);
+			// 获取当前启用的 MCP 服务器
+			const mcpStatus = this._configurationManager.getMcpStatus();
+			await updateClaudeMdWithWindowsInfo(workspaceFolder, mcpStatus.servers);
 		}
 
 		this._panel = vscode.window.createWebviewPanel(
@@ -383,7 +385,9 @@ export class ClaudeChatProvider {
 			windowsEnvironmentInfo = this._windowsCompatibility.getWindowsEnvironmentInfo();
 			
 			// Also update or create CLAUDE.md in the project root if it doesn't have Windows info
-			await updateClaudeMdWithWindowsInfo(workspaceFolder);
+			// 获取当前启用的 MCP 服务器
+			const mcpStatus = this._configurationManager.getMcpStatus();
+			await updateClaudeMdWithWindowsInfo(workspaceFolder, mcpStatus.servers);
 		}
 		
 		// Ensure conversationId is set before processing
