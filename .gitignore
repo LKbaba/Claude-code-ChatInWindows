@@ -40,7 +40,6 @@ coverage/
 *.swp
 *.swo
 *.zip
-/docs/md
 /reference
 /CCimages
 log.txt
