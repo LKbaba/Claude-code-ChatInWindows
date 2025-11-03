@@ -80,7 +80,9 @@ export const uiScript = `
 			contentDiv.className = 'message-content';
 			
 			if(type == 'user' || type === 'claude' || type === 'thinking'){
-				contentDiv.innerHTML = content;
+				// Apply file link conversion to Claude's messages
+				const processedContent = type === 'claude' ? convertFileLinksToClickable(content) : content;
+				contentDiv.innerHTML = processedContent;
 			} else if (type === 'system' && content.includes('class="request-stats"')) {
 				// Special handling for request stats to render HTML
 				contentDiv.innerHTML = content;
@@ -1741,6 +1743,8 @@ export const uiScript = `
 				'opus': 'Opus',
 				'claude-opus-4-1-20250805': 'Opus 4.1',
 				'sonnet': 'Sonnet',
+				'claude-sonnet-4-5-20250929': 'Sonnet 4.5',    // Added
+				'claude-haiku-4-5-20251001': 'Haiku 4.5',       // Added
 				'default': 'Model'
 			};
 			document.getElementById('selectedModel').textContent = displayNames[model] || model;
@@ -1771,11 +1775,13 @@ export const uiScript = `
 		}
 
 		// Initialize model display without sending message
-		currentModel = 'opus';
+		currentModel = 'claude-sonnet-4-5-20250929';  // Default to Sonnet 4.5
 		const displayNames = {
 			'opus': 'Opus',
 			'claude-opus-4-1-20250805': 'Opus 4.1',
 			'sonnet': 'Sonnet',
+			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',    // Added
+			'claude-haiku-4-5-20251001': 'Haiku 4.5',       // Added
 			'default': 'Default'
 		};
 		document.getElementById('selectedModel').textContent = displayNames[currentModel];
@@ -2248,7 +2254,7 @@ export const uiScript = `
 				const serversList = document.getElementById('mcpServersList');
 				serversList.innerHTML = ''; // Clear existing servers
 				mcpServerCount = 0; // Reset counter
-				mcpServerExpandStates.clear(); // 清除展开状态
+				mcpServerExpandStates.clear(); // Clear expansion states
 				
 				mcpServers.forEach(server => {
 					addMcpServer(server);
@@ -2406,6 +2412,58 @@ export const uiScript = `
 		
 		// Request operation history on load
 		vscode.postMessage({ type: 'getOperationHistory' });
+
+		/**
+		 * Convert file path patterns to clickable links
+		 * Supports formats: file.ext:line or path/to/file.ext:line-endLine
+		 * @param {string} content - Text content to process
+		 * @returns {string} Processed HTML string
+		 */
+		function convertFileLinksToClickable(content) {
+			try {
+				// Supported file extensions
+				const supportedExtensions = 'ts|js|tsx|jsx|py|java|cpp|cs|go|rs|vue|svelte|md|json|xml|yaml|yml|css|scss|html';
+
+				// Regex pattern to match file path patterns
+				// Matches: path/filename.ext:line or filename.ext:line-endLine
+				const filePathPattern = new RegExp(
+					'\\\\b([a-zA-Z0-9_\\\\-./\\\\\\\\]+\\\\.(' + supportedExtensions + ')):(\\\\d+)(?:-(\\\\d+))?\\\\b',
+					'g'
+				);
+
+				return content.replace(filePathPattern, (match, filePath, ext, startLine, endLine) => {
+					// Validate line numbers
+					const lineNum = parseInt(startLine);
+					const endLineNum = endLine ? parseInt(endLine) : lineNum;
+
+					// Line number must be within reasonable range
+					if (lineNum <= 0 || lineNum > 999999) {
+						return match; // Invalid line number, return original text
+					}
+
+					// End line cannot be less than start line
+					if (endLineNum < lineNum) {
+						return match; // End line less than start line, return original text
+					}
+
+					// HTML escaping to prevent XSS attacks
+					const escapedPath = filePath
+						.replace(/"/g, '&quot;')
+						.replace(/'/g, '&#39;')
+						.replace(/</g, '&lt;')
+						.replace(/>/g, '&gt;');
+
+					const lineRange = endLine ? startLine + '-' + endLine : startLine;
+
+					// Return formatted link HTML
+					return '<a href="#" class="file-link" data-file="' + escapedPath + '" data-line="' + startLine + '" ' +
+						'data-end-line="' + endLineNum + '" title="Click to open ' + escapedPath + ':' + lineRange + '">' + match + '</a>';
+				});
+			} catch (error) {
+				console.error('Failed to convert file links:', error);
+				return content; // Return original content on error to prevent interruption
+			}
+		}
 
 		function parseSimpleMarkdown(markdown) {
 			const lines = markdown.split('\\n');
@@ -3031,7 +3089,7 @@ export const uiScript = `
 		}
 
 		let mcpServerCount = 0;
-		// 存储每个服务器的展开状态
+		// Store expansion state for each server
 		const mcpServerExpandStates = new Map();
 		
 		function addMcpServer(serverConfig = null) {
@@ -3634,7 +3692,7 @@ export const uiScript = `
 				const serversList = document.getElementById('mcpServersList');
 				serversList.innerHTML = ''; // Clear existing servers
 				mcpServerCount = 0; // Reset counter
-				mcpServerExpandStates.clear(); // 清除展开状态
+				mcpServerExpandStates.clear(); // Clear expansion states
 				
 				mcpServers.forEach(server => {
 					addMcpServer(server);
@@ -4203,5 +4261,44 @@ export const uiScript = `
 		window.openFileInEditor = openFileInEditor;
 		window.toggleDiffExpansion = toggleDiffExpansion;
 		window.toggleResultExpansion = toggleResultExpansion;
+
+		// File link click event handler
+		document.addEventListener('click', function(e) {
+			// Check if clicked element is a file link
+			const target = e.target;
+			if (target && target.classList && target.classList.contains('file-link')) {
+				e.preventDefault();
+
+				// Extract file information
+				const filePath = target.dataset.file;
+				const line = parseInt(target.dataset.line) || 1;
+				const endLine = parseInt(target.dataset.endLine) || line;
+
+				// Add click feedback effect
+				target.classList.add('clicked');
+				setTimeout(() => {
+					target.classList.remove('clicked');
+				}, 300);
+
+				// Show loading indicator
+				const originalTitle = target.title;
+				target.title = 'Opening file...';
+
+				// Send message to VS Code
+				vscode.postMessage({
+					type: 'openFile',
+					file: filePath,
+					line: line,
+					endLine: endLine
+				});
+
+				// Restore original tooltip
+				setTimeout(() => {
+					target.title = originalTitle;
+				}, 1000);
+
+				console.log('Opening file:', filePath, 'line:', line);
+			}
+		});
 
 	`;

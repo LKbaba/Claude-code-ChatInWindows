@@ -8,24 +8,29 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { TOOL_STATUS_MAP, DEFAULT_TOOL_STATUS, READ_TOOL_DEFAULTS, FILE_SIZE_LIMITS } from './constants';
+import { getNpmPrefix } from './npmFinder';
 
 const exec = util.promisify(cp.exec);
 
 /**
  * Resolves the npm global installation prefix
  * This is used to find the location of globally installed npm packages on Windows
+ * Uses smart npm finder to resolve VS Code environment variable issues
  */
 export async function resolveNpmPrefix(): Promise<string | undefined> {
-    try {
-        const { stdout } = await exec('npm config get prefix');
-        const prefix = stdout.trim();
-        // DEBUG: console.log(`npm prefix found at: ${prefix}`);
-        return prefix;
-    } catch (error) {
-        console.error('Failed to get npm prefix:', error);
-        vscode.window.showErrorMessage('Could not find npm global path. Please ensure Node.js and npm are installed correctly.');
+    const prefix = await getNpmPrefix();
+
+    if (!prefix) {
+        console.error('[utils] Could not get npm prefix');
+        vscode.window.showErrorMessage(
+            'Could not find npm global path. Please ensure Node.js and npm are properly installed.\n' +
+            'Tip: Try starting VS Code from command line (run "code" command)'
+        );
         return undefined;
     }
+
+    console.log(`[utils] npm prefix found at: ${prefix}`);
+    return prefix;
 }
 
 /**
@@ -188,7 +193,7 @@ export async function updateClaudeMdWithWindowsInfo(
 
     const claudeMdPath = path.join(workspaceFolder.uri.fsPath, 'CLAUDE.md');
     
-    // Windows 环境信息
+    // Windows environment information
     const windowsSection = `## Development Environment
 - OS: Windows ${require('os').release()}
 - Shell: Git Bash
@@ -349,7 +354,7 @@ n8n_update_partial_workflow({
         let needsUpdate = false;
         let updatedSections: string[] = [];
         
-        // 添加 Windows 信息（如果没有）
+        // Add Windows information (if not present)
         if (!hasWindowsInfo) {
             if (content.length > 0 && !content.endsWith('\n')) {
                 content += '\n';
@@ -362,7 +367,7 @@ n8n_update_partial_workflow({
             updatedSections.push('Windows info');
         }
         
-        // 添加 Playwright MCP 信息（如果没有）
+        // Add Playwright MCP information (if not present)
         if (!hasPlaywrightInfo) {
             if (content.length > 0 && !content.endsWith('\n')) {
                 content += '\n';
@@ -372,7 +377,7 @@ n8n_update_partial_workflow({
             updatedSections.push('Playwright MCP guide');
         }
 
-        // 添加 n8n MCP 信息（如果启用了且没有）
+        // Add n8n MCP information (if enabled and not present)
         const hasN8nMcp = mcpServers?.some(server => server.name === 'n8n');
         if (hasN8nMcp && !hasN8nInfo) {
             if (content.length > 0 && !content.endsWith('\n')) {
@@ -383,7 +388,7 @@ n8n_update_partial_workflow({
             updatedSections.push('n8n MCP guide');
         }
         
-        // 只有在需要更新时才写入文件
+        // Only write file when update is needed
         if (needsUpdate) {
             fs.writeFileSync(claudeMdPath, content, 'utf8');
             console.log('[updateClaudeMd] Successfully updated CLAUDE.md with:', 

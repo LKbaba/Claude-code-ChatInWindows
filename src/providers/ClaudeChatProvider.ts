@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as cp from 'child_process';
+import * as path from 'path';
 import { loadUIHtml } from '../ui-loader';
 import { resolveNpmPrefix, updateClaudeMdWithWindowsInfo } from '../utils/utils';
 import { FileOperationsManager } from '../managers/FileOperationsManager';
@@ -29,7 +30,7 @@ export class ClaudeChatProvider {
 	private _currentSessionId: string | undefined;
 	private _conversationId: string | undefined;  // Main conversation ID that persists across sessions
 	private _treeProvider: ClaudeChatViewProvider | undefined;
-	private _selectedModel: string = 'default'; // Default model
+	private _selectedModel: string = 'claude-sonnet-4-5-20250929'; // 默认使用 Sonnet 4.5
 	private _npmPrefixPromise: Promise<string | undefined>;
 	private _fileOperationsManager: FileOperationsManager;
 	private _configurationManager: ConfigurationManagerFacade;
@@ -43,20 +44,22 @@ export class ClaudeChatProvider {
 	private _undoRedoManager: UndoRedoManager;
 	private _operationPreviewService: OperationPreviewService;
 	private _statisticsCache: StatisticsCache;
-	private _isCompactMode: boolean = false; // 压缩模式标志
-	private _compactSummaryBuffer: string = ''; // 压缩总结缓冲区
-	
-	// 静态模型定价数据（使用 Map 提高查找效率）
+	private _isCompactMode: boolean = false; // Compact mode flag
+	private _compactSummaryBuffer: string = ''; // Compact summary buffer
+
+	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],
-		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }], // Opus 4.1 最新旗舰模型
+		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }], // Opus 4.1 latest flagship model
 		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],
-		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }], // Sonnet 4 最新模型
+		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }], // Sonnet 4 latest model
 		['claude-3-5-sonnet-20241022', { input: 3.00, output: 15.00 }],
 		['claude-3-5-sonnet-20240620', { input: 3.00, output: 15.00 }],
 		['claude-3-sonnet-20240229', { input: 3.00, output: 15.00 }],
 		['claude-3-haiku-20240307', { input: 0.25, output: 1.25 }],
-		// 添加更多模型价格
+		// Add latest model pricing
+		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5
+		['claude-haiku-4-5-20251001', { input: 1.00, output: 5.00 }],     // Haiku 4.5
 	]);
 
 	constructor(
@@ -104,8 +107,8 @@ export class ClaudeChatProvider {
 			console.error('[ClaudeChatProvider] Failed to initialize backup repo:', error);
 		});
 
-		// Load saved model preference
-		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'default');
+		// Load saved model preference (default to Sonnet 4.5)
+		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'claude-sonnet-4-5-20250929');
 
 		// Custom commands are now loaded by CustomCommandsManager
 
@@ -247,7 +250,14 @@ export class ClaudeChatProvider {
 						this._executeSlashCommand(message.command);
 						return;
 					case 'openFile':
-						this._fileOperationsManager.openFileInEditor(message.filePath);
+						// 处理文件路径点击事件
+						if (message.file) {
+							// 新的消息格式，包含file、line、endLine
+							this._openFileAtLine(message.file, message.line, message.endLine);
+						} else if (message.filePath) {
+							// 兼容旧的消息格式
+							this._fileOperationsManager.openFileInEditor(message.filePath);
+						}
 						return;
 					case 'getCustomCommands':
 						this._sendCustomCommands();
@@ -659,6 +669,115 @@ export class ClaudeChatProvider {
 		});
 	}
 
+	/**
+	 * Open file and jump to specified line
+	 * @param filePath File path (can be relative or absolute)
+	 * @param line Start line number (1-based)
+	 * @param endLine End line number (1-based)
+	 */
+	private async _openFileAtLine(filePath: string, line?: number, endLine?: number): Promise<void> {
+		try {
+			// 1. Get workspace root directory
+			const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+			if (!workspaceFolder) {
+				vscode.window.showErrorMessage('Cannot find workspace folder');
+				return;
+			}
+
+			// 2. Build full path
+			let fullPath: vscode.Uri;
+			if (path.isAbsolute(filePath)) {
+				fullPath = vscode.Uri.file(filePath);
+			} else {
+				// Relative path: relative to workspace root
+				fullPath = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, filePath));
+			}
+
+			// 3. Check if file exists
+			try {
+				await vscode.workspace.fs.stat(fullPath);
+			} catch {
+				// Try to find in common directories
+				const alternativePaths = [
+					path.join(workspaceFolder.uri.fsPath, 'src', filePath),
+					path.join(workspaceFolder.uri.fsPath, 'lib', filePath),
+					path.join(workspaceFolder.uri.fsPath, 'app', filePath),
+					path.join(workspaceFolder.uri.fsPath, 'components', filePath),
+					path.join(workspaceFolder.uri.fsPath, 'pages', filePath)
+				];
+
+				let found = false;
+				for (const altPath of alternativePaths) {
+					try {
+						const altUri = vscode.Uri.file(altPath);
+						await vscode.workspace.fs.stat(altUri);
+						fullPath = altUri;
+						found = true;
+						break;
+					} catch {
+						continue;
+					}
+				}
+
+				if (!found) {
+					vscode.window.showErrorMessage(`File does not exist: ${filePath}`);
+					console.error('[FileNav] File does not exist:', filePath);
+					return;
+				}
+			}
+
+			// 4. Open document
+			const document = await vscode.workspace.openTextDocument(fullPath);
+
+			// 5. Set cursor position and selection range
+			const options: vscode.TextDocumentShowOptions = {
+				preserveFocus: false,
+				preview: false
+			};
+
+			if (line && line > 0) {
+				// VS Code uses 0-based line numbers, so subtract 1
+				const startPos = new vscode.Position(line - 1, 0);
+				const endPos = endLine && endLine > 0
+					? new vscode.Position(endLine - 1, Number.MAX_SAFE_INTEGER)
+					: startPos;
+
+				options.selection = new vscode.Range(startPos, endPos);
+			}
+
+			// 6. Show document
+			await vscode.window.showTextDocument(document, options);
+
+			// 7. Show success message
+			const fileName = path.basename(filePath);
+			const lineInfo = line ? `:${line}` : '';
+			vscode.window.setStatusBarMessage(`Opened: ${fileName}${lineInfo}`, 3000);
+
+			console.log('[FileNav] Successfully opened file:', {
+				filePath,
+				line,
+				endLine,
+				fullPath: fullPath.fsPath
+			});
+
+		} catch (error: any) {
+			console.error('[FileNav] Failed to open file:', {
+				error: error.message,
+				stack: error.stack,
+				filePath,
+				line,
+				endLine
+			});
+
+			// Provide more helpful error message
+			const errorMsg = error.code === 'FileNotFound'
+				? `File not found: ${filePath}\nPlease check if the file path is correct`
+				: `Unable to open file: ${error.message}`;
+
+			vscode.window.showErrorMessage(errorMsg);
+		}
+	}
+
 
 	private _handleLoginRequired() {
 		// Clear processing state
@@ -800,7 +919,7 @@ export class ClaudeChatProvider {
 		const cacheKey = `${claudeDir}_${type}`;
 		const cachedResult = this._statisticsCache.getAggregatedCache(cacheKey, type);
 		if (cachedResult) {
-			console.log(`[Statistics] 使用缓存的聚合结果: ${type}`);
+			console.log(`[Statistics] Using cached aggregated results: ${type}`);
 			return cachedResult;
 		}
 		
