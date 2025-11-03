@@ -5,7 +5,14 @@
 /**
  * Valid model names for Claude
  */
-export const VALID_MODELS = ['opus', 'sonnet', 'default', 'claude-opus-4-1-20250805'] as const;
+export const VALID_MODELS = [
+    'opus',
+    'sonnet',
+    'default',
+    'claude-opus-4-1-20250805',
+    'claude-sonnet-4-5-20250929',    // 新增 Sonnet 4.5
+    'claude-haiku-4-5-20251001'      // 新增 Haiku 4.5
+] as const;
 export type ValidModel = typeof VALID_MODELS[number];
 
 /**

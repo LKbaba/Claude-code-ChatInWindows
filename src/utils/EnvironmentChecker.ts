@@ -8,6 +8,7 @@ import * as cp from 'child_process';
 import * as util from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getNpmPrefix } from './npmFinder';
 
 const exec = util.promisify(cp.exec);
 
@@ -24,16 +25,20 @@ export class EnvironmentChecker {
             return { success: true, message: 'WSL enabled, skipping native Windows check.' };
         }
 
-        // 1. Check for npm prefix
+        // 1. Use smart npm finder to check npm prefix
         let npmPrefix: string | undefined;
-        try {
-            const { stdout } = await exec('npm config get prefix');
-            npmPrefix = stdout.trim();
-            if (!npmPrefix) {
-                return { success: false, message: 'Could not determine npm global path. Is Node.js/npm installed and in your PATH?' };
-            }
-        } catch (error) {
-            return { success: false, message: 'Failed to find npm. Is Node.js/npm installed and in your PATH?' };
+        npmPrefix = await getNpmPrefix();
+
+        if (!npmPrefix) {
+            // Provide detailed error information and solutions
+            return {
+                success: false,
+                message: 'Cannot find npm. Please ensure Node.js/npm is installed.\n' +
+                        'Solutions:\n' +
+                        '1. Start VS Code from command line (run "code" in Git Bash)\n' +
+                        '2. Or add Node.js path to system PATH environment variable and restart computer\n' +
+                        '3. If you just installed Node.js, please restart VS Code'
+            };
         }
 
         // 2. Check for claude.cmd

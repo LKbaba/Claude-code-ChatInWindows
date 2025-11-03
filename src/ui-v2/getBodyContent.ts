@@ -396,6 +396,24 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+				<div class="tool-item" onclick="selectModel('claude-sonnet-4-5-20250929')">
+					<input type="radio" name="model" id="model-sonnet-4-5" value="claude-sonnet-4-5-20250929">
+					<label for="model-sonnet-4-5">
+						<div class="model-title">Sonnet 4.5 - Latest intelligent model</div>
+						<div class="model-description">
+							Best balance of intelligence, speed and cost
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectModel('claude-haiku-4-5-20251001')">
+					<input type="radio" name="model" id="model-haiku-4-5" value="claude-haiku-4-5-20251001">
+					<label for="model-haiku-4-5">
+						<div class="model-title">Haiku 4.5 - Cost-effective model</div>
+						<div class="model-description">
+							Fast responses with great value for money
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" onclick="selectModel('default')">
 					<input type="radio" name="model" id="model-default" value="default">
 					<label for="model-default" class="default-model-layout">
