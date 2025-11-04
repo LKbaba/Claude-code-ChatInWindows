@@ -1,3 +1,4 @@
+# 开发相关文件
 .vscode/**
 .vscode-test/**
 src/**
@@ -9,3 +10,45 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+# 依赖优化 - 排除不必要的 node_modules
+node_modules/**
+!node_modules/glob/**
+
+# 文档和测试文件
+**/*.test.js
+**/*.test.ts
+**/test/**
+**/*.spec.js
+**/*.spec.ts
+docs/**
+*.md
+!README.md
+!README.zh-CN.md
+!README.zh-TW.md
+!CLAUDE.md
+
+# 构建和配置文件
+webpack.config.js
+.eslintrc*
+.prettierrc*
+.editorconfig
+*.log
+*.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Git相关
+.git/**
+.github/**
+!.github/workflows/
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# 截图和PDF文件夹（如果很大的话）
+CCimages/**
