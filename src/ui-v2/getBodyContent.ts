@@ -78,6 +78,15 @@ export function getBodyContent(): string {
 									<path d="M1 2.5l3 3 3-3"></path>
 								</svg>
 							</button>
+
+							<!-- 算力模式选择器 -->
+							<button class="model-selector" id="modeSelector" onclick="showModeSelector()" title="Select compute mode">
+								<span id="selectedMode">Auto</span>
+								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
+									<path d="M1 2.5l3 3 3-3"></path>
+								</svg>
+							</button>
+
 							<button class="tools-btn" onclick="showToolsModal()" title="Configure tools">
 								Tools: All
 								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
@@ -426,6 +435,39 @@ export function getBodyContent(): string {
 						<button class="secondary-button configure-button" onclick="event.stopPropagation(); openModelTerminal();">
 							Configure
 						</button>
+					</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Compute Mode Selection Modal -->
+	<div id="modeModal" class="tools-modal" style="display: none;">
+		<div class="tools-modal-content" style="width: 400px;">
+			<div class="tools-modal-header">
+				<span>Compute Mode</span>
+				<button class="tools-close-btn" onclick="hideModeModal()">✕</button>
+			</div>
+			<div class="model-explanatory-text">
+				Choose how Claude Code allocates models for background tasks
+			</div>
+			<div class="tools-list">
+				<div class="tool-item" onclick="selectMode('auto')">
+					<input type="radio" name="mode" id="mode-auto" value="auto" checked>
+					<label for="mode-auto">
+						<div class="model-title">Auto - Smart allocation</div>
+						<div class="model-description">
+							System automatically uses Haiku for background tasks to save compute (Recommended)
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectMode('max')">
+					<input type="radio" name="mode" id="mode-max" value="max">
+					<label for="mode-max">
+						<div class="model-title">Max - Maximum performance</div>
+						<div class="model-description">
+							Uses Sonnet 4.5 for background tasks instead of Haiku
+						</div>
 					</label>
 				</div>
 			</div>
