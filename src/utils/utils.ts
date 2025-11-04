@@ -208,7 +208,10 @@ File paths:
 - Screenshots: \`./CCimages/screenshots/\`
 - PDFs: \`./CCimages/pdfs/\`
 
-Browser error fix: \`npx playwright install\``;
+Browser version fix:
+- Error: "Executable doesn't exist at chromium-1179" → Version mismatch
+- Quick fix: \`cd ~/AppData/Local/ms-playwright && cmd //c "mklink /J chromium-1179 chromium-1181"\`
+- Or install: \`npx playwright@1.40.0 install chromium\``;
 
     // n8n MCP 
     const n8nSection = `## n8n MCP Guide 🔧
