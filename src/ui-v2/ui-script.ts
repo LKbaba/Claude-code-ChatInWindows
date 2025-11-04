@@ -22,7 +22,8 @@ export const uiScript = `
 		let thinkingModeEnabled = false;
 		let languageModeEnabled = false;
 		let selectedLanguage = null;
-		
+		let currentMode = 'auto'; // 当前算力模式
+
 		// Undo/Redo history management
 		let inputHistory = [''];
 		let historyPosition = 0;
@@ -1399,6 +1400,57 @@ export const uiScript = `
 
 		function hideModelModal() {
 			document.getElementById('modelModal').style.display = 'none';
+		}
+
+		// 显示算力模式选择modal
+		function showModeSelector() {
+			document.getElementById('modeModal').style.display = 'flex';
+			// 更新radio按钮选中状态
+			const radioButton = document.getElementById('mode-' + currentMode);
+			if (radioButton) {
+				radioButton.checked = true;
+			}
+		}
+
+		// 隐藏算力模式选择modal
+		function hideModeModal() {
+			document.getElementById('modeModal').style.display = 'none';
+		}
+
+		// 选择算力模式
+		function selectMode(mode) {
+			currentMode = mode;
+
+			// 更新显示文本
+			const displayNames = {
+				'auto': 'Auto',
+				'max': 'Max'
+			};
+			document.getElementById('selectedMode').textContent = displayNames[mode];
+
+			// 更新radio按钮
+			const radioButton = document.getElementById('mode-' + mode);
+			if (radioButton) {
+				radioButton.checked = true;
+			}
+
+			// 保存到localStorage
+			localStorage.setItem('selectedMode', mode);
+
+			// 通知后端（Max模式固定使用Sonnet 4.5，不需要传递currentModel）
+			vscode.postMessage({
+				type: 'selectMode',
+				mode: mode
+			});
+
+			// 显示提示
+			if (mode === 'max') {
+				showToast('Max mode - Prevents system from auto-switching to Haiku, enforces Sonnet 4.5');
+			} else {
+				showToast('Auto mode enabled - Smart compute allocation');
+			}
+
+			hideModeModal();
 		}
 
 		// Slash commands modal functions
@@ -4300,5 +4352,29 @@ export const uiScript = `
 				console.log('Opening file:', filePath, 'line:', line);
 			}
 		});
+
+		// 关闭modal当点击外部时
+		document.getElementById('modeModal').addEventListener('click', (e) => {
+			if (e.target === document.getElementById('modeModal')) {
+				hideModeModal();
+			}
+		});
+
+		// 恢复保存的算力模式
+		const savedMode = localStorage.getItem('selectedMode') || 'auto';
+		currentMode = savedMode;
+		const modeDisplayNames = {
+			'auto': 'Auto',
+			'max': 'Max'
+		};
+		document.getElementById('selectedMode').textContent = modeDisplayNames[savedMode];
+
+		// 如果是Max模式，通知后端恢复环境变量设置（固定使用Sonnet 4.5）
+		if (savedMode === 'max') {
+			vscode.postMessage({
+				type: 'selectMode',
+				mode: 'max'
+			});
+		}
 
 	`;

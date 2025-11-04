@@ -110,6 +110,9 @@ export class ClaudeChatProvider {
 		// Load saved model preference (default to Sonnet 4.5)
 		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'claude-sonnet-4-5-20250929');
 
+		// 恢复Max模式状态
+		this._restoreMaxModeState();
+
 		// Custom commands are now loaded by CustomCommandsManager
 
 		// Resume session from latest conversation
@@ -242,6 +245,9 @@ export class ClaudeChatProvider {
 						return;
 					case 'selectModel':
 						this._setSelectedModel(message.model);
+						return;
+					case 'selectMode':
+						this._handleModeSelection(message.mode);
 						return;
 					case 'openModelTerminal':
 						this._openModelTerminal();
@@ -1989,6 +1995,46 @@ export class ClaudeChatProvider {
 		} else {
 			console.error('Invalid model selected:', model);
 			vscode.window.showErrorMessage(`Invalid model: ${model}. Please select one of: ${VALID_MODELS.join(', ')}.`);
+		}
+	}
+
+	/**
+	 * 处理算力模式选择
+	 * @param mode - 'auto' 或 'max'
+	 */
+	private _handleModeSelection(mode: string): void {
+		if (mode === 'max') {
+			// 启用Max模式：固定设置ANTHROPIC_DEFAULT_HAIKU_MODEL为Sonnet 4.5
+			const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
+
+			// 保存到工作区状态
+			this._context.workspaceState.update('maxModeEnabled', true);
+
+			console.log(`[Max Mode] Enabled - Using Sonnet 4.5 for all background operations`);
+		} else {
+			// 恢复Auto模式：清除自定义环境变量
+			delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
+
+			// 更新工作区状态
+			this._context.workspaceState.update('maxModeEnabled', false);
+
+			console.log('[Auto Mode] Enabled - Smart compute allocation');
+		}
+	}
+
+	/**
+	 * 在初始化时恢复Max模式状态
+	 */
+	private _restoreMaxModeState(): void {
+		const maxModeEnabled = this._context.workspaceState.get('maxModeEnabled', false);
+
+		if (maxModeEnabled) {
+			// 固定使用Sonnet 4.5
+			const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
+
+			console.log(`[Max Mode] Restored - Using Sonnet 4.5 for background operations`);
 		}
 	}
 
