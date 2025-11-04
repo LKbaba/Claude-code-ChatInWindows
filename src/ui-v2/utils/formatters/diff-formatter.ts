@@ -3,7 +3,7 @@
  * Handles formatting of Edit, MultiEdit, and Write tool outputs
  */
 
-import { escapeHtml, formatFilePath, formatToolInputUI } from './tool-formatter';
+import { escapeHtml, formatFilePath, formatToolInputUI, normalizePathForHtml } from './tool-formatter';
 
 /**
  * Format Edit tool diff output
@@ -20,8 +20,9 @@ export function formatEditToolDiff(input: any): string {
 
     // Format file path with better display
     const formattedPath = formatFilePath(input.file_path);
-    let result = '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(input.file_path) + '\')">' + formattedPath + '</div>\n';
-    
+    const normalizedPath = normalizePathForHtml(input.file_path);
+    let result = '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(normalizedPath) + '\')">' + formattedPath + '</div>\n';
+
     // Create diff view
     const oldLines = input.old_string.split('\n');
     const newLines = input.new_string.split('\n');
@@ -117,8 +118,9 @@ export function formatMultiEditToolDiff(input: any): string {
 
     // Format file path with better display
     const formattedPath = formatFilePath(input.file_path);
-    let result = '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(input.file_path) + '\')">' + formattedPath + '</div>\n';
-    
+    const normalizedPath = normalizePathForHtml(input.file_path);
+    let result = '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(normalizedPath) + '\')">' + formattedPath + '</div>\n';
+
     // Count total lines across all edits for truncation
     let totalLines = 0;
     for (const edit of input.edits) {
@@ -212,8 +214,9 @@ export function formatWriteToolDiff(input: any): string {
 
     // Format file path with better display
     const formattedPath = formatFilePath(input.file_path);
-    let result = '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(input.file_path) + '\')">' + formattedPath + '</div>\n';
-    
+    const normalizedPath = normalizePathForHtml(input.file_path);
+    let result = '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(normalizedPath) + '\')">' + formattedPath + '</div>\n';
+
     // Create diff view showing all content as additions
     const contentLines = input.content.split('\n');
     

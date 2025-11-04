@@ -295,7 +295,8 @@ export const uiScript = `
 				// Special formatting for file_path
 				if (key === 'file_path') {
 					const formattedPath = formatFilePath(valueStr);
-					result += '<div class="diff-file-path" onclick="openFileInEditor(\\\'' + escapeHtml(valueStr) + '\\\')">' + formattedPath + '</div>';
+					const normalizedPath = normalizePathForHtml(valueStr);
+					result += '<div class="diff-file-path" onclick="openFileInEditor(\\\'' + escapeHtml(normalizedPath) + '\\\')">' + formattedPath + '</div>';
 				} else if (isReadTool && (key === 'offset' || key === 'limit')) {
 					// Always show offset and limit for Read tool
 					result += '<strong>' + key + ':</strong> ' + valueStr;
@@ -321,8 +322,9 @@ export const uiScript = `
 
 			// Format file path with better display
 			const formattedPath = formatFilePath(input.file_path);
-			let result = '<div class="diff-file-path" onclick="openFileInEditor(\\\'' + escapeHtml(input.file_path) + '\\\')">' + formattedPath + '</div>\\n';
-			
+			const normalizedPath = normalizePathForHtml(input.file_path);
+			let result = '<div class="diff-file-path" onclick="openFileInEditor(\\\'' + escapeHtml(normalizedPath) + '\\\')">' + formattedPath + '</div>\\n';
+
 			// Create diff view
 			const oldLines = input.old_string.split('\\n');
 			const newLines = input.new_string.split('\\n');
@@ -390,8 +392,9 @@ export const uiScript = `
 
 			// Format file path with better display
 			const formattedPath = formatFilePath(input.file_path);
-			let result = '<div class="diff-file-path" onclick="openFileInEditor(\\\'' + escapeHtml(input.file_path) + '\\\')">' + formattedPath + '</div>\\n';
-			
+			const normalizedPath = normalizePathForHtml(input.file_path);
+			let result = '<div class="diff-file-path" onclick="openFileInEditor(\\\'' + escapeHtml(normalizedPath) + '\\\')">' + formattedPath + '</div>\\n';
+
 			// Count total lines across all edits for truncation
 			let totalLines = 0;
 			for (const edit of input.edits) {
@@ -504,8 +507,9 @@ export const uiScript = `
 
 			// Format file path with better display
 			const formattedPath = formatFilePath(input.file_path);
-			let result = '<div class="diff-file-path" onclick="openFileInEditor(\\\'' + escapeHtml(input.file_path) + '\\\')">' + formattedPath + '</div>\\n';
-			
+			const normalizedPath = normalizePathForHtml(input.file_path);
+			let result = '<div class="diff-file-path" onclick="openFileInEditor(\\\'' + escapeHtml(normalizedPath) + '\\\')">' + formattedPath + '</div>\\n';
+
 			// Create diff view showing all content as additions
 			const contentLines = input.content.split('\\n');
 			
@@ -558,6 +562,12 @@ export const uiScript = `
 			const div = document.createElement('div');
 			div.textContent = text;
 			return div.innerHTML;
+		}
+
+		// 规范化文件路径，将反斜杠替换为正斜杠
+		// 这样可以避免在HTML onclick属性中反斜杠被解释为转义字符的问题
+		function normalizePathForHtml(filePath) {
+			return filePath.replace(/\\\\/g, '/');
 		}
 
 		function openFileInEditor(filePath) {
