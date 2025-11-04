@@ -2012,6 +2012,9 @@ export class ClaudeChatProvider {
 			this._context.workspaceState.update('maxModeEnabled', true);
 
 			console.log(`[Max Mode] Enabled - Using Sonnet 4.5 for all background operations`);
+
+			// 显示通知
+			vscode.window.showInformationMessage('Max mode - Prevents system from auto-switching to Haiku, enforces Sonnet 4.5');
 		} else {
 			// 恢复Auto模式：清除自定义环境变量
 			delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
@@ -2019,7 +2022,10 @@ export class ClaudeChatProvider {
 			// 更新工作区状态
 			this._context.workspaceState.update('maxModeEnabled', false);
 
-			console.log('[Auto Mode] Enabled - Smart compute allocation');
+			console.log('[Auto Mode] Enabled - Haiku allocation');
+
+			// 显示通知
+			vscode.window.showInformationMessage('Auto mode enabled - Haiku allocation');
 		}
 	}
 

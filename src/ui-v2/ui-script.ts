@@ -1437,19 +1437,13 @@ export const uiScript = `
 			// 保存到localStorage
 			localStorage.setItem('selectedMode', mode);
 
-			// 通知后端（Max模式固定使用Sonnet 4.5，不需要传递currentModel）
+			// 通知后端（后端会显示通知）
 			vscode.postMessage({
 				type: 'selectMode',
 				mode: mode
 			});
 
-			// 显示提示
-			if (mode === 'max') {
-				showToast('Max mode - Prevents system from auto-switching to Haiku, enforces Sonnet 4.5');
-			} else {
-				showToast('Auto mode enabled - Smart compute allocation');
-			}
-
+			// 隐藏modal
 			hideModeModal();
 		}
 

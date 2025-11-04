@@ -457,7 +457,7 @@ export function getBodyContent(): string {
 					<label for="mode-auto">
 						<div class="model-title">Auto - Smart allocation</div>
 						<div class="model-description">
-							System automatically uses Haiku for background tasks to save compute (Recommended)
+							System automatically uses Haiku to save compute (Anthropic)
 						</div>
 					</label>
 				</div>
@@ -466,7 +466,7 @@ export function getBodyContent(): string {
 					<label for="mode-max">
 						<div class="model-title">Max - Maximum performance</div>
 						<div class="model-description">
-							Uses Sonnet 4.5 for background tasks instead of Haiku
+							Prevents system from auto-switching to Haiku, enforces Sonnet 4.5
 						</div>
 					</label>
 				</div>
