@@ -18,6 +18,14 @@ function escapeHtml(text: string): string {
 }
 
 /**
+ * 规范化文件路径，将反斜杠替换为正斜杠
+ * 这样可以避免在HTML onclick属性中反斜杠被解释为转义字符的问题
+ */
+function normalizePathForHtml(filePath: string): string {
+    return filePath.replace(/\\/g, '/');
+}
+
+/**
  * Format file path for display
  */
 function formatFilePath(filePath: string): string {
@@ -54,13 +62,15 @@ export function formatToolInputUI(input: any): string {
     // Special handling for Read tool with file_path
     if (input.file_path && Object.keys(input).length === 1) {
         const formattedPath = formatFilePath(input.file_path);
-        return '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(input.file_path) + '\')">' + formattedPath + '</div>';
+        const normalizedPath = normalizePathForHtml(input.file_path);
+        return '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(normalizedPath) + '\')">' + formattedPath + '</div>';
     }
     
     // Special handling for Read tool with file_path and offset/limit
     if (input.file_path && (input.offset !== undefined || input.limit !== undefined)) {
         const formattedPath = formatFilePath(input.file_path);
-        let result = '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(input.file_path) + '\')">' + formattedPath + '</div>';
+        const normalizedPath = normalizePathForHtml(input.file_path);
+        let result = '<div class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(normalizedPath) + '\')">' + formattedPath + '</div>';
         
         const extraParams = [];
         if (input.offset !== undefined) {
@@ -87,7 +97,8 @@ export function formatToolInputUI(input: any): string {
         
         if (key === 'file_path') {
             const formattedPath = formatFilePath(value as string);
-            result += '<strong>' + key + ':</strong> <span class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(value as string) + '\')">' + formattedPath + '</span>';
+            const normalizedPath = normalizePathForHtml(value as string);
+            result += '<strong>' + key + ':</strong> <span class="diff-file-path" onclick="openFileInEditor(\'' + escapeHtml(normalizedPath) + '\')">' + formattedPath + '</span>';
         } else if (valueStr.length > 100) {
             const truncateAt = 97;
             const truncated = valueStr.substring(0, truncateAt);
@@ -130,4 +141,4 @@ export function toggleResultExpansion(resultId: string): void {
 }
 
 // Export helper functions for use in other formatters
-export { escapeHtml, formatFilePath };
+export { escapeHtml, formatFilePath, normalizePathForHtml };
