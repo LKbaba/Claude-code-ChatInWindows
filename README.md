@@ -24,7 +24,7 @@
 * ✅ **Perfect for "Vibe Coding"**: Smooth UI interface for an ultra-comfortable coding environment.
 * 🔄 **Operation History**: Real-time display of all file operations with one-click undo/redo
 
-Coming soon: Token & Fee visualization, VSCode integration-code awareness.
+Updated 2025.11.05: Updated latest models and corresponding pricing, added Auto/Max button to solve Anthropic's official backend Haiku dilution issue.
 
 ---
 
@@ -63,23 +63,16 @@ Coming soon: Token & Fee visualization, VSCode integration-code awareness.
 
 ## Version Compatibility Notice
 
-> ⚠️ **Important Version Notice (Updated 2025.07.18)**:
+> ⚠️ **Important Version Notice (Updated 2025.11.05)**:
 >
-> Claude Code official has released v1.0.62, but this version can be directly installed using methods compatible with v1.0.48. We recommend using v1.0.62 with plugin version 1.5.1.
+> Claude Code official has released v2.0.33, which can be directly installed using methods compatible with v1.0.48. We recommend using v2.0.33 with plugin version 2.0.2.
 >
-> **Downgrade Guide**: If you need to downgrade from a higher version to v1.0.48, please follow these steps:
+> **⚠️ If you encounter bash tool invocation issues:**
 >
 > 1. Add `C:\Program Files\Git\bin` and `C:\Program Files\Git\bin\bash.exe` to system environment variables
 > 2. Delete the `shell-snapshots` folder in `C:\Users\<yourname>\.claude` folder
-> 3. Uninstall the current version and reinstall v1.0.48
+> 3. Uninstall the current version and reinstall v2.0.33
 >
-> ⚡ **Claude Code v1.0.51-54 users notice**:
->
-> * Ensure your system PATH does NOT contain `Git\bin`, or you'll encounter startup errors
-> * You must **restart your computer** after modifying system environment variables
-> * See [Environment Setup](#-step-1-set-up-your-environment-one-time-only) for details
->
-> ⚠️ **Note**: Versions between v1.0.54-v1.0.62 have not been tested. If you encounter issues, please contact the author.
 
 ### 🔹 Step 1: Set Up Your Environment (One-Time Only)
 
@@ -96,8 +89,7 @@ This core step resolves the `No suitable shell found` error on Windows.
 
 setx NPM_CONFIG_IGNORE_SCRIPTS true
 
-# ⚠️ Claude Code version differences:
-# - v1.0.50 and below: Need to set SHELL environment variable
+# ⚠️ Important: All versions need to set SHELL environment variable
 setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
 # Note: If you installed Git in a different directory, update the path accordingly.
 
@@ -107,11 +99,19 @@ setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
 # 5. After restart, verify your environment setup
 ```
 
+> ⚡ **Claude Code v1.0.51-54 users notice**:
+>
+> * Ensure your system PATH does NOT contain `Git\bin`, or you'll encounter startup errors
+> * You must **restart your computer** after modifying system environment variables
+> * See [Environment Setup](#-step-1-set-up-your-environment-one-time-only) for details
+>
+> ⚠️ **Note**: If you encounter issues, please contact the author.
+
 ### 🔹 Step 2: Install and Verify Claude Code CLI
 
 ```powershell
-# 1. In a [new] terminal window, globally install the Claude Code CLI, recommend v1.0.62
-npm install -g @anthropic-ai/claude-code@1.0.62
+# 1. In a [new] terminal window, globally install the Claude Code CLI, recommend v2.0.33
+npm install -g @anthropic-ai/claude-code@2.0.33
 
 # ⚠️ If you encounter PowerShell script execution policy errors, try these solutions:
 # Error example: "cannot be loaded because running scripts is disabled on this system"
@@ -134,7 +134,7 @@ claude chat -m sonnet -p "hello"
 ```
 
 **Version notes:**
-
+* Claude Code v2.0.33 has excellent Windows support overall
 * Claude Code v1.0.51 added native Windows support, requires PATH to only contain Git\cmd
 * Claude Code v1.0.48 changed the shell snapshot location from `/tmp` to `~/.claude`
 

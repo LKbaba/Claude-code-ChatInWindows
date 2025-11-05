@@ -24,7 +24,7 @@
 * ✅ **「Vibe Coding」絕配**：流暢UI介面，營造極致舒適的編程環境。
 * 🔄 **操作歷史記錄**：即時顯示所有檔案操作，一鍵撤銷/重做
 
-待更新: Token & Fee visualization, VSCode integration-code awareness.
+2025.11.05更新: 更新最新模型以及對應定價，以及增加Auto/Max按鈕解決Anthropic官方後台呼叫Haiku的摻水問題。
 
 ---
 
@@ -63,23 +63,16 @@
 
 ## 版本相容性說明
 
-> ⚠️ **重要版本提示（更新於2025.07.18）**：
+> ⚠️ **重要版本提示（更新於2025.11.05）**：
 >
-> Claude Code 官方已發布 v1.0.62 版本，但該版本可以直接安裝使用相容1.0.48的方法。建議使用 v1.0.62 版本搭配1.5.1版本擴充套件。
+> Claude Code 官方已發布 v2.0.33 版本，但該版本可以直接安裝使用相容1.0.48的方法。建議使用 v2.0.33 版本搭配2.0.2版本擴充套件。
 >
-> **降級指南**：若需從高版本降級至 v1.0.48，請按以下步驟操作：
+> **⚠️ 如果遇到bash工具的呼叫問題：**
 >
 > 1. 將 `C:\Program Files\Git\bin` 和 `C:\Program Files\Git\bin\bash.exe` 添加至系統環境變數
 > 2. 刪除 `C:\Users\<yourname>\.claude` 資料夾中的 `shell-snapshots` 資料夾
-> 3. 解除安裝目前版本並重新安裝 v1.0.48 版本
+> 3. 解除安裝目前版本並重新安裝 v2.0.33 版本
 >
-> ⚡ **Claude Code v1.0.51-54 使用者注意**：
->
-> * 請確保系統 PATH 環境變數中**不包含** `Git\bin` 路徑，否則可能導致啟動錯誤
-> * 修改系統環境變數後必須**重啟電腦**以確保更改生效
-> * 詳細配置說明請參閱[環境準備](#-第-1-步環境準備僅需一次)章節
->
-> ⚠️ **注意**：v1.0.54-v1.0.62 之間的版本未經測試，如遇到問題可以聯繫作者。
 
 ### 🔹 第 1 步：環境準備（僅需一次）
 
@@ -96,8 +89,7 @@
 
 setx NPM_CONFIG_IGNORE_SCRIPTS true
 
-# ⚠️ Claude Code 版本差異：
-# - v1.0.50 及以下：需要設定 SHELL 環境變數
+# ⚠️ 重要：所有版本都需要設定 SHELL 環境變數
 setx SHELL "C:\Program Files\Git\bin\bash.exe"
 # 注意：如果你的 Git 安裝在其他路徑，請相應修改 "C:\Program Files\Git\bin\bash.exe"
 
@@ -107,11 +99,19 @@ setx SHELL "C:\Program Files\Git\bin\bash.exe"
 # 5. 重啟電腦後，驗證環境配置
 ```
 
+> ⚡ **Claude Code v1.0.51-54 使用者注意**：
+>
+> * 請確保系統 PATH 環境變數中**不包含** `Git\bin` 路徑，否則可能導致啟動錯誤
+> * 修改系統環境變數後必須**重啟電腦**以確保更改生效
+> * 詳細配置說明請參閱[環境準備](#-第-1-步環境準備僅需一次)章節
+>
+> ⚠️ **注意**：如遇到問題可以聯繫作者。
+
 ### 🔹 第 2 步：安裝並驗證 Claude Code CLI
 
 ```powershell
-# 1. 在【新的】終端窗口中，全局安裝 Claude Code CLI，推薦 1.0.62
-npm install -g @anthropic-ai/claude-code@1.0.62
+# 1. 在【新的】終端窗口中，全局安裝 Claude Code CLI，推薦 2.0.33
+npm install -g @anthropic-ai/claude-code@2.0.33
 
 # ⚠️ 如果遇到 PowerShell 腳本執行策略錯誤，請使用以下方法解決：
 # 錯誤示例：「無法加載文件 npm.ps1，因為在此系統上禁止運行腳本」
@@ -140,7 +140,7 @@ claude chat -m sonnet -p "hello"
 ```
 
 **版本差異說明：**
-
+* Claude Code v2.0.33 整體已經很好支援Windows
 * Claude Code v1.0.51 增加了Windows原生支援，要求PATH中只有Git\cmd
 * Claude Code v1.0.48 將 shell 快照位置從 `/tmp` 改為 `~/.claude`
 
