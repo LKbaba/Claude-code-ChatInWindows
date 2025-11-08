@@ -3668,15 +3668,6 @@ export const uiScript = `
 			}
 		});
 
-		// Detect slash commands input
-		messageInput.addEventListener('input', (e) => {
-			const value = messageInput.value;
-			// Only trigger when "/" is the very first and only character
-			if (value === '/') {
-				showSlashCommandsModal();
-			}
-		});
-
 		// Add settings message handler to window message event
 		const originalMessageHandler = window.onmessage;
 		window.addEventListener('message', event => {
