@@ -2058,13 +2058,13 @@ export class ClaudeChatProvider {
 		try {
 			console.log(`[ClaudeChatProvider] Executing slash command: /${command}`);
 
-			// 在聊天窗口显示提示消息
+			// Show prompt message in chat window (using output type for bordered style)
 			this._sendAndSaveMessage({
-				type: 'info',
+				type: 'output',
 				data: `⚡ Executing \`/${command}\` command in terminal...\n\nPlease check the terminal window for output.`
 			});
 
-			// 创建终端窗口并执行命令
+			// Create terminal window and execute command
 			const terminal = vscode.window.createTerminal(`Claude /${command}`);
 			terminal.sendText(`claude /${command}`);
 			terminal.show();
