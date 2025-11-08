@@ -3514,6 +3514,12 @@ export const uiScript = `
 						'N8N_API_URL': '', // 例如: https://your-n8n-instance.com 或 http://localhost:5678
 						'N8N_API_KEY': ''  // 你的n8n API密钥
 					}
+				},
+				'shadcn': {
+					name: 'shadcn',
+					command: 'npx',
+					args: ['shadcn@latest', 'mcp'],
+					env: {}
 				}
 			};
 			
