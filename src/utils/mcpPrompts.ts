@@ -34,12 +34,27 @@ export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
 **Installation**: See browser install guide in CLAUDE.md`,
 
     'n8n': `
-## n8n 
+## n8n
 **Purpose**: n8n workflow automation - 532+ node documentation access
 **Core tools**: tools_documentation, list_nodes, get_node_info, search_nodes
 **Coverage**: 99% properties | 63% operations | 90% docs | 263 AI nodes
 **Workflow management**: Requires N8N_API_URL and N8N_API_KEY configuration
-**Important**: See detailed usage guide in CLAUDE.md's n8n MCP section`
+**Important**: See detailed usage guide in CLAUDE.md's n8n MCP section`,
+
+    'shadcn': `
+## shadcn/ui MCP
+**Purpose**: Project-aware component manager for shadcn/ui (React/Next.js)
+**Core capabilities**: Browse, search, and **install** components directly to your project
+**Key features**:
+- Reads components.json for project configuration
+- Installs components to your codebase automatically
+- Supports multiple registries (public & private)
+**Usage examples**:
+- "Add button and dialog components to my project"
+- "Show me all available components"
+- "Install the card component from shadcn registry"
+**Requirements**: Must run in a project with components.json file
+**Note**: Run 'npx shadcn@latest init' first if components.json doesn't exist`
 };
 
 /**
