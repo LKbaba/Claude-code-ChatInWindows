@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
