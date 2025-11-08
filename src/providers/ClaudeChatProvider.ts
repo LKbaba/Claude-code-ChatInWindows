@@ -2056,110 +2056,26 @@ export class ClaudeChatProvider {
 
 	private async _executeSlashCommand(command: string): Promise<void> {
 		try {
-			console.log(`[ClaudeChatProvider] Starting _executeSlashCommand for: /${command}`);
-			
-			// Since we're using SDK mode (not interactive REPL), we need to handle slash commands internally
-			// Slash commands only work in interactive Claude CLI, not in SDK mode with -p flag
-			
-			switch (command.toLowerCase()) {
-				case 'help':
-					this._sendAndSaveMessage({
-						type: 'output',
-						data: `## Claude Code Chat - Available Commands
+			console.log(`[ClaudeChatProvider] Executing slash command: /${command}`);
 
-**Slash Commands:**
-• \`/help\` - Show this help message
-• \`/clear\` - Clear conversation history
-• \`/status\` - Show current session status
-• \`/cost\` - Show token usage and cost
-• \`/model\` - Switch AI model
-• \`/config\` - View configuration
+			// 在聊天窗口显示提示消息
+			this._sendAndSaveMessage({
+				type: 'info',
+				data: `⚡ Executing \`/${command}\` command in terminal...\n\nPlease check the terminal window for output.`
+			});
 
-**Features:**
-• Ask questions about your codebase
-• Edit and create files
-• Run commands and tests  
-• Get code explanations and reviews
+			// 创建终端窗口并执行命令
+			const terminal = vscode.window.createTerminal(`Claude /${command}`);
+			terminal.sendText(`claude /${command}`);
+			terminal.show();
 
-**Note:** This VS Code extension uses Claude Code in SDK mode. Some CLI-specific commands like /login, /doctor, /mcp are not available here. Use the terminal for full CLI features.`
-					});
-					return;
-					
-				case 'clear':
-					// Clear conversation history
-					if (this._currentSessionId) {
-						this._conversationManager.clearCurrentConversation();
-					}
-					this._currentSessionId = undefined;
-					this._conversationId = undefined;
-					this._panel?.webview.postMessage({ type: 'clearMessages' });
-					this._sendAndSaveMessage({
-						type: 'output',
-						data: 'Conversation history cleared. Starting fresh!'
-					});
-					return;
-					
-				case 'status':
-					const sessionInfo = this._currentSessionId 
-						? `Active session: ${this._currentSessionId}`
-						: 'No active session';
-					const modelInfo = `Model: ${this._selectedModel || 'opus'}`;
-					const processInfo = this._processService.isProcessRunning() 
-						? 'Claude process: Running'
-						: 'Claude process: Not running';
-					this._sendAndSaveMessage({
-						type: 'output',
-						data: `## Status\n\n${sessionInfo}\n${modelInfo}\n${processInfo}\nClaude Code Chat UI v${this._context.extension.packageJSON.version}`
-					});
-					return;
-					
-				case 'cost':
-					// Get token usage from the last message in UI
-					const costMessage = this._currentSessionId 
-						? 'Check the token usage display at the bottom of each message in the chat.'
-						: 'No active session. Start a conversation to see token usage.';
-					this._sendAndSaveMessage({
-						type: 'output',
-						data: `## Token Usage\n\n${costMessage}\n\nNote: Detailed cost tracking is shown in the UI after each message.`
-					});
-					return;
-					
-				case 'model':
-					// Show model selection info
-					this._sendAndSaveMessage({
-						type: 'output',
-						data: `## Model Selection\n\nCurrent model: ${this._selectedModel || 'opus'}\n\nAvailable models:\n• opus - Claude 3 Opus (most capable)\n• claude-opus-4-1-20250805 - Opus 4.1 (latest flagship model)\n• sonnet - Claude 3.5 Sonnet (balanced)\n• default - User configured\n\nTo change model, use the model selector dropdown in the UI.`
-					});
-					return;
-					
-				case 'config':
-					// Show key configuration
-					const settings = this._configurationManager.getCurrentSettings();
-					const configInfo = {
-						'Git Bash Path': settings['windows.gitBashPath'],
-						'Thinking Mode': settings['thinking.intensity'],
-						'MCP Enabled': settings['mcp.enabled'],
-						'MCP Servers': settings['mcp.servers']?.length || 0
-					};
-					this._sendAndSaveMessage({
-						type: 'output',
-						data: `## Configuration\n\n\`\`\`json\n${JSON.stringify(configInfo, null, 2)}\n\`\`\`\n\nTo modify settings, use VS Code settings (Ctrl+,) and search for "Claude Code Chat".`
-					});
-					return;
-					
-				default:
-					// For unsupported commands, show a helpful message
-					this._sendAndSaveMessage({
-						type: 'output',
-						data: `The \`/${command}\` command is not available in this VS Code extension.\n\nThis extension uses Claude Code in SDK mode, which doesn't support all CLI commands.\n\nAvailable commands: /help, /clear, /status, /cost, /model, /config\n\nFor full CLI features, use Claude Code directly in the terminal.`
-					});
-					return;
-			}
+			console.log(`[ClaudeChatProvider] Command sent to terminal: claude /${command}`);
+
 		} catch (error: any) {
-			console.error(`[ClaudeChatProvider] Exception in _executeSlashCommand:`, error);
+			console.error(`[ClaudeChatProvider] Failed to execute slash command:`, error);
 			this._sendAndSaveMessage({
 				type: 'error',
-				data: `Failed to execute command: ${error.message}`
+				data: `❌ Failed to execute command: ${error.message}\n\nPlease ensure Claude CLI is properly installed and available in PATH.`
 			});
 		}
 	}
