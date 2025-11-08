@@ -95,6 +95,7 @@ export function getBodyContent(): string {
 							</button>
 						</div>
 						<div class="right-controls">
+							<button class="slash-btn" onclick="showSlashCommandsModal()" title="Slash commands">/</button>
 							<button class="at-btn" onclick="showFilePicker()" title="Reference files">@</button>
 							<button class="image-btn" id="imageBtn" onclick="selectImage()" title="Attach images">
 							<svg

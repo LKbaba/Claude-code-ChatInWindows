@@ -1384,6 +1384,8 @@ function getStylesOld(): string {
         opacity: 1;
     }
 
+    /* / Button (Slash Commands) 和 @ Button (File Reference) - 斜杠命令和文件引用按钮 */
+    .slash-btn,
     .at-btn {
         background-color: transparent;
         color: var(--vscode-foreground);
@@ -1396,6 +1398,7 @@ function getStylesOld(): string {
         transition: all 0.2s ease;
     }
 
+    .slash-btn:hover,
     .at-btn:hover {
         background-color: var(--vscode-list-hoverBackground);
     }

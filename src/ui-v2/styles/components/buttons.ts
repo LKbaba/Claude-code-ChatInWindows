@@ -256,26 +256,24 @@ export const buttonStyles = `
   border-color: var(--vscode-focusBorder);
 }
 
-/* @ Button (File Reference) */
+/* / Button (Slash Commands) 和 @ Button (File Reference) - 斜杠命令和文件引用按钮 */
+/* 参考 reference/claude-code-chat/src/ui-styles.ts 第1435-1451行 */
+.slash-btn,
 .at-btn {
   background-color: transparent;
   color: var(--vscode-foreground);
-  border: 1px solid var(--vscode-panel-border);
-  padding: var(--space-sm);
-  border-radius: var(--radius-sm);
+  border: none;
+  padding: 4px 6px;
+  border-radius: 4px;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-  font-weight: var(--font-weight-bold);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
+.slash-btn:hover,
 .at-btn:hover {
-  background-color: var(--vscode-toolbar-hoverBackground);
-  border-color: var(--vscode-focusBorder);
+  background-color: var(--vscode-list-hoverBackground);
 }
 
 /* Image Button */
