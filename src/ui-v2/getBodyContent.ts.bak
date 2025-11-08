@@ -579,39 +579,11 @@ export function getBodyContent(): string {
 				<p>These commands require the Claude CLI and will open in VS Code terminal. Return here after completion.</p>
 			</div>
 			<div class="slash-commands-list">
-			<div class="slash-command-item" onclick="executeSlashCommand('help')">
-					<div class="slash-command-icon">❓</div>
+				<div class="slash-command-item" onclick="executeSlashCommand('bug')">
+					<div class="slash-command-icon">🐛</div>
 					<div class="slash-command-content">
-						<div class="slash-command-title">/help</div>
-						<div class="slash-command-description">Get usage help</div>
-					</div>
-				</div>
-				<div class="slash-command-item" onclick="executeSlashCommand('status')">
-					<div class="slash-command-icon">📊</div>
-					<div class="slash-command-content">
-						<div class="slash-command-title">/status</div>
-						<div class="slash-command-description">View account and system statuses</div>
-					</div>
-				</div>
-				<div class="slash-command-item" onclick="executeSlashCommand('review')">
-					<div class="slash-command-icon">👀</div>
-					<div class="slash-command-content">
-						<div class="slash-command-title">/review</div>
-						<div class="slash-command-description">Request code review</div>
-					</div>
-				</div>
-				<div class="slash-command-item" onclick="executeSlashCommand('memory')">
-					<div class="slash-command-icon">🧠</div>
-					<div class="slash-command-content">
-						<div class="slash-command-title">/memory</div>
-						<div class="slash-command-description">Edit CLAUDE.md memory files</div>
-					</div>
-				</div>
-				<div class="slash-command-item" onclick="executeSlashCommand('mcp')">
-					<div class="slash-command-icon">🔌</div>
-					<div class="slash-command-content">
-						<div class="slash-command-title">/mcp</div>
-						<div class="slash-command-description">Manage MCP server connections and OAuth authentication</div>
+						<div class="slash-command-title">/bug</div>
+						<div class="slash-command-description">Report bugs (sends conversation to Anthropic)</div>
 					</div>
 				</div>
 				<div class="slash-command-item" onclick="executeSlashCommand('config')">
@@ -635,11 +607,11 @@ export function getBodyContent(): string {
 						<div class="slash-command-description">Checks the health of your Claude Code installation</div>
 					</div>
 				</div>
-				<div class="slash-command-item" onclick="executeSlashCommand('bug')">
-					<div class="slash-command-icon">🐛</div>
+				<div class="slash-command-item" onclick="executeSlashCommand('help')">
+					<div class="slash-command-icon">❓</div>
 					<div class="slash-command-content">
-						<div class="slash-command-title">/bug</div>
-						<div class="slash-command-description">Report bugs (sends conversation to Anthropic)</div>
+						<div class="slash-command-title">/help</div>
+						<div class="slash-command-description">Get usage help</div>
 					</div>
 				</div>
 				<div class="slash-command-item" onclick="executeSlashCommand('login')">
@@ -654,6 +626,34 @@ export function getBodyContent(): string {
 					<div class="slash-command-content">
 						<div class="slash-command-title">/logout</div>
 						<div class="slash-command-description">Sign out from your Anthropic account</div>
+					</div>
+				</div>
+				<div class="slash-command-item" onclick="executeSlashCommand('mcp')">
+					<div class="slash-command-icon">🔌</div>
+					<div class="slash-command-content">
+						<div class="slash-command-title">/mcp</div>
+						<div class="slash-command-description">Manage MCP server connections and OAuth authentication</div>
+					</div>
+				</div>
+				<div class="slash-command-item" onclick="executeSlashCommand('memory')">
+					<div class="slash-command-icon">🧠</div>
+					<div class="slash-command-content">
+						<div class="slash-command-title">/memory</div>
+						<div class="slash-command-description">Edit CLAUDE.md memory files</div>
+					</div>
+				</div>
+				<div class="slash-command-item" onclick="executeSlashCommand('review')">
+					<div class="slash-command-icon">👀</div>
+					<div class="slash-command-content">
+						<div class="slash-command-title">/review</div>
+						<div class="slash-command-description">Request code review</div>
+					</div>
+				</div>
+				<div class="slash-command-item" onclick="executeSlashCommand('status')">
+					<div class="slash-command-icon">📊</div>
+					<div class="slash-command-content">
+						<div class="slash-command-title">/status</div>
+						<div class="slash-command-description">View account and system statuses</div>
 					</div>
 				</div>
 				<div class="slash-command-item" onclick="executeSlashCommand('terminal-setup')">
