@@ -1630,20 +1630,19 @@ export const uiScript = `
 		}
 
 		function executeSlashCommand(command) {
-			// Hide the modal
+			// Hide command selection modal
 			hideSlashCommandsModal();
-			
-			// Clear the input since user selected a command
+
+			// Clear input field
 			messageInput.value = '';
-			
-			// Send command to VS Code to execute in terminal
+
+			// Send command to VS Code backend for execution
 			vscode.postMessage({
 				type: 'executeSlashCommand',
 				command: command
 			});
-			
-			// Show user feedback
-			addMessage('user', \`Executing /\${command} command in terminal. Check the terminal output and return when ready.\`, 'assistant');
+
+			// Don't show message here, backend will send output type message via _executeSlashCommand
 		}
 
 		function handleCustomCommandKeydown(event) {
@@ -1717,11 +1716,19 @@ export const uiScript = `
 		}
 
 		function deleteCustomCommand(commandId) {
-			if (confirm('Are you sure you want to delete this custom command?')) {
+			console.log('[deleteCustomCommand] Delete button clicked, command ID:', commandId);
+			console.log('[deleteCustomCommand] Function type:', typeof deleteCustomCommand);
+			console.log('[deleteCustomCommand] Function on window:', typeof window.deleteCustomCommand);
+
+			try {
+				// Direct delete without confirmation (for testing)
+				console.log('[deleteCustomCommand] Sending delete message to backend');
 				vscode.postMessage({
 					type: 'deleteCustomCommand',
 					commandId: commandId
 				});
+			} catch (error) {
+				console.error('[deleteCustomCommand] Error deleting command:', error);
 			}
 		}
 
@@ -3784,7 +3791,16 @@ export const uiScript = `
 		window.hideCustomCommandsModal = hideCustomCommandsModal;
 		window.saveCustomCommand = saveCustomCommand;
 		window.clearCommandForm = clearCommandForm;
+		window.editCustomCommand = editCustomCommand;
+		window.deleteCustomCommand = deleteCustomCommand;
+		window.executeCustomCommand = executeCustomCommand;
 		window.executeSlashCommand = executeSlashCommand;
+
+		// 验证自定义命令函数是否正确挂载
+		console.log('[UI初始化] 自定义命令函数挂载状态:');
+		console.log('  - editCustomCommand:', typeof window.editCustomCommand);
+		console.log('  - deleteCustomCommand:', typeof window.deleteCustomCommand);
+		console.log('  - executeCustomCommand:', typeof window.executeCustomCommand);
 		window.hideModelModal = hideModelModal;
 		window.hideSettingsModal = hideSettingsModal;
 		window.hideSlashCommandsModal = hideSlashCommandsModal;
