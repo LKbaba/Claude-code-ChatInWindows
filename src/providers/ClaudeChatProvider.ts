@@ -19,6 +19,7 @@ import { OperationPreviewService } from '../services/OperationPreview';
 import { expandVariables } from '../utils/configUtils';
 import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
+import { PluginManager } from '../services/PluginManager';
 
 export class ClaudeChatProvider {
 	private _panel: vscode.WebviewPanel | undefined;
@@ -232,6 +233,14 @@ export class ClaudeChatProvider {
 						return;
 					case 'getMcpTools':
 						this._getMcpTools(message.serverId, message.serverName);
+						return;
+					case 'getInstalledPlugins':
+						// Get cached plugin list
+						this._getInstalledPlugins();
+						return;
+					case 'refreshPlugins':
+						// Refresh plugin list
+						this._refreshPlugins();
 						return;
 					case 'getClipboardText':
 						const clipboardText = await this._fileOperationsManager.getClipboardText();
@@ -1750,7 +1759,72 @@ export class ClaudeChatProvider {
 			});
 		}
 	}
-	
+
+	/**
+	 * Get installed plugin list (from cache)
+	 * This method quickly returns plugin data from memory cache
+	 */
+	private _getInstalledPlugins(): void {
+		try {
+			const pluginManager = PluginManager.getInstance();
+			const plugins = pluginManager.getCachedPlugins();
+
+			// Send plugin list to webview
+			this._panel?.webview.postMessage({
+				type: 'pluginsList',
+				data: {
+					plugins: plugins,
+					refreshed: false
+				}
+			});
+
+			console.log(`[PluginManager] Sent ${plugins.length} plugin(s) to webview (from cache)`);
+		} catch (error: any) {
+			console.error('[PluginManager] Failed to get plugins:', error);
+			this._panel?.webview.postMessage({
+				type: 'pluginsList',
+				data: {
+					plugins: [],
+					refreshed: false,
+					error: 'Failed to load plugins'
+				}
+			});
+		}
+	}
+
+	/**
+	 * Refresh plugin list (reload from file)
+	 * This method forces a reload of the plugin config file and updates the cache
+	 */
+	private async _refreshPlugins(): Promise<void> {
+		try {
+			const pluginManager = PluginManager.getInstance();
+			// Force reload (forceReload = true)
+			const plugins = await pluginManager.loadInstalledPlugins(true);
+
+			console.log(`[PluginManager] Plugins refreshed: ${plugins.length} plugin(s) loaded`);
+
+			// Send refreshed plugin list to webview and mark as refresh operation
+			this._panel?.webview.postMessage({
+				type: 'pluginsList',
+				data: {
+					plugins: plugins,
+					refreshed: true  // Mark as refresh operation, frontend can show notification
+				}
+			});
+		} catch (error: any) {
+			console.error('[PluginManager] Failed to refresh plugins:', error);
+			this._panel?.webview.postMessage({
+				type: 'pluginsList',
+				data: {
+					plugins: [],
+					refreshed: false,
+					error: 'Failed to refresh plugins'
+				}
+			});
+		}
+	}
+
 	/**
 	 * Dynamically query MCP server for available tools
 	 * @param server MCP server configuration
