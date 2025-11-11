@@ -500,6 +500,21 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+
+				<!-- 高级设置区域（始终显示） -->
+				<div class="advanced-settings-divider"></div>
+				<div class="advanced-settings-section">
+					<div class="advanced-settings-title">Advanced Settings</div>
+					<div class="tool-item enhance-subagents-item">
+						<input type="checkbox" id="enhance-subagents" onchange="toggleEnhanceSubagents()">
+						<label for="enhance-subagents">
+							<div class="model-title">Enhance Subagents</div>
+							<div class="model-description">
+								Use Sonnet 4.5 for all subagent operations (higher cost)
+							</div>
+						</label>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>

@@ -1765,6 +1765,32 @@ function getStylesOld(): string {
         flex: 1;
     }
 
+    /* 高级设置样式 */
+    .advanced-settings-divider {
+        height: 1px;
+        background: var(--vscode-panel-border);
+        margin: 16px 0;
+        opacity: 0.5;
+    }
+
+    .advanced-settings-section {
+        padding-top: 8px;
+    }
+
+    .advanced-settings-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--vscode-foreground);
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        opacity: 0.8;
+    }
+
+    /* enhance-subagents-item 继承 tool-item 的样式，不添加额外的装饰 */
+    .enhance-subagents-item {
+        /* 使用 tool-item 的默认样式即可，无需额外样式 */
+    }
+
     .default-model-layout {
         cursor: pointer;
         display: flex;

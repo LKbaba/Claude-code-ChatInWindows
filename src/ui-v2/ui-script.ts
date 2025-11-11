@@ -1557,6 +1557,23 @@ export const uiScript = `
 			hideModeModal();
 		}
 
+		// 处理子代理增强开关（独立逻辑）
+		function toggleEnhanceSubagents() {
+			const checkbox = document.getElementById('enhance-subagents');
+			if (!checkbox) return;
+
+			const isChecked = checkbox.checked;
+
+			// 保存到localStorage
+			localStorage.setItem('enhanceSubagents', isChecked.toString());
+
+			// 通知后端（独立消息）
+			vscode.postMessage({
+				type: 'updateSubagentMode',
+				enabled: isChecked
+			});
+		}
+
 		// Slash commands modal functions
 		function showSlashCommandsModal() {
 			document.getElementById('slashCommandsModal').style.display = 'flex';
@@ -4491,11 +4508,26 @@ export const uiScript = `
 		};
 		document.getElementById('selectedMode').textContent = modeDisplayNames[savedMode];
 
+		// 恢复Enhance Subagents设置（独立于模式）
+		const enhanceSubagents = localStorage.getItem('enhanceSubagents') === 'true';
+		const enhanceCheckbox = document.getElementById('enhance-subagents');
+		if (enhanceCheckbox) {
+			enhanceCheckbox.checked = enhanceSubagents;
+		}
+
 		// 如果是Max模式，通知后端恢复环境变量设置（固定使用Sonnet 4.5）
 		if (savedMode === 'max') {
 			vscode.postMessage({
 				type: 'selectMode',
 				mode: 'max'
+			});
+		}
+
+		// 如果子代理增强已启用，通知后端恢复（独立设置）
+		if (enhanceSubagents) {
+			vscode.postMessage({
+				type: 'updateSubagentMode',
+				enabled: true
 			});
 		}
 
