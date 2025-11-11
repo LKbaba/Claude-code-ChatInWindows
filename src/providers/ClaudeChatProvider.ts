@@ -21,6 +21,12 @@ import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
 
+// 计算模式设置接口
+interface ComputeModeSettings {
+	mode: 'auto' | 'max';           // 计算模式选择
+	enhanceSubagents: boolean;       // 是否增强子代理（独立设置）
+}
+
 export class ClaudeChatProvider {
 	private _panel: vscode.WebviewPanel | undefined;
 	private _disposables: vscode.Disposable[] = [];
@@ -111,8 +117,8 @@ export class ClaudeChatProvider {
 		// Load saved model preference (default to Sonnet 4.5)
 		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'claude-sonnet-4-5-20250929');
 
-		// 恢复Max模式状态
-		this._restoreMaxModeState();
+		// 恢复计算模式状态
+		this._restoreComputeModeState();
 
 		// Custom commands are now loaded by CustomCommandsManager
 
@@ -257,6 +263,9 @@ export class ClaudeChatProvider {
 						return;
 					case 'selectMode':
 						this._handleModeSelection(message.mode);
+						return;
+					case 'updateSubagentMode':
+						this._handleSubagentEnhancement(message.enabled);
 						return;
 					case 'openModelTerminal':
 						this._openModelTerminal();
@@ -2073,48 +2082,106 @@ export class ClaudeChatProvider {
 	}
 
 	/**
-	 * 处理算力模式选择
+	 * 处理计算模式选择（独立于子代理设置）
 	 * @param mode - 'auto' 或 'max'
 	 */
-	private _handleModeSelection(mode: string): void {
+	private _handleModeSelection(mode: 'auto' | 'max'): void {
+		const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+
 		if (mode === 'max') {
-			// 启用Max模式：固定设置ANTHROPIC_DEFAULT_HAIKU_MODEL为Sonnet 4.5
-			const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+			// Max模式：设置ANTHROPIC_DEFAULT_HAIKU_MODEL
 			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
-
-			// 保存到工作区状态
-			this._context.workspaceState.update('maxModeEnabled', true);
-
-			console.log(`[Max Mode] Enabled - Using Sonnet 4.5 for all background operations`);
-
-			// 显示通知
-			vscode.window.showInformationMessage('Max mode - Prevents system from auto-switching to Haiku, enforces Sonnet 4.5');
+			console.log('[Compute Mode] Max mode enabled - Using Sonnet 4.5 for background tasks');
+			vscode.window.showInformationMessage('Max mode enabled - Maximum performance, higher cost');
 		} else {
-			// 恢复Auto模式：清除自定义环境变量
+			// Auto模式：清除ANTHROPIC_DEFAULT_HAIKU_MODEL
 			delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
-
-			// 更新工作区状态
-			this._context.workspaceState.update('maxModeEnabled', false);
-
-			console.log('[Auto Mode] Enabled - Haiku allocation');
-
-			// 显示通知
-			vscode.window.showInformationMessage('Auto mode enabled - Haiku allocation');
+			console.log('[Compute Mode] Auto mode enabled - Smart allocation for cost efficiency');
+			vscode.window.showInformationMessage('Auto mode enabled - Smart allocation');
 		}
+
+		// 保存模式设置
+		const currentSettings = this._context.workspaceState.get<ComputeModeSettings>('computeModeSettings', {
+			mode: 'auto',
+			enhanceSubagents: false
+		});
+
+		this._context.workspaceState.update('computeModeSettings', {
+			...currentSettings,
+			mode: mode
+		});
 	}
 
 	/**
-	 * 在初始化时恢复Max模式状态
+	 * 处理子代理增强设置（独立于模式设置）
+	 * @param enabled - 是否启用子代理增强
 	 */
-	private _restoreMaxModeState(): void {
-		const maxModeEnabled = this._context.workspaceState.get('maxModeEnabled', false);
+	private _handleSubagentEnhancement(enabled: boolean): void {
+		const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
 
-		if (maxModeEnabled) {
-			// 固定使用Sonnet 4.5
+		if (enabled) {
+			// 启用增强：设置CLAUDE_CODE_SUBAGENT_MODEL
+			process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_5;
+			console.log('[Compute Mode] Enhanced subagents enabled - Using Sonnet 4.5 for all subagent operations');
+			vscode.window.showInformationMessage('Enhanced subagents enabled - Higher performance, increased cost');
+		} else {
+			// 禁用增强：清除CLAUDE_CODE_SUBAGENT_MODEL
+			delete process.env.CLAUDE_CODE_SUBAGENT_MODEL;
+			console.log('[Compute Mode] Standard subagents enabled - Using default model allocation');
+		}
+
+		// 保存子代理设置
+		const currentSettings = this._context.workspaceState.get<ComputeModeSettings>('computeModeSettings', {
+			mode: 'auto',
+			enhanceSubagents: false
+		});
+
+		this._context.workspaceState.update('computeModeSettings', {
+			...currentSettings,
+			enhanceSubagents: enabled
+		});
+	}
+
+	/**
+	 * 在初始化时恢复计算模式状态
+	 */
+	private _restoreComputeModeState(): void {
+		// 尝试读取新的配置格式
+		const settings = this._context.workspaceState.get<ComputeModeSettings>('computeModeSettings');
+
+		if (settings) {
+			// 使用新格式
 			const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
-			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
 
-			console.log(`[Max Mode] Restored - Using Sonnet 4.5 for background operations`);
+			// 恢复模式设置
+			if (settings.mode === 'max') {
+				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
+				console.log('[Compute Mode] Restored Max mode');
+			}
+
+			// 恢复子代理设置（独立）
+			if (settings.enhanceSubagents) {
+				process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_5;
+				console.log('[Compute Mode] Restored enhanced subagents');
+			}
+
+			console.log('[Compute Mode] Settings restored:', settings);
+		} else {
+			// 向后兼容：检查旧的maxModeEnabled配置
+			const maxModeEnabled = this._context.workspaceState.get('maxModeEnabled', false);
+			if (maxModeEnabled) {
+				const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
+				console.log('[Compute Mode] Migrated from old Max mode setting');
+
+				// 迁移到新格式
+				this._context.workspaceState.update('computeModeSettings', {
+					mode: 'max',
+					enhanceSubagents: false
+				});
+				// 删除旧配置
+				this._context.workspaceState.update('maxModeEnabled', undefined);
+			}
 		}
 	}
 
