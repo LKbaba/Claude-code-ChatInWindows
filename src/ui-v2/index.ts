@@ -1669,7 +1669,7 @@ function getStylesOld(): string {
         display: flex;
         align-items: flex-start;
         gap: 12px;
-        padding: 16px 0;
+        padding: 10px 0;  /* 从 16px 改为 10px，减小插件之间的间距 */
         cursor: pointer;
         border-radius: 6px;
         transition: background-color 0.2s ease;
@@ -1681,7 +1681,7 @@ function getStylesOld(): string {
 
     .tool-item:hover {
         background-color: var(--vscode-list-hoverBackground);
-        padding: 16px 12px;
+        padding: 10px 12px;  /* 同步修改，保持一致 */
         margin: 0 -12px;
     }
 
@@ -1694,10 +1694,38 @@ function getStylesOld(): string {
 
     .tool-item label {
         color: var(--vscode-foreground);
-        font-size: 13px;
+        /* 移除固定的字体大小，让子元素（plugin-name、plugin-description）自己控制 */
         cursor: pointer;
         flex: 1;
         line-height: 1.4;
+    }
+
+    /* ========================================
+     * 插件显示样式
+     * ========================================
+     * 注意：这些样式定义在 index.ts 的 getStylesOld() 函数中，
+     * 而不是在 tools.ts 中，因为：
+     * 1. getStylesWithEnhancements() 使用 getStylesOld() 而非 getCombinedStyles()
+     * 2. 如果在 tools.ts 中修改样式，不会生效
+     * 3. 未来如果重构样式系统，需要确保使用 getCombinedStyles()
+     * ======================================== */
+
+    /* 插件名称样式 */
+    .plugin-name {
+        font-weight: 600;
+        font-size: 15px;  /* 插件标题大小（比描述的11px稍大，但不会太大） */
+        color: var(--vscode-foreground);
+        margin-bottom: 4px;  /* 标题和描述之间的间距 */
+    }
+
+    /* 插件描述样式 */
+    .plugin-description {
+        font-size: 11px;  /* 描述字体大小 */
+        line-height: 1.4;
+        color: var(--vscode-descriptionForeground);
+        /* 移除了 margin-left，使描述和标题左对齐 */
+        word-wrap: break-word;
+        white-space: normal;
     }
 
     .tool-item input[type="checkbox"]:disabled + label {
