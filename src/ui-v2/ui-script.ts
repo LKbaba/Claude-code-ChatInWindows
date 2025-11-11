@@ -1396,6 +1396,106 @@ export const uiScript = `
 			}
 		});
 
+		// ========== Plugins Modal Functions ==========
+
+	/**
+	 * 显示插件模态框
+	 * 向后端请求插件列表
+	 */
+	function showPluginsModal() {
+		console.log('[Plugins] showPluginsModal called');
+		// 显示模态框
+		document.getElementById('pluginsModal').style.display = 'flex';
+		// 向后端请求插件列表
+		console.log('[Plugins] Requesting plugin list from backend');
+		vscode.postMessage({ type: 'getInstalledPlugins' });
+	}
+
+	/**
+	 * 隐藏插件模态框
+	 */
+	function hidePluginsModal() {
+		document.getElementById('pluginsModal').style.display = 'none';
+	}
+
+	/**
+	 * 更新插件列表内容
+	 * @param {Array} plugins - 插件列表
+	 * @param {boolean} isRefresh - 是否是刷新操作
+	 */
+	function updatePluginsList(plugins, isRefresh) {
+		console.log('[Plugins] updatePluginsList called with', plugins?.length, 'plugins');
+
+		const listContainer = document.getElementById('pluginsList');
+		const infoContainer = document.getElementById('plugins-info');
+
+		// 更新插件列表
+		if (listContainer) {
+			listContainer.innerHTML = renderPluginsList(plugins);
+		}
+
+		// 更新信息栏
+		if (infoContainer) {
+			infoContainer.textContent = plugins.length + ' plugin(s) installed';
+		}
+
+		// 如果是刷新操作，恢复刷新按钮状态
+		if (isRefresh) {
+			const refreshBtn = document.getElementById('refresh-plugins-btn');
+			if (refreshBtn) {
+				refreshBtn.classList.remove('loading');
+				refreshBtn.disabled = false;
+			}
+		}
+	}
+
+	/**
+	 * 渲染插件列表
+	 * @param {Array} plugins - 插件列表
+	 * @returns {string} HTML 字符串
+	 */
+	function renderPluginsList(plugins) {
+		if (!plugins || plugins.length === 0) {
+			return '<div style="text-align: center; padding: 40px 20px; color: var(--vscode-descriptionForeground);">No plugins installed</div>';
+		}
+
+		return plugins.map(function(plugin) {
+			const displayName = plugin.name || 'Unknown Plugin';
+			const description = plugin.description || 'No description available';
+			return '<div class="tool-item">' +
+				'<input type="checkbox" checked disabled>' +
+				'<label>' +
+				'<div class="plugin-name">' + displayName + '</div>' +
+				'<div class="plugin-description">' + description + '</div>' +
+				'</label>' +
+				'</div>';
+		}).join('');
+	}
+
+	/**
+	 * 处理刷新按钮点击
+	 */
+	function handleRefreshPlugins() {
+		console.log('[Plugins] Refresh button clicked');
+		const refreshBtn = document.getElementById('refresh-plugins-btn');
+		if (refreshBtn) {
+			// 显示加载状态
+			refreshBtn.classList.add('loading');
+			refreshBtn.disabled = true;
+		}
+
+		// 向后端发送刷新请求
+		vscode.postMessage({ type: 'refreshPlugins' });
+	}
+
+	// 关闭插件模态框（点击背景）
+	document.getElementById('pluginsModal').addEventListener('click', function(e) {
+		if (e.target === document.getElementById('pluginsModal')) {
+			hidePluginsModal();
+		}
+	});
+
+	
 		// Model selector functions
 		let currentModel = 'opus'; // Default model
 
@@ -2198,6 +2298,10 @@ export const uiScript = `
 					break;
 				case 'customCommands':
 					displayCustomCommands(message.data);
+					break;
+				case 'pluginsList':
+					// 接收插件列表并显示模态框
+					updatePluginsList(message.data.plugins || [], message.data.refreshed);
 					break;
 				case 'operationHistory':
 					// Update operation history UI and sync currentOperations
@@ -3818,6 +3922,7 @@ export const uiScript = `
 		window.showFilePicker = showFilePicker;
 		window.showModelSelector = showModelSelector;
 		window.showToolsModal = showToolsModal;
+		window.showPluginsModal = showPluginsModal;
 		window.stopRequest = stopRequest;
 		window.switchStatsTab = switchStatsTab;
 		window.toggleSettings = toggleSettings;

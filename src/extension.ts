@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { EnvironmentChecker } from './utils/EnvironmentChecker';
 import { ClaudeChatViewProvider } from './providers/ClaudeChatViewProvider';
 import { ClaudeChatProvider } from './providers/ClaudeChatProvider';
+import { PluginManager } from './services/PluginManager';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// DEBUG: console.log('Claude Code Chat extension is being activated!');
@@ -32,6 +33,16 @@ export async function activate(context: vscode.ExtensionContext) {
 		} catch (error) {
 			console.error('[Extension] Error creating ~/.claude directory:', error);
 		}
+	}
+
+	// Initialize plugin manager
+	try {
+		const pluginManager = PluginManager.getInstance();
+		await pluginManager.loadInstalledPlugins();
+		console.log('[Extension] Plugin manager initialized successfully');
+	} catch (error) {
+		console.error('[Extension] Failed to initialize plugin manager:', error);
+		// Initialization failure should not block extension startup
 	}
 
 	const provider = new ClaudeChatProvider(context.extensionUri, context);

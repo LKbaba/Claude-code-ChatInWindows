@@ -237,6 +237,7 @@ export const buttonStyles = `
 }
 
 /* Tool Buttons */
+/* 注意：这些样式目前未被使用，实际样式在 index.ts 的 getStylesOld() 中 */
 .tools-btn {
   background-color: transparent;
   color: var(--vscode-foreground);

@@ -443,4 +443,26 @@ export const toolStyles = `
     transform: rotate(90deg);
   }
 }
+
+/* ===================================
+ * Plugin Display Styles
+ * =================================== */
+
+/* Plugin Name */
+.plugin-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-base);
+  color: var(--vscode-foreground);
+  margin-bottom: var(--space-xs);
+}
+
+/* Plugin Description */
+.plugin-description {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--vscode-descriptionForeground);
+  margin-left: 20px;
+  word-wrap: break-word;
+  white-space: normal;
+}
 `;

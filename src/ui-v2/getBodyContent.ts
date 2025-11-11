@@ -93,6 +93,13 @@ export function getBodyContent(): string {
 									<path d="M1 2.5l3 3 3-3"></path>
 								</svg>
 							</button>
+
+							<button class="plugins-btn" id="plugins-button" onclick="showPluginsModal()" title="View installed plugins">
+								Plugins: Installed
+								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
+									<path d="M1 2.5l3 3 3-3"></path>
+								</svg>
+							</button>
 						</div>
 						<div class="right-controls">
 							<button class="slash-btn" onclick="showSlashCommandsModal()" title="Slash commands">/</button>
@@ -253,6 +260,27 @@ export function getBodyContent(): string {
 					<input type="checkbox" id="tool-websearch" checked disabled>
 					<label for="tool-websearch">WebSearch - Search the web</label>
 				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Plugins modal -->
+	<div id="pluginsModal" class="tools-modal" style="display: none;">
+		<div class="tools-modal-content">
+			<div class="tools-modal-header">
+				<span>Installed Plugins</span>
+				<div style="display: flex; gap: 8px; align-items: center;">
+					<button class="btn outlined" id="refresh-plugins-btn" onclick="handleRefreshPlugins()" title="Refresh plugin list" style="font-size: 11px; padding: 2px 8px; position: relative;">
+						Refresh
+					</button>
+					<button class="tools-close-btn" onclick="hidePluginsModal()">✕</button>
+				</div>
+			</div>
+			<div class="plugins-info" id="plugins-info">
+				Loading plugins...
+			</div>
+			<div id="pluginsList" class="tools-list">
+				<!-- 插件列表将动态填充到这里 -->
 			</div>
 		</div>
 	</div>

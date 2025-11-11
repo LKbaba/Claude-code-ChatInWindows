@@ -1363,7 +1363,8 @@ function getStylesOld(): string {
         opacity: 1;
     }
 
-    .tools-btn {
+    .tools-btn,
+    .plugins-btn {
         background-color: rgba(128, 128, 128, 0.15);
         color: var(--vscode-foreground);
         border: none;
@@ -1379,7 +1380,8 @@ function getStylesOld(): string {
         gap: 4px;
     }
 
-    .tools-btn:hover {
+    .tools-btn:hover,
+    .plugins-btn:hover {
         background-color: rgba(128, 128, 128, 0.25);
         opacity: 1;
     }
@@ -1700,6 +1702,15 @@ function getStylesOld(): string {
 
     .tool-item input[type="checkbox"]:disabled + label {
         opacity: 0.7;
+    }
+
+    /* Plugins modal info bar */
+    .plugins-info {
+        padding: 12px 20px;
+        background-color: var(--vscode-editorWidget-background);
+        border-bottom: 1px solid var(--vscode-panel-border);
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
     }
 
     /* Model selection specific styles */
