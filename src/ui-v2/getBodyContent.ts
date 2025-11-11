@@ -94,8 +94,8 @@ export function getBodyContent(): string {
 								</svg>
 							</button>
 
-							<button class="plugins-btn" id="plugins-button" onclick="showPluginsModal()" title="View installed plugins">
-								Plugins: Installed
+							<button class="plugins-btn" id="plugins-button" onclick="showPluginsModal()" title="View all plugins">
+								Plugins: All
 								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
 									<path d="M1 2.5l3 3 3-3"></path>
 								</svg>
