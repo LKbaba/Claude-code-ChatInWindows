@@ -446,17 +446,31 @@ export const toolStyles = `
 
 /* ===================================
  * Plugin Display Styles
+ * ===================================
+ * ⚠️ 重要提示：这些样式当前没有被使用！
+ *
+ * 原因：index.ts 中的 getStylesWithEnhancements() 函数
+ * 使用的是 getStylesOld() 而不是 getCombinedStyles()，
+ * 因此这个文件中的样式不会被包含在最终的 HTML 中。
+ *
+ * 实际生效的样式位置：src/ui-v2/index.ts (约1703-1729行)
+ *
+ * 如果需要修改插件显示样式，请直接修改 index.ts 中的
+ * getStylesOld() 函数内的对应样式定义。
+ *
+ * TODO: 未来重构时，应该让 getStylesWithEnhancements()
+ * 使用 getCombinedStyles()，这样这里的样式就会生效。
  * =================================== */
 
-/* Plugin Name */
+/* 插件名称（当前未使用） */
 .plugin-name {
   font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-base);
+  font-size: 18px;
   color: var(--vscode-foreground);
   margin-bottom: var(--space-xs);
 }
 
-/* Plugin Description */
+/* 插件描述（当前未使用） */
 .plugin-description {
   font-size: 11px;
   line-height: 1.4;
