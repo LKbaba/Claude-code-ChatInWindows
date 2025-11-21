@@ -321,6 +321,9 @@ export function getBodyContent(): string {
 							<button class="btn outlined" onclick="addMcpServer()" style="font-size: 12px; padding: 4px 8px;">
 								+ Add MCP Server
 							</button>
+							<button class="btn outlined" onclick="addHttpMcpServer()" style="font-size: 12px; padding: 4px 8px;">
+								+ Add MCP Server(Http)
+							</button>
 							<select id="mcpTemplateSelector" onchange="addMcpFromTemplate()" style="font-size: 12px; padding: 4px 8px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); border-radius: 4px;">
 								<option value="">Add from template...</option>
 								<option value="sequential-thinking">Sequential Thinking</option>
@@ -798,4 +801,81 @@ export function getBodyContent(): string {
 		</div>
 	</div>
   `;
+}
+
+/**
+ * Generate HTML for HTTP/SSE MCP server configuration form
+ * @returns HTML string
+ */
+export function getHttpMcpServerFormHtml(): string {
+	return `
+		<div class="mcp-server-form http-form" style="padding: 12px; background: var(--vscode-editor-background);">
+			<!-- Server type indicator -->
+			<div style="margin-bottom: 12px; color: var(--vscode-descriptionForeground); font-size: 11px;">
+				HTTP/SSE Server
+			</div>
+
+			<!-- Server Name -->
+			<div class="form-group" style="margin-bottom: 12px;">
+				<label style="display: block; margin-bottom: 4px; font-size: 12px;">Server Name *</label>
+				<input type="text"
+					   class="mcp-server-name"
+					   placeholder="e.g., my-http-server"
+					   style="width: 100%; padding: 4px 8px; font-size: 12px;
+							  background: var(--vscode-input-background);
+							  color: var(--vscode-input-foreground);
+							  border: 1px solid var(--vscode-input-border);
+							  border-radius: 2px;">
+			</div>
+
+			<!-- Transport Type -->
+			<div class="form-group" style="margin-bottom: 12px;">
+				<label style="display: block; margin-bottom: 4px; font-size: 12px;">Transport Type *</label>
+				<div style="display: flex; gap: 16px;">
+					<label style="font-size: 12px; cursor: pointer;">
+						<input type="radio" name="transport-type" value="http" checked> HTTP
+					</label>
+					<label style="font-size: 12px; cursor: pointer;">
+						<input type="radio" name="transport-type" value="sse"> SSE
+					</label>
+				</div>
+			</div>
+
+			<!-- Server URL -->
+			<div class="form-group" style="margin-bottom: 12px;">
+				<label style="display: block; margin-bottom: 4px; font-size: 12px;">Server URL *</label>
+				<input type="url"
+					   class="mcp-server-url"
+					   placeholder="http://example.com:3000/mcp"
+					   style="width: 100%; padding: 4px 8px; font-size: 12px;
+							  background: var(--vscode-input-background);
+							  color: var(--vscode-input-foreground);
+							  border: 1px solid var(--vscode-input-border);
+							  border-radius: 2px;">
+			</div>
+
+			<!-- Headers -->
+			<div class="form-group" style="margin-bottom: 12px;">
+				<label style="display: block; margin-bottom: 4px; font-size: 12px;">HTTP Headers (Optional)</label>
+				<div class="headers-container" style="background: var(--vscode-input-background);
+													  border: 1px solid var(--vscode-input-border);
+													  border-radius: 2px; padding: 8px; min-height: 40px;
+													  max-height: 200px; overflow-y: auto;">
+					<!-- Headers will be dynamically added here -->
+				</div>
+				<button class="btn outlined add-header-btn"
+						style="font-size: 11px; padding: 2px 8px; margin-top: 8px;">
+					+ Add Header
+				</button>
+			</div>
+
+			<!-- Security warning -->
+			<div style="margin-top: 12px; padding: 8px;
+						background: var(--vscode-inputValidation-warningBackground);
+						border-left: 3px solid var(--vscode-inputValidation-warningBorder);
+						font-size: 11px; color: var(--vscode-inputValidation-warningForeground);">
+				⚠️ Warning: Sensitive information (e.g., Authorization tokens) will be saved in your local settings.json file. Please keep it secure.
+			</div>
+		</div>
+	`;
 }

@@ -2439,9 +2439,14 @@ export const uiScript = `
 				serversList.innerHTML = ''; // Clear existing servers
 				mcpServerCount = 0; // Reset counter
 				mcpServerExpandStates.clear(); // Clear expansion states
-				
+
 				mcpServers.forEach(server => {
-					addMcpServer(server);
+					// 根据服务器类型调用不同的函数
+					if (server.type === 'http' || server.type === 'sse') {
+						addHttpMcpServer(server);
+					} else {
+						addMcpServer(server);
+					}
 				});
 				
 				// Load API configuration
@@ -3451,7 +3456,308 @@ export const uiScript = `
 				return div;
 			}
 		}
-		
+
+		// ===== HTTP/SSE MCP Server Functions =====
+		function addHttpMcpServer(serverConfig = null) {
+			mcpServerCount++;
+			const serverId = 'mcp-server-' + mcpServerCount;
+			const serversList = document.getElementById('mcpServersList');
+
+			// Initialize to collapsed state
+			mcpServerExpandStates.set(serverId, false);
+
+			const serverDiv = document.createElement('div');
+			serverDiv.className = 'mcp-server-item http-server';
+			serverDiv.id = serverId;
+			serverDiv.setAttribute('data-server-type', serverConfig?.type || 'http');
+			serverDiv.style.cssText = 'border: 1px solid var(--vscode-panel-border); border-radius: 4px; margin-bottom: 12px; overflow: hidden; transition: box-shadow 0.2s;';
+
+			// Create always-visible header section
+			const headerDiv = document.createElement('div');
+			headerDiv.className = 'mcp-server-header';
+			headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; cursor: pointer; user-select: none; transition: background-color 0.2s;';
+
+			// Add mouse hover effect
+			headerDiv.onmouseenter = () => {
+				headerDiv.style.backgroundColor = 'var(--vscode-list-hoverBackground)';
+			};
+			headerDiv.onmouseleave = () => {
+				headerDiv.style.backgroundColor = 'transparent';
+			};
+
+			// Left side: expand icon + server name
+			const titleSection = document.createElement('div');
+			titleSection.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+
+			// Expand/collapse icon
+			const expandIcon = document.createElement('span');
+			expandIcon.className = 'mcp-expand-icon';
+			expandIcon.style.cssText = 'display: inline-block; width: 12px; transition: transform 0.2s; font-size: 10px; color: var(--vscode-charts-green);';
+			expandIcon.textContent = '▶';
+
+			// Server name (dynamic update) - removed typeIcon
+			const serverNameDisplay = document.createElement('span');
+			serverNameDisplay.className = 'mcp-server-name-display';
+			serverNameDisplay.style.cssText = 'font-size: 13px; font-weight: 500;';
+			serverNameDisplay.textContent = serverConfig?.name || 'my-http-server';
+
+			titleSection.appendChild(expandIcon);
+			titleSection.appendChild(serverNameDisplay);
+
+			// 右侧：操作按钮
+			const buttonsDiv = document.createElement('div');
+			buttonsDiv.style.cssText = 'display: flex; gap: 4px;';
+
+			const viewToolsBtn = document.createElement('button');
+			viewToolsBtn.className = 'btn outlined';
+			viewToolsBtn.style.cssText = 'font-size: 11px; padding: 3px 8px; min-height: 22px;';
+			viewToolsBtn.textContent = 'View Tools';
+			viewToolsBtn.onclick = (e) => {
+				e.stopPropagation();
+				toggleMcpTools(serverId);
+			};
+
+			const removeBtn = document.createElement('button');
+			removeBtn.className = 'btn outlined';
+			removeBtn.style.cssText = 'font-size: 11px; padding: 3px 8px; min-height: 22px;';
+			removeBtn.textContent = 'Remove';
+			removeBtn.onclick = (e) => {
+				e.stopPropagation();
+				removeMcpServer(serverId);
+			};
+
+			buttonsDiv.appendChild(viewToolsBtn);
+			buttonsDiv.appendChild(removeBtn);
+
+			headerDiv.appendChild(titleSection);
+			headerDiv.appendChild(buttonsDiv);
+
+			// 创建可折叠的详情部分
+			const detailsDiv = document.createElement('div');
+			detailsDiv.className = 'mcp-server-details';
+			detailsDiv.style.cssText = 'max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out;';
+
+			const detailsContent = document.createElement('div');
+			detailsContent.style.cssText = 'padding: 0 12px 12px 12px;';
+
+			const fieldsDiv = document.createElement('div');
+			fieldsDiv.style.cssText = 'display: grid; gap: 8px;';
+
+			// Name field
+			const nameDiv = createHttpField('Name', 'mcp-server-name', 'my-http-server', serverConfig?.name || '');
+			const nameInput = nameDiv.querySelector('input');
+			nameInput.oninput = () => {
+				serverNameDisplay.textContent = nameInput.value || 'my-http-server';
+			};
+
+			// Transport Type field
+			const typeDiv = createHttpTypeField(serverConfig?.type || 'http');
+
+			// URL field
+			const urlDiv = createHttpField('Server URL', 'mcp-server-url', 'http://example.com:3000/mcp', serverConfig?.url || '');
+
+			fieldsDiv.appendChild(nameDiv);
+			fieldsDiv.appendChild(typeDiv);
+			fieldsDiv.appendChild(urlDiv);
+
+			// Headers section
+			const headersSection = document.createElement('div');
+			headersSection.className = 'headers-section';
+			headersSection.style.cssText = 'margin-top: 8px;';
+
+			const headersLabel = document.createElement('label');
+			headersLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 11px; color: var(--vscode-descriptionForeground);';
+			headersLabel.textContent = 'HTTP Headers (Optional)';
+
+			const headersContainer = document.createElement('div');
+			headersContainer.className = 'headers-container';
+			headersContainer.style.cssText = 'display: grid; gap: 4px;';
+
+			// If saved headers exist, render them
+			if (serverConfig?.headers) {
+				Object.entries(serverConfig.headers).forEach(([key, value]) => {
+					addHeaderRow(headersContainer, key, value);
+				});
+			}
+
+			const addHeaderBtn = document.createElement('button');
+			addHeaderBtn.className = 'btn outlined';
+			addHeaderBtn.style.cssText = 'font-size: 11px; padding: 4px 8px; margin-top: 4px;';
+			addHeaderBtn.textContent = '+ Add Header';
+			addHeaderBtn.onclick = () => addHeaderRow(headersContainer, '', '');
+
+			headersSection.appendChild(headersLabel);
+			headersSection.appendChild(headersContainer);
+			headersSection.appendChild(addHeaderBtn);
+
+			fieldsDiv.appendChild(headersSection);
+
+			// Security warning
+			const warningDiv = document.createElement('div');
+			warningDiv.style.cssText = 'margin-top: 8px; padding: 8px; background: var(--vscode-inputValidation-warningBackground); border: 1px solid var(--vscode-inputValidation-warningBorder); border-radius: 4px; font-size: 11px;';
+			warningDiv.innerHTML = '⚠️ Warning: Sensitive information (e.g., Authorization tokens) will be saved in your local settings.json file. Please keep it secure.';
+
+			fieldsDiv.appendChild(warningDiv);
+			detailsContent.appendChild(fieldsDiv);
+
+			// Tools section
+			const toolsSection = document.createElement('div');
+			toolsSection.id = \`tools-\${serverId}\`;
+			toolsSection.style.cssText = 'display: none; margin-top: 12px; padding: 12px; background: var(--vscode-editor-background); border-radius: 4px;';
+			toolsSection.innerHTML = '<p style="text-align: center; color: var(--vscode-descriptionForeground);">Loading tools...</p>';
+
+			detailsContent.appendChild(toolsSection);
+			detailsDiv.appendChild(detailsContent);
+
+			// Click header to toggle expand/collapse
+			headerDiv.onclick = (e) => {
+				if (e.target instanceof HTMLButtonElement) return;
+
+				const isExpanded = mcpServerExpandStates.get(serverId);
+				mcpServerExpandStates.set(serverId, !isExpanded);
+
+				if (!isExpanded) {
+					expandIcon.style.transform = 'rotate(90deg)';
+					detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
+					serverDiv.style.boxShadow = '0 0 0 1px var(--vscode-focusBorder)';
+				} else {
+					expandIcon.style.transform = 'rotate(0deg)';
+					detailsDiv.style.maxHeight = '0';
+					serverDiv.style.boxShadow = 'none';
+					if (toolsSection.style.display !== 'none') {
+						toolsSection.style.display = 'none';
+						viewToolsBtn.textContent = 'View Tools';
+					}
+				}
+			};
+
+			// Support keyboard operation
+			headerDiv.setAttribute('tabindex', '0');
+			headerDiv.onkeydown = (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					headerDiv.click();
+				}
+			};
+
+			serverDiv.appendChild(headerDiv);
+			serverDiv.appendChild(detailsDiv);
+			serversList.appendChild(serverDiv);
+
+			// Helper functions
+			function createHttpField(label, className, placeholder, value) {
+				const div = document.createElement('div');
+
+				const labelEl = document.createElement('label');
+				labelEl.style.cssText = 'display: block; margin-bottom: 4px; font-size: 11px; color: var(--vscode-descriptionForeground);';
+				labelEl.textContent = label;
+
+				const input = document.createElement('input');
+				input.type = 'text';
+				input.className = className + ' file-search-input';
+				input.style.cssText = 'width: 100%; box-sizing: border-box;';
+				input.placeholder = placeholder;
+				input.value = value;
+				input.onchange = updateSettings;
+
+				div.appendChild(labelEl);
+				div.appendChild(input);
+
+				return div;
+			}
+
+			function createHttpTypeField(selectedType) {
+				const div = document.createElement('div');
+
+				const labelEl = document.createElement('label');
+				labelEl.style.cssText = 'display: block; margin-bottom: 4px; font-size: 11px; color: var(--vscode-descriptionForeground);';
+				labelEl.textContent = 'Transport Type';
+
+				const radioContainer = document.createElement('div');
+				radioContainer.style.cssText = 'display: flex; gap: 16px;';
+
+				['http', 'sse'].forEach(type => {
+					const radioLabel = document.createElement('label');
+					radioLabel.style.cssText = 'display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer;';
+
+					const radio = document.createElement('input');
+					radio.type = 'radio';
+					radio.name = 'transport-type-' + serverId;
+					radio.value = type;
+					radio.className = 'mcp-transport-type';
+					radio.checked = type === selectedType;
+					radio.onchange = () => {
+						serverDiv.setAttribute('data-server-type', type);
+						updateSettings();
+					};
+
+					const text = document.createElement('span');
+					text.textContent = type.toUpperCase();
+
+					radioLabel.appendChild(radio);
+					radioLabel.appendChild(text);
+					radioContainer.appendChild(radioLabel);
+				});
+
+				div.appendChild(labelEl);
+				div.appendChild(radioContainer);
+
+				return div;
+			}
+
+			function addHeaderRow(container, key, value) {
+				const rowDiv = document.createElement('div');
+				rowDiv.style.cssText = 'display: flex; gap: 4px; align-items: center;';
+
+				const keyInput = document.createElement('input');
+				keyInput.type = 'text';
+				keyInput.className = 'header-key file-search-input';
+				keyInput.style.cssText = 'flex: 1;';
+				keyInput.placeholder = 'Header name (e.g., Authorization)';
+				keyInput.value = key;
+				keyInput.onchange = updateSettings;
+
+				const valueInput = document.createElement('input');
+				valueInput.type = 'text';
+				valueInput.className = 'header-value file-search-input';
+				valueInput.style.cssText = 'flex: 2;';
+				valueInput.placeholder = 'Header value (e.g., Bearer token...)';
+				valueInput.value = value;
+				valueInput.onchange = updateSettings;
+
+				const removeBtn = document.createElement('button');
+				removeBtn.className = 'btn outlined';
+				removeBtn.style.cssText = 'font-size: 11px; padding: 3px 6px;';
+				removeBtn.textContent = '×';
+				removeBtn.onclick = () => {
+					rowDiv.remove();
+					updateSettings();
+					// Recalculate expanded area height after removing header
+					updateDetailsHeight();
+				};
+
+				rowDiv.appendChild(keyInput);
+				rowDiv.appendChild(valueInput);
+				rowDiv.appendChild(removeBtn);
+				container.appendChild(rowDiv);
+
+				// Recalculate expanded area height after adding header
+				// Use setTimeout to ensure DOM update completes
+				setTimeout(() => updateDetailsHeight(), 0);
+
+				return rowDiv;
+			}
+
+			// Helper function: update expanded area height
+			function updateDetailsHeight() {
+				const isExpanded = mcpServerExpandStates.get(serverId);
+				if (isExpanded) {
+					// Only update height when expanded
+					detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
+				}
+			}
+		}
+
 		function removeMcpServer(serverId) {
 			const serverEl = document.getElementById(serverId);
 			if (serverEl) {
@@ -3707,39 +4013,85 @@ export const uiScript = `
 			const serverElements = document.querySelectorAll('.mcp-server-item');
 			console.log('Found server elements:', serverElements.length);
 			serverElements.forEach((serverEl) => {
+				const serverType = serverEl.getAttribute('data-server-type');
 				const nameInput = serverEl.querySelector('input.mcp-server-name');
-				const commandInput = serverEl.querySelector('input.mcp-server-command');
-				const argsInput = serverEl.querySelector('input.mcp-server-args');
-				const envInput = serverEl.querySelector('input.mcp-server-env');
-				
-				console.log('Server inputs found:', { nameInput, commandInput, argsInput, envInput });
-				
-				if (!nameInput || !commandInput) {
-					console.log('Missing required inputs, skipping server');
+
+				if (!nameInput || !nameInput.value) {
+					console.log('Missing name input, skipping server');
 					return;
 				}
-				
+
 				const name = nameInput.value;
-				const command = commandInput.value;
-				const args = argsInput ? argsInput.value : '';
-				const env = envInput ? envInput.value : '';
-				
-				if (name && command) {
-					const server = { name, command };
-					if (args) server.args = args.split(' ').filter(arg => arg.trim());
-					if (env) {
-						try {
-							server.env = JSON.parse(env);
-						} catch (e) {
-							// If JSON parsing fails, try key=value format
-							server.env = {};
-							env.split(',').forEach(pair => {
-								const [key, value] = pair.split('=').map(s => s.trim());
-								if (key && value) server.env[key] = value;
-							});
+
+				// ===== HTTP/SSE mode =====
+				if (serverType === 'http' || serverType === 'sse') {
+					const urlInput = serverEl.querySelector('input.mcp-server-url');
+
+					if (!urlInput || !urlInput.value) {
+						console.log('HTTP/SSE server missing URL, skipping');
+						return;
+					}
+
+					const server = {
+						name: name,
+						type: serverType,
+						url: urlInput.value
+					};
+
+					// Collect headers
+					const headerRows = serverEl.querySelectorAll('.headers-container > div');
+					if (headerRows.length > 0) {
+						const headers = {};
+						headerRows.forEach(row => {
+							const keyInput = row.querySelector('.header-key');
+							const valueInput = row.querySelector('.header-value');
+							if (keyInput && valueInput && keyInput.value && valueInput.value) {
+								headers[keyInput.value] = valueInput.value;
+							}
+						});
+						if (Object.keys(headers).length > 0) {
+							server.headers = headers;
 						}
 					}
+
 					mcpServers.push(server);
+					console.log('Added HTTP/SSE server:', server);
+				}
+				// ===== stdio mode (original logic) =====
+				else {
+					const commandInput = serverEl.querySelector('input.mcp-server-command');
+					const argsInput = serverEl.querySelector('input.mcp-server-args');
+					const envInput = serverEl.querySelector('input.mcp-server-env');
+
+					console.log('Server inputs found:', { nameInput, commandInput, argsInput, envInput });
+
+					if (!commandInput) {
+						console.log('Missing required command input, skipping server');
+						return;
+					}
+
+					const command = commandInput.value;
+					const args = argsInput ? argsInput.value : '';
+					const env = envInput ? envInput.value : '';
+
+					if (name && command) {
+						const server = { name, command };
+						if (args) server.args = args.split(' ').filter(arg => arg.trim());
+						if (env) {
+							try {
+								server.env = JSON.parse(env);
+							} catch (e) {
+								// If JSON parsing fails, try key=value format
+								server.env = {};
+								env.split(',').forEach(pair => {
+									const [key, value] = pair.split('=').map(s => s.trim());
+									if (key && value) server.env[key] = value;
+								});
+							}
+						}
+						mcpServers.push(server);
+						console.log('Added stdio server:', server);
+					}
 				}
 			});
 
@@ -3874,9 +4226,14 @@ export const uiScript = `
 				serversList.innerHTML = ''; // Clear existing servers
 				mcpServerCount = 0; // Reset counter
 				mcpServerExpandStates.clear(); // Clear expansion states
-				
+
 				mcpServers.forEach(server => {
-					addMcpServer(server);
+					// 根据服务器类型调用不同的函数
+					if (server.type === 'http' || server.type === 'sse') {
+						addHttpMcpServer(server);
+					} else {
+						addMcpServer(server);
+					}
 				});
 				
 				// Load API configuration
