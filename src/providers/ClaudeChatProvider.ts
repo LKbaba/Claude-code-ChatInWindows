@@ -1748,12 +1748,20 @@ export class ClaudeChatProvider {
 			} else {
 				// 动态查询失败，显示错误信息
 				console.log(`[MCP] Dynamic query failed or returned no tools for ${serverName}`);
+
+				// 根据服务器类型生成不同的错误信息
+				let errorDetails = '';
+				if (server.type === 'http' || server.type === 'sse') {
+					errorDetails = `URL: ${server.url}`;
+				} else {
+					errorDetails = `Command: ${server.command} ${server.args?.join(' ') || ''}`;
+				}
+
 				this._panel?.webview.postMessage({
 					type: 'mcpToolsData',
 					data: {
-						error: `Failed to retrieve tools from ${serverName}. The MCP server might not be running, not installed, or doesn't support tool discovery.`,
-						serverName: serverName,
-						command: `${server.command} ${server.args?.join(' ') || ''}`
+						error: `Failed to retrieve tools from ${serverName}. The MCP server might not be running, not installed, or doesn't support tool discovery.\n${errorDetails}`,
+						serverName: serverName
 					}
 				});
 			}
@@ -1843,6 +1851,12 @@ export class ClaudeChatProvider {
 		try {
 			console.log(`[MCP] Querying tools for server: ${server.name}`);
 
+			// ===== HTTP/SSE mode =====
+			if (server.type === 'http' || server.type === 'sse') {
+				return await this._queryHttpMcpServerTools(server);
+			}
+
+			// ===== stdio mode (original logic) =====
 			// Expand environment variables in command and args using expandVariables function
 			const command = expandVariables(server.command);
 			
@@ -2061,6 +2075,222 @@ export class ClaudeChatProvider {
 			console.error(`[MCP] Error querying server tools for ${server.name}:`, error);
 			return null;
 		}
+	}
+
+	/**
+	 * Query HTTP/SSE MCP server for available tools
+	 * @param server HTTP/SSE MCP server configuration
+	 * @returns Array of tools or null if failed
+	 */
+	private async _queryHttpMcpServerTools(server: any): Promise<any[] | null> {
+		try {
+			const https = require('https');
+			const http = require('http');
+			const url = require('url');
+
+			console.log(`[MCP] Querying HTTP/SSE server: ${server.name}`);
+
+			// Parse URL
+			const parsedUrl = url.parse(server.url);
+			const isHttps = parsedUrl.protocol === 'https:';
+			const httpModule = isHttps ? https : http;
+
+			// Prepare headers
+			// Server requires client to accept both application/json and text/event-stream
+			const headers: any = {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json, text/event-stream',
+				...server.headers
+			};
+
+			// Step 1: Initialize connection
+			const initRequest = {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'initialize',
+				params: {
+					protocolVersion: '2024-11-05',
+					clientInfo: {
+						name: 'claude-code-chatui',
+						version: '2.0.6'
+					},
+					capabilities: {}
+				}
+			};
+
+			// Send initialize request and get response (including headers)
+			const initResult = await this._sendHttpMcpRequest(httpModule, parsedUrl, headers, initRequest);
+			const initResponse = initResult.body;
+			const initResponseHeaders = initResult.headers;
+
+			if (!initResponse || !initResponse.result) {
+				console.error(`[MCP] Failed to initialize ${server.name}`);
+				return null;
+			}
+
+			console.log(`[MCP] ✓ ${server.name} initialized successfully`);
+
+			// Extract session ID if server returned one
+			let sessionId = initResponseHeaders['mcp-session-id'] || initResponseHeaders['MCP-Session-ID'];
+			if (sessionId) {
+				console.log(`[MCP] Session ID received: ${sessionId.substring(0, 8)}...`);
+				// Add session ID to subsequent requests
+				headers['mcp-session-id'] = sessionId;
+			}
+
+			// Check if server supports tools
+			if (!initResponse.result.capabilities?.tools) {
+				console.log(`[MCP] Server ${server.name} does not support tools`);
+				return [];
+			}
+
+			// Step 2: Send initialized notification (optional but good practice)
+			const initializedNotification = {
+				jsonrpc: '2.0',
+				method: 'notifications/initialized'
+			};
+			// Note: Notifications don't expect responses
+			await this._sendHttpMcpRequest(httpModule, parsedUrl, headers, initializedNotification).catch(() => {
+				// Silently ignore notification errors
+			});
+
+			// Step 3: Request tools list
+			const toolsRequest = {
+				jsonrpc: '2.0',
+				id: 2,
+				method: 'tools/list'
+			};
+
+			const toolsResult = await this._sendHttpMcpRequest(httpModule, parsedUrl, headers, toolsRequest);
+			const toolsResponse = toolsResult.body;
+
+			if (!toolsResponse || !toolsResponse.result) {
+				console.error(`[MCP] Failed to get tools from ${server.name}`);
+				return null;
+			}
+
+			const tools = toolsResponse.result.tools || [];
+			const toolList = tools.map((tool: any) => ({
+				name: tool.name || 'Unknown Tool',
+				description: tool.description || 'No description available.'
+			}));
+
+			console.log(`[MCP] ✓ Retrieved ${toolList.length} tool(s) from ${server.name}`);
+
+			return toolList;
+
+		} catch (error: any) {
+			console.error(`[MCP] Error querying HTTP/SSE server ${server.name}:`, error.message);
+			return null;
+		}
+	}
+
+	/**
+	 * Send HTTP request to MCP server
+	 * @param httpModule http or https module
+	 * @param parsedUrl Parsed URL object
+	 * @param headers Request headers
+	 * @param body Request body (JSON-RPC payload)
+	 * @returns Object containing response body and headers
+	 */
+	private _sendHttpMcpRequest(httpModule: any, parsedUrl: any, headers: any, body: any): Promise<{body: any, headers: any}> {
+		return new Promise((resolve, reject) => {
+			const postData = JSON.stringify(body);
+
+			const options = {
+				hostname: parsedUrl.hostname,
+				port: parsedUrl.port,
+				path: parsedUrl.path,
+				method: 'POST',
+				headers: {
+					...headers,
+					'Content-Length': Buffer.byteLength(postData)
+				}
+			};
+
+			const req = httpModule.request(options, (res: any) => {
+				let data = '';
+
+				res.on('data', (chunk: Buffer) => {
+					data += chunk.toString();
+				});
+
+				res.on('end', () => {
+					try {
+						// Check HTTP status code
+						// 2xx indicates success: 200 OK, 202 Accepted (common for notifications)
+						const isSuccess = res.statusCode >= 200 && res.statusCode < 300;
+
+						if (!isSuccess) {
+							console.error(`[MCP] HTTP ${res.statusCode} error`);
+							reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+							return;
+						}
+
+						// For notifications (no id), we don't expect a response
+						// HTTP 202 Accepted is common for notification requests
+						if (!body.id) {
+							resolve({ body: { success: true }, headers: res.headers });
+							return;
+						}
+
+						// Handle empty response (e.g., 202)
+						if (!data || data.trim().length === 0) {
+							resolve({ body: { success: true }, headers: res.headers });
+							return;
+						}
+
+						// Check response content type, handle SSE format
+						const contentType = res.headers['content-type'] || '';
+						let response: any;
+
+						if (contentType.includes('text/event-stream')) {
+							// SSE format: parse "data: {...}" line
+							// SSE format example:
+							// event: message
+							// data: {"result":{...},"jsonrpc":"2.0","id":1}
+
+							const lines = data.split('\n');
+							let jsonData = '';
+
+							for (const line of lines) {
+								const trimmedLine = line.trim();
+								if (trimmedLine.startsWith('data:')) {
+									// Extract JSON after data:
+									jsonData = trimmedLine.substring(5).trim();
+									break;
+								}
+							}
+
+							if (!jsonData) {
+								console.error(`[MCP] SSE response missing data field`);
+								reject(new Error('Invalid SSE response: no data field'));
+								return;
+							}
+
+							response = JSON.parse(jsonData);
+						} else {
+							// Pure JSON format
+							response = JSON.parse(data);
+						}
+
+						// Return response body and headers
+						resolve({ body: response, headers: res.headers });
+					} catch (error: any) {
+						console.error(`[MCP] Failed to parse response:`, error.message);
+						reject(error);
+					}
+				});
+			});
+
+			req.on('error', (error: any) => {
+				console.error(`[MCP] HTTP request error:`, error.message);
+				reject(error);
+			});
+
+			req.write(postData);
+			req.end();
+		});
 	}
 
 	private _setSelectedModel(model: string): void {

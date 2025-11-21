@@ -187,27 +187,45 @@
             "properties": {
               "name": {
                 "type": "string",
-                "description": "Server name"
+                "description": "MCP server name"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "stdio",
+                  "http",
+                  "sse"
+                ],
+                "default": "stdio",
+                "description": "Transport type: stdio (local process), http (HTTP protocol), sse (Server-Sent Events)"
               },
               "command": {
                 "type": "string",
-                "description": "Command to start the MCP server"
+                "description": "Start command (required for stdio mode)"
               },
               "args": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "description": "Command arguments"
+                "description": "Command arguments (stdio mode)"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Server URL (required for http/sse mode)"
+              },
+              "headers": {
+                "type": "object",
+                "description": "HTTP headers (optional for http/sse mode), such as authentication info"
               },
               "env": {
                 "type": "object",
-                "description": "Environment variables for the MCP server"
+                "description": "Environment variables"
               }
             },
             "required": [
-              "name",
-              "command"
+              "name"
             ]
           }
         },
