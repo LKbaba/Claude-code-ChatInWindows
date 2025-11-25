@@ -56,17 +56,20 @@ export class ClaudeChatProvider {
 
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
-		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],
-		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }], // Opus 4.1 latest flagship model
-		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],
-		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }], // Sonnet 4 latest model
-		['claude-3-5-sonnet-20241022', { input: 3.00, output: 15.00 }],
+		// Opus 系列模型定价
+		['claude-opus-4-5-20251101', { input: 5.00, output: 25.00 }],    // Opus 4.5 最新旗舰模型（降价66%）
+		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }],   // Opus 4.1 旗舰模型
+		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
+		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],     // Claude 3 Opus
+		// Sonnet 系列模型定价
+		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 最新智能模型
+		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }],    // Sonnet 4
+		['claude-3-5-sonnet-20241022', { input: 3.00, output: 15.00 }],  // Claude 3.5 Sonnet
 		['claude-3-5-sonnet-20240620', { input: 3.00, output: 15.00 }],
-		['claude-3-sonnet-20240229', { input: 3.00, output: 15.00 }],
-		['claude-3-haiku-20240307', { input: 0.25, output: 1.25 }],
-		// Add latest model pricing
-		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5
-		['claude-haiku-4-5-20251001', { input: 1.00, output: 5.00 }],     // Haiku 4.5
+		['claude-3-sonnet-20240229', { input: 3.00, output: 15.00 }],    // Claude 3 Sonnet
+		// Haiku 系列模型定价
+		['claude-haiku-4-5-20251001', { input: 1.00, output: 5.00 }],    // Haiku 4.5 高性价比模型
+		['claude-3-haiku-20240307', { input: 0.25, output: 1.25 }],      // Claude 3 Haiku
 	]);
 
 	constructor(
@@ -1155,6 +1158,38 @@ export class ClaudeChatProvider {
 		return `${messageId}_${requestId}`;
 	}
 
+	/**
+	 * 格式化模型名称以便在UI中显示
+	 * 解决 Sonnet 4.5、Haiku 4.5、Opus 4.5 显示名称不正确的问题
+	 */
+	private _formatModelName(modelId: string): string {
+		// 模型ID到显示名称的映射
+		const modelDisplayNames: { [key: string]: string } = {
+			// Opus 系列
+			'opus': 'Opus',
+			'claude-opus-4-5-20251101': 'Opus 4.5',
+			'claude-opus-4-1-20250805': 'Opus 4.1',
+			'claude-opus-4-20250514': 'Opus 4',
+			'claude-3-opus-20240229': 'Claude 3 Opus',
+			// Sonnet 系列
+			'sonnet': 'Sonnet',
+			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+			'claude-sonnet-4-20250514': 'Sonnet 4',
+			'claude-3-5-sonnet-20241022': 'Sonnet 3.5',
+			'claude-3-5-sonnet-20240620': 'Sonnet 3.5',
+			'claude-3-sonnet-20240229': 'Claude 3 Sonnet',
+			// Haiku 系列
+			'haiku': 'Haiku',
+			'claude-haiku-4-5-20251001': 'Haiku 4.5',
+			'claude-3-haiku-20240307': 'Claude 3 Haiku',
+			// 特殊模式
+			'opusplan': 'Opus Plan',
+			'default': 'Default'
+		};
+
+		return modelDisplayNames[modelId] || modelId;
+	}
+
 	private _aggregateStatistics(entries: any[], type: string): any {
 		// 使用静态 MODEL_PRICING Map 代替局部对象
 		// 提前退出：如果没有数据，直接返回
@@ -1425,7 +1460,8 @@ export class ClaudeChatProvider {
 			.map(([key, stats]) => {
 				const result: any = {
 					...stats,
-					models: Array.from(stats.models) // Convert Set to Array
+					// 格式化模型名称以正确显示 Sonnet 4.5、Haiku 4.5、Opus 4.5 等
+					models: Array.from(stats.models).map(modelId => this._formatModelName(modelId))
 				};
 				
 				if (type === 'blocks') {
@@ -2112,7 +2148,7 @@ export class ClaudeChatProvider {
 					protocolVersion: '2024-11-05',
 					clientInfo: {
 						name: 'claude-code-chatui',
-						version: '2.0.7'
+						version: '2.0.9'
 					},
 					capabilities: {}
 				}
@@ -2294,17 +2330,46 @@ export class ClaudeChatProvider {
 	}
 
 	private _setSelectedModel(model: string): void {
-		// Validate model name to prevent issues mentioned in the GitHub issue
+		// 验证模型名称以防止问题
 		if (VALID_MODELS.includes(model as ValidModel)) {
 			this._selectedModel = model;
 			// DEBUG: console.log('Model selected:', model);
-			
-			// Store the model preference in workspace state
+
+			// 在工作区状态中存储模型偏好
 			this._context.workspaceState.update('claude.selectedModel', model);
-			
-			// Show confirmation
-			const displayName = model === 'claude-opus-4-1-20250805' ? 'Opus 4.1' : model.charAt(0).toUpperCase() + model.slice(1);
-			vscode.window.showInformationMessage(`Claude model switched to: ${displayName}`);
+
+			// 获取显示名称
+			let displayName: string;
+			let message: string;
+
+			switch (model) {
+				case 'claude-opus-4-5-20251101':
+					displayName = 'Opus 4.5';
+					message = `Claude model switched to: ${displayName} (Latest flagship model, 66% cheaper than Opus 4.1)`;
+					break;
+				case 'claude-opus-4-1-20250805':
+					displayName = 'Opus 4.1';
+					message = `Claude model switched to: ${displayName}`;
+					break;
+				case 'opusplan':
+					displayName = 'Opus Plan';
+					message = `Claude model switched to: ${displayName}\n\n💡 Tip: Enable "Plan First" mode to use Opus for planning and Sonnet for execution. Without Plan First, it will use Sonnet for direct execution.`;
+					break;
+				case 'claude-sonnet-4-5-20250929':
+					displayName = 'Sonnet 4.5';
+					message = `Claude model switched to: ${displayName}`;
+					break;
+				case 'claude-haiku-4-5-20251001':
+					displayName = 'Haiku 4.5';
+					message = `Claude model switched to: ${displayName}`;
+					break;
+				default:
+					displayName = model.charAt(0).toUpperCase() + model.slice(1);
+					message = `Claude model switched to: ${displayName}`;
+			}
+
+			// 显示确认消息
+			vscode.window.showInformationMessage(message);
 		} else {
 			console.error('Invalid model selected:', model);
 			vscode.window.showErrorMessage(`Invalid model: ${model}. Please select one of: ${VALID_MODELS.join(', ')}.`);

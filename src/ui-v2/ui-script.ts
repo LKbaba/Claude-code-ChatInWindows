@@ -1917,51 +1917,61 @@ export const uiScript = `
 
 		function selectModel(model, fromBackend = false) {
 			currentModel = model;
-			
-			// Update the display text
+
+			// 更新显示文本
 			const displayNames = {
 				'opus': 'Opus',
 				'claude-opus-4-1-20250805': 'Opus 4.1',
+				'claude-opus-4-5-20251101': 'Opus 4.5',       // 新增 Opus 4.5
+				'opusplan': 'Opus Plan',                       // 新增 Opus Plan 混合模式
 				'sonnet': 'Sonnet',
-				'claude-sonnet-4-5-20250929': 'Sonnet 4.5',    // Added
-				'claude-haiku-4-5-20251001': 'Haiku 4.5',       // Added
+				'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+				'claude-haiku-4-5-20251001': 'Haiku 4.5',
 				'default': 'Model'
 			};
 			document.getElementById('selectedModel').textContent = displayNames[model] || model;
-			
-			// Only send model selection to VS Code extension if not from backend
+
+			// 仅在非后端触发时发送模型选择到 VS Code 扩展
 			if (!fromBackend) {
 				vscode.postMessage({
 					type: 'selectModel',
 					model: model
 				});
-				
-				// Save preference
+
+				// 保存用户偏好
 				localStorage.setItem('selectedModel', model);
 			}
-			
-			// Update radio button if modal is open
-			// Special handling for long model names
+
+			// 如果模态框打开，更新 radio 按钮状态
+			// 为长模型名称提供特殊处理
 			let radioId = 'model-' + model;
 			if (model === 'claude-opus-4-1-20250805') {
 				radioId = 'model-opus-4-1';
+			} else if (model === 'claude-opus-4-5-20251101') {
+				radioId = 'model-opus-4-5';
+			} else if (model === 'claude-sonnet-4-5-20250929') {
+				radioId = 'model-sonnet-4-5';
+			} else if (model === 'claude-haiku-4-5-20251001') {
+				radioId = 'model-haiku-4-5';
 			}
 			const radioButton = document.getElementById(radioId);
 			if (radioButton) {
 				radioButton.checked = true;
 			}
-			
+
 			hideModelModal();
 		}
 
-		// Initialize model display without sending message
-		currentModel = 'claude-sonnet-4-5-20250929';  // Default to Sonnet 4.5
+		// 初始化模型显示（不发送消息）
+		currentModel = 'claude-sonnet-4-5-20250929';  // 默认为 Sonnet 4.5
 		const displayNames = {
 			'opus': 'Opus',
 			'claude-opus-4-1-20250805': 'Opus 4.1',
+			'claude-opus-4-5-20251101': 'Opus 4.5',       // 新增 Opus 4.5
+			'opusplan': 'Opus Plan',                       // 新增 Opus Plan 混合模式
 			'sonnet': 'Sonnet',
-			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',    // Added
-			'claude-haiku-4-5-20251001': 'Haiku 4.5',       // Added
+			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+			'claude-haiku-4-5-20251001': 'Haiku 4.5',
 			'default': 'Default'
 		};
 		document.getElementById('selectedModel').textContent = displayNames[currentModel];
