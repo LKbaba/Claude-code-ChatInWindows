@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v2.0.7</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v2.0.9</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -429,6 +429,24 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+				<div class="tool-item" onclick="selectModel('claude-opus-4-5-20251101')">
+					<input type="radio" name="model" id="model-opus-4-5" value="claude-opus-4-5-20251101">
+					<label for="model-opus-4-5">
+						<div class="model-title">Opus 4.5 - Latest flagship model</div>
+						<div class="model-description">
+							Best for coding, 66% cheaper than 4.1
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectModel('opusplan')">
+					<input type="radio" name="model" id="model-opusplan" value="opusplan">
+					<label for="model-opusplan">
+						<div class="model-title">Opus Plan - Smart hybrid mode</div>
+						<div class="model-description">
+							Uses Opus for planning, Sonnet for code
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" onclick="selectModel('sonnet')">
 					<input type="radio" name="model" id="model-sonnet" value="sonnet">
 					<label for="model-sonnet">
@@ -458,16 +476,11 @@ export function getBodyContent(): string {
 				</div>
 				<div class="tool-item" onclick="selectModel('default')">
 					<input type="radio" name="model" id="model-default" value="default">
-					<label for="model-default" class="default-model-layout">
-						<div class="model-option-content">
-							<div class="model-title">Default - User configured</div>
-							<div class="model-description">
-								Uses the model configured in your settings
-							</div>
+					<label for="model-default">
+						<div class="model-title">Default - User configured</div>
+						<div class="model-description">
+							Uses the model configured in your settings
 						</div>
-						<button class="secondary-button configure-button" onclick="event.stopPropagation(); openModelTerminal();">
-							Configure
-						</button>
 					</label>
 				</div>
 			</div>

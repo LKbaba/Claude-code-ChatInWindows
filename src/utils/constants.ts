@@ -9,9 +9,11 @@ export const VALID_MODELS = [
     'opus',
     'sonnet',
     'default',
-    'claude-opus-4-1-20250805',
-    'claude-sonnet-4-5-20250929',    // 新增 Sonnet 4.5
-    'claude-haiku-4-5-20251001'      // 新增 Haiku 4.5
+    'opusplan',                       // 新增 Opus Plan 混合模式
+    'claude-opus-4-5-20251101',       // 新增 Opus 4.5
+    'claude-opus-4-1-20250805',       // 保留 Opus 4.1
+    'claude-sonnet-4-5-20250929',     // 新增 Sonnet 4.5
+    'claude-haiku-4-5-20251001'       // 新增 Haiku 4.5
 ] as const;
 export type ValidModel = typeof VALID_MODELS[number];
 
