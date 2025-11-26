@@ -998,7 +998,7 @@ export const uiScript = `
 			if (toolName && toolName.startsWith('mcp__')) {
 				// Provide default icons for different types of MCP tools
 				if (toolName.includes('thinking')) return '🧠';
-				if (toolName.includes('gemini')) return '🔮';  // Crystal ball icon for Gemini AI tools
+				if (toolName.includes('gemini')) return '💫';  // Sparkle icon for Gemini AI tools
 				if (toolName.includes('search')) return '🔍';
 				if (toolName.includes('database') || toolName.includes('sql')) return '🗄️';
 				if (toolName.includes('file')) return '📁';
