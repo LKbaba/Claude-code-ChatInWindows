@@ -2466,6 +2466,12 @@ export const uiScript = `
 				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
 			}
 
+			// Handle Gemini Integration config message
+			if (message.type === 'geminiIntegrationConfig') {
+				console.log('[Gemini] Received config:', message.data);
+				initGeminiIntegration(message.data);
+			}
+
 			if (message.type === 'platformInfo') {
 				// Check if user is on Windows and show WSL alert if not dismissed and WSL not already enabled
 				if (message.data.isWindows && !message.data.wslAlertDismissed && !message.data.wslEnabled) {
@@ -2476,7 +2482,7 @@ export const uiScript = `
 				}
 			}
 		});
-		
+
 		// Session management functions
 		function newSession() {
 			// Reset context window immediately
@@ -3964,6 +3970,17 @@ export const uiScript = `
 					command: 'npx',
 					args: ['shadcn@latest', 'mcp'],
 					env: {}
+				},
+				// Gemini AI 助手 - 提供 UI 生成、多模态分析等 AI 能力
+				'gemini-assistant': {
+					name: 'gemini-assistant',
+					command: 'npx',
+					args: ['-y', 'github:LKbaba/Gemini-mcp'],
+					env: {
+						// 占位符，提示用户需要配置真实的 API Key
+						// 可以在 Gemini Integration 区域安全地设置真实密钥
+						'GEMINI_API_KEY': 'xxxxxxx'
+					}
 				}
 			};
 			
@@ -3989,6 +4006,74 @@ export const uiScript = `
 				}, 100);
 			}
 		}
+
+		// ==================== Gemini Integration 相关函数 ====================
+
+		/**
+		 * 切换 Gemini Integration 选项的显示/隐藏
+		 */
+		function toggleGeminiOptions() {
+			const geminiEnabled = document.getElementById('gemini-enabled').checked;
+			document.getElementById('geminiOptions').style.display = geminiEnabled ? 'block' : 'none';
+
+			// Send message to Extension to update enabled status
+			vscode.postMessage({
+				type: 'updateGeminiIntegration',
+				enabled: geminiEnabled
+			});
+
+			console.log('[Gemini] Integration status updated:', geminiEnabled);
+		}
+
+		/**
+		 * Update Gemini API Key
+		 */
+		function updateGeminiApiKey() {
+			const apiKeyInput = document.getElementById('gemini-api-key');
+			const apiKey = apiKeyInput.value.trim();
+
+			if (!apiKey) {
+				console.log('[Gemini] API Key is empty, not saving');
+				return;
+			}
+
+			// Basic format validation
+			if (!apiKey.startsWith('AIza') || apiKey.length < 35) {
+				console.warn('[Gemini] API Key format may be incorrect');
+			}
+
+			// Send message to Extension to save API Key
+			vscode.postMessage({
+				type: 'updateGeminiApiKey',
+				apiKey: apiKey
+			});
+
+			console.log('[Gemini] API Key sent to Extension for secure storage');
+		}
+
+		/**
+		 * Initialize Gemini Integration settings
+		 * @param {Object} config - Config object containing enabled and hasApiKey
+		 */
+		function initGeminiIntegration(config) {
+			const checkbox = document.getElementById('gemini-enabled');
+			const optionsDiv = document.getElementById('geminiOptions');
+			const apiKeyInput = document.getElementById('gemini-api-key');
+
+			if (checkbox && config) {
+				checkbox.checked = config.enabled || false;
+				optionsDiv.style.display = config.enabled ? 'block' : 'none';
+
+				// If API Key exists, show masked placeholder
+				if (config.hasApiKey && apiKeyInput) {
+					apiKeyInput.placeholder = config.maskedKey || 'AIza••••••••••••••••••••';
+				}
+			}
+
+			console.log('[Gemini] Integration initialization complete:', config);
+		}
+
+		// ==================== API Configuration 相关函数 ====================
 
 		function toggleApiOptions() {
 			const useCustomAPI = document.getElementById('api-useCustomAPI').checked;
@@ -4253,6 +4338,12 @@ export const uiScript = `
 				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
 			}
 
+			// Handle Gemini Integration config message
+			if (message.type === 'geminiIntegrationConfig') {
+				console.log('[Gemini] Received config:', message.data);
+				initGeminiIntegration(message.data);
+			}
+
 			if (message.type === 'platformInfo') {
 				// Check if user is on Windows and show WSL alert if not dismissed and WSL not already enabled
 				if (message.data.isWindows && !message.data.wslAlertDismissed && !message.data.wslEnabled) {
@@ -4284,8 +4375,8 @@ export const uiScript = `
 		window.executeCustomCommand = executeCustomCommand;
 		window.executeSlashCommand = executeSlashCommand;
 
-		// 验证自定义命令函数是否正确挂载
-		console.log('[UI初始化] 自定义命令函数挂载状态:');
+		// Verify custom command functions are properly mounted
+		console.log('[UI Init] Custom command function mount status:');
 		console.log('  - editCustomCommand:', typeof window.editCustomCommand);
 		console.log('  - deleteCustomCommand:', typeof window.deleteCustomCommand);
 		console.log('  - executeCustomCommand:', typeof window.executeCustomCommand);
@@ -4313,6 +4404,10 @@ export const uiScript = `
 		window.toggleStats = toggleStats;
 		window.toggleConversationHistory = toggleConversationHistory;
 		window.toggleApiOptions = toggleApiOptions;
+		// Gemini Integration 函数挂载
+		window.toggleGeminiOptions = toggleGeminiOptions;
+		window.updateGeminiApiKey = updateGeminiApiKey;
+		window.initGeminiIntegration = initGeminiIntegration;
 		// Operation History Functions
 		let currentOperations = [];
 

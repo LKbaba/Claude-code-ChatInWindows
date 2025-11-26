@@ -20,6 +20,7 @@ import { expandVariables } from '../utils/configUtils';
 import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
+import { secretService, SecretService } from '../services/SecretService';
 
 // 计算模式设置接口
 interface ComputeModeSettings {
@@ -315,6 +316,16 @@ export class ClaudeChatProvider {
 					case 'compactConversation':
 						this._compactConversation(message.languageMode, message.selectedLanguage);
 						return;
+					// Gemini Integration 相关消息处理
+					case 'updateGeminiIntegration':
+						this._updateGeminiIntegration(message.enabled);
+						return;
+					case 'updateGeminiApiKey':
+						this._updateGeminiApiKey(message.apiKey);
+						return;
+					case 'getGeminiIntegration':
+						this._sendGeminiIntegrationConfig();
+						return;
 				}
 			},
 			null,
@@ -371,6 +382,9 @@ export class ClaudeChatProvider {
 				type: 'extensionVersion',
 				version: version
 			});
+
+			// 发送 Gemini Integration 配置到 webview
+			this._sendGeminiIntegrationConfig();
 
 		}, 100);
 	}
@@ -982,10 +996,10 @@ export class ClaudeChatProvider {
 						});
 					});
 				} else {
-					throw new Error('无法找到可用的 glob 函数');
+					throw new Error('Unable to find available glob function');
 				}
 			} catch (globError) {
-				console.error('Glob 加载失败，使用备用方案:', globError);
+				console.error('Glob loading failed, using fallback:', globError);
 				// 备用方案：使用 VS Code API
 				const vscodeFiles = await vscode.workspace.findFiles(
 					new vscode.RelativePattern(claudeDir, '**/*.jsonl'),
@@ -1027,12 +1041,12 @@ export class ClaudeChatProvider {
 						const cachedEntries = this._statisticsCache.getCachedEntries(file);
 						if (cachedEntries) {
 							allEntries.push(...cachedEntries);
-							console.log(`[Statistics] 使用缓存数据: ${file} (${cachedEntries.length} 条)`);
+							console.log(`[Statistics] Using cached data: ${file} (${cachedEntries.length} entries)`);
 							return;
 						}
 					}
 					
-					console.log(`[Statistics] 读取文件: ${file}`);
+					console.log(`[Statistics] Reading file: ${file}`);
 					const fileEntries: StatisticsEntry[] = [];
 					const fileSize = stats.size;
 					
@@ -1118,18 +1132,18 @@ export class ClaudeChatProvider {
 					}
 					
 				} catch (e) {
-					console.warn(`跳过无法读取的文件: ${file}`, e);
+					console.warn(`Skipping unreadable file: ${file}`, e);
 				}
 			}));
 			
 			// 输出缓存统计信息
 			const cacheStats = this._statisticsCache.getCacheStats();
-			console.log(`[Statistics] 缓存统计 - 文件: ${cacheStats.fileCacheSize}, 哈希: ${cacheStats.processedHashesSize}`);
+			console.log(`[Statistics] Cache stats - files: ${cacheStats.fileCacheSize}, hashes: ${cacheStats.processedHashesSize}`);
 			
 			// 聚合数据
-			console.log(`[Statistics] 准备聚合 ${allEntries.length} 条数据，类型: ${type}`);
+			console.log(`[Statistics] Aggregating ${allEntries.length} entries, type: ${type}`);
 			const result = this._aggregateStatistics(allEntries, type);
-			console.log(`[Statistics] 聚合完成，结果包含 ${result.rows.length} 行`);
+			console.log(`[Statistics] Aggregation complete, result contains ${result.rows.length} rows`);
 			
 			// 缓存聚合结果
 			this._statisticsCache.updateAggregatedCache(cacheKey, type, result);
@@ -1137,7 +1151,7 @@ export class ClaudeChatProvider {
 			return result;
 			
 		} catch (error) {
-			console.error('加载统计数据时出错:', error);
+			console.error('Error loading statistics:', error);
 			throw error;
 		}
 	}
@@ -1390,7 +1404,7 @@ export class ClaudeChatProvider {
 			const stats = aggregated.get(key);
 			// TypeScript 类型保护：确保 stats 不是 undefined
 			if (!stats) {
-				console.error(`统计数据未找到，键: ${key}`);
+				console.error(`Statistics data not found, key: ${key}`);
 				return;
 			}
 			
@@ -1452,8 +1466,8 @@ export class ClaudeChatProvider {
 		});
 		
 		// 输出调试信息
-		console.log(`[Statistics] ${type} 统计找到的唯一键: ${debugKeys.size} 个`);
-		console.log(`[Statistics] ${type} 键列表:`, Array.from(debugKeys).sort());
+		console.log(`[Statistics] ${type} statistics found unique keys: ${debugKeys.size}`);
+		console.log(`[Statistics] ${type} key list:`, Array.from(debugKeys).sort());
 		
 		// Convert to array and sort
 		const rows = Array.from(aggregated.entries())
@@ -1721,7 +1735,72 @@ export class ClaudeChatProvider {
 			vscode.window.showErrorMessage('Failed to update settings');
 		}
 	}
-	
+
+	// ==================== Gemini Integration 相关方法 ====================
+
+	/**
+	 * 更新 Gemini Integration 启用状态
+	 */
+	private async _updateGeminiIntegration(enabled: boolean): Promise<void> {
+		try {
+			await secretService.setGeminiIntegrationEnabled(enabled);
+			console.log('[Gemini] Integration status updated:', enabled);
+
+			if (enabled) {
+				vscode.window.showInformationMessage('Gemini Integration enabled. API key will be automatically injected.');
+			}
+		} catch (error) {
+			console.error('[Gemini] Failed to update Integration status:', error);
+			vscode.window.showErrorMessage('Failed to update Gemini Integration settings');
+		}
+	}
+
+	/**
+	 * 更新 Gemini API Key（安全存储）
+	 */
+	private async _updateGeminiApiKey(apiKey: string): Promise<void> {
+		try {
+			// 验证 API Key 格式
+			if (!SecretService.isValidGeminiApiKeyFormat(apiKey)) {
+				vscode.window.showWarningMessage('Gemini API key format may be incorrect. Keys typically start with "AIza".');
+			}
+
+			await secretService.setGeminiApiKey(apiKey);
+			console.log('[Gemini] API Key stored securely');
+			vscode.window.showInformationMessage('Gemini API key saved securely');
+
+			// 发送更新后的配置到 webview
+			this._sendGeminiIntegrationConfig();
+		} catch (error) {
+			console.error('[Gemini] Failed to save API Key:', error);
+			vscode.window.showErrorMessage('Failed to save Gemini API key');
+		}
+	}
+
+	/**
+	 * 发送 Gemini Integration 配置到 webview
+	 */
+	private async _sendGeminiIntegrationConfig(): Promise<void> {
+		try {
+			const config = await secretService.getGeminiIntegrationConfig();
+
+			this._panel?.webview.postMessage({
+				type: 'geminiIntegrationConfig',
+				data: {
+					enabled: config.enabled,
+					hasApiKey: !!config.apiKey,
+					maskedKey: config.apiKey ? SecretService.maskApiKey(config.apiKey) : ''
+				}
+			});
+
+			console.log('[Gemini] Config sent to webview');
+		} catch (error) {
+			console.error('[Gemini] Failed to get config:', error);
+		}
+	}
+
+	// ==================== 其他方法 ====================
+
 	private async _testMcpConnection(): Promise<void> {
 		// Send testing status
 		this._panel?.webview.postMessage({

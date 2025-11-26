@@ -4,9 +4,13 @@ import { EnvironmentChecker } from './utils/EnvironmentChecker';
 import { ClaudeChatViewProvider } from './providers/ClaudeChatViewProvider';
 import { ClaudeChatProvider } from './providers/ClaudeChatProvider';
 import { PluginManager } from './services/PluginManager';
+import { secretService } from './services/SecretService';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// DEBUG: console.log('Claude Code Chat extension is being activated!');
+
+	// 初始化 SecretService（用于安全存储 Gemini API Key 等敏感信息）
+	secretService.initialize(context);
 
 	// Perform environment check on activation
 	const checkResult = await EnvironmentChecker.check(context);
