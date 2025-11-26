@@ -348,7 +348,7 @@ export function getBodyContent(): string {
 					</div>
 				</div>
 
-				<h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 14px; font-weight: 600;">🤖 Gemini AI Assistant</h3>
+				<h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 14px; font-weight: 600;">🦾 Gemini AI Assistant</h3>
 				<div>
 					<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
 						Securely manage your Gemini API key. When enabled, this key will be automatically injected into the gemini-assistant MCP server.
