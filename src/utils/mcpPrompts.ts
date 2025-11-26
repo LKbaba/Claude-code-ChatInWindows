@@ -54,7 +54,36 @@ export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
 - "Show me all available components"
 - "Install the card component from shadcn registry"
 **Requirements**: Must run in a project with components.json file
-**Note**: Run 'npx shadcn@latest init' first if components.json doesn't exist`
+**Note**: Run 'npx shadcn@latest init' first if components.json doesn't exist`,
+
+    // Gemini AI 助手 - 用于 UI 生成、多模态分析和创意编码
+    'gemini-assistant': `
+## Gemini AI Assistant
+**Purpose**: AI-powered UI generation, multimodal analysis, and creative coding
+**Powered by**: Gemini 2.5 Pro (1M context, vision, thinking capabilities)
+
+**Core Tools**:
+- \`gemini_generate_ui\` - Generate HTML/CSS/JS from description or design image
+- \`gemini_multimodal_query\` - Analyze images with natural language questions
+- \`gemini_fix_ui_from_screenshot\` - Diagnose and fix UI issues from screenshots
+- \`gemini_create_animation\` - Create Canvas/WebGL/CSS animations
+- \`gemini_analyze_content\` - Analyze code, documents, or data
+- \`gemini_analyze_codebase\` - Analyze entire codebase using 1M token context
+- \`gemini_brainstorm\` - Generate creative ideas and solutions
+
+**When to use Gemini**:
+- UI/Frontend code generation (Gemini excels at WebDev)
+- Converting design mockups to code (supports image input)
+- Creating interactive animations and effects
+- Analyzing screenshots or design images
+- Large codebase analysis (1M token context)
+
+**Usage pattern**:
+1. For UI generation: Describe what you want or provide a design image
+2. For debugging: Provide a screenshot of the issue
+3. For animation: Describe the desired effect and technology (CSS/Canvas/WebGL)
+
+**Note**: Gemini is Claude's AI assistant - use it for tasks where visual understanding or frontend expertise is needed.`
 };
 
 /**

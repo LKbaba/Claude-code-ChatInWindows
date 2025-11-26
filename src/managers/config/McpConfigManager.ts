@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { expandVariables } from '../../utils/configUtils';
+import { secretService } from '../../services/SecretService';
 
 export interface McpStatus {
     status: 'disabled' | 'configured' | 'testing' | 'connected' | 'error';
@@ -188,6 +189,10 @@ export class McpConfigManager {
             mcpConfig.mcpServers[server.name] = serverConfig;
         });
 
+        // ==================== Gemini API Key 运行时注入 ====================
+        // 检查是否需要将 SecretStorage 中的 Gemini API Key 注入到 gemini-assistant 服务器
+        await this.injectGeminiApiKeyIfNeeded(mcpConfig);
+
         // Write MCP config to a temporary file in ~/.claude directory
         let mcpConfigPath: string | null = null;
         if (Object.keys(mcpConfig.mcpServers).length > 0) {
@@ -311,6 +316,86 @@ export class McpConfigManager {
                 message: `Failed to test MCP: ${error.message}`,
                 servers: mcpServers.map(s => ({ name: s.name, status: 'error' }))
             };
+        }
+    }
+
+    // ==================== Gemini API Key 注入相关方法 ====================
+
+    /**
+     * 检查服务器配置是否为 Gemini MCP 服务器
+     * 通过名称或参数中的特征识别
+     * @param serverName 服务器名称
+     * @param serverConfig 服务器配置
+     * @returns 是否为 Gemini 服务器
+     */
+    private isGeminiServer(serverName: string, serverConfig: any): boolean {
+        // 检查服务器名称是否包含 'gemini'
+        if (serverName.toLowerCase().includes('gemini')) {
+            return true;
+        }
+
+        // 检查参数是否包含 Gemini-mcp 相关内容
+        if (serverConfig.args && Array.isArray(serverConfig.args)) {
+            const argsString = serverConfig.args.join(' ').toLowerCase();
+            if (argsString.includes('gemini-mcp') || argsString.includes('gemini_mcp')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 如果启用了 Gemini Integration，将安全存储的 API Key 注入到 Gemini 服务器配置中
+     * @param mcpConfig MCP 配置对象
+     */
+    private async injectGeminiApiKeyIfNeeded(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
+        try {
+            // 检查是否应该注入 API Key
+            const shouldInject = await secretService.shouldInjectGeminiApiKey();
+
+            if (!shouldInject) {
+                console.log('[McpConfigManager] Gemini Integration not enabled or API Key not set, skipping injection');
+                return;
+            }
+
+            // 获取安全存储的 API Key
+            const apiKey = await secretService.getGeminiApiKey();
+            if (!apiKey) {
+                console.log('[McpConfigManager] Unable to get Gemini API Key, skipping injection');
+                return;
+            }
+
+            // 遍历所有服务器，找到 Gemini 服务器并注入 API Key
+            let injectedCount = 0;
+            for (const [serverName, serverConfig] of Object.entries(mcpConfig.mcpServers)) {
+                if (this.isGeminiServer(serverName, serverConfig)) {
+                    // 确保 env 对象存在
+                    if (!serverConfig.env) {
+                        serverConfig.env = {};
+                    }
+
+                    // 注入 API Key（覆盖原有的占位符或值）
+                    const originalKey = serverConfig.env.GEMINI_API_KEY;
+                    serverConfig.env.GEMINI_API_KEY = apiKey;
+                    injectedCount++;
+
+                    console.log(`[McpConfigManager] Injected Gemini API Key into server '${serverName}'`, {
+                        hadOriginalKey: !!originalKey,
+                        originalKeyMasked: originalKey ? `${originalKey.substring(0, 4)}...` : 'none'
+                    });
+                }
+            }
+
+            if (injectedCount > 0) {
+                console.log(`[McpConfigManager] Gemini API Key injection complete, injected into ${injectedCount} server(s)`);
+            } else {
+                console.log('[McpConfigManager] No Gemini server found, no API Key injection needed');
+            }
+
+        } catch (error) {
+            console.error('[McpConfigManager] Gemini API Key injection failed:', error);
+            // 注入失败不应阻止 MCP 配置继续，只记录错误
         }
     }
 

@@ -332,6 +332,7 @@ export function getBodyContent(): string {
 								<option value="playwright">Playwright</option>
 								<option value="n8n">n8n</option>
 								<option value="shadcn">shadcn/ui</option>
+								<option value="gemini-assistant">Gemini Assistant</option>
 							</select>
 						</div>
 						<div style="margin-top: 12px; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
@@ -342,6 +343,36 @@ export function getBodyContent(): string {
 							</p>
 							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 8px 0 0 0;">
 								💡 <strong>How it works:</strong> MCP servers extend Claude's capabilities. For example, add the SQLite server to query databases, or the filesystem server to access files outside the workspace.
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 14px; font-weight: 600;">🤖 Gemini AI Assistant</h3>
+				<div>
+					<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
+						Securely manage your Gemini API key. When enabled, this key will be automatically injected into the gemini-assistant MCP server.
+					</p>
+				</div>
+				<div class="settings-group">
+					<div class="tool-item">
+						<input type="checkbox" id="gemini-enabled" onchange="toggleGeminiOptions()">
+						<label for="gemini-enabled">Enable Gemini Integration</label>
+					</div>
+
+					<div id="geminiOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
+						<div style="margin-bottom: 12px;">
+							<label for="gemini-api-key" style="display: block; font-size: 12px; margin-bottom: 4px;">Gemini API Key</label>
+							<input type="password" id="gemini-api-key" placeholder="AIza..."
+								style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;"
+								onchange="updateGeminiApiKey()">
+						</div>
+						<div style="padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
+							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
+								🔒 Your API key will be stored securely in VS Code SecretStorage.
+							</p>
+							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
+								💡 Get your free key from <a href="https://aistudio.google.com/apikey" style="color: var(--vscode-textLink-foreground);">Google AI Studio</a>
 							</p>
 						</div>
 					</div>

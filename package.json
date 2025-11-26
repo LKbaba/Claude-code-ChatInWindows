@@ -278,6 +278,11 @@
           "default": "https://api.anthropic.com",
           "description": "Base URL for custom API endpoint (e.g., https://api.tu-zi.com)",
           "format": "uri"
+        },
+        "claudeCodeChatUI.geminiIntegrationEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Gemini Integration to automatically inject API key into gemini-assistant MCP server"
         }
       }
     }
