@@ -1,12 +1,12 @@
-# Claude Code Chat UI – for Windows (No WSL)
+# Claude Code Chat UI – for Windows & macOS
 
-> **A Native UI for Windows That Makes Claude Code Instantly Better! 🚀**
+> **A Native UI That Makes Claude Code Instantly Better! 🚀**
 
 <div align="center">
   <img src="icon.png" alt="Claude Code Chat Icon" width="128" height="128">
 
   <!-- Badges -->
-  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-Ready-purple" alt="Cursor Ready"></a> <a href="https://github.com/andrepimenta/claude-code-chat"><img src="https://img.shields.io/badge/Based%20on-claude--code--chat-orange" alt="Based on claude-code-chat"></a>
+  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-Supported-black" alt="macOS"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-Ready-purple" alt="Cursor Ready"></a> <a href="https://github.com/andrepimenta/claude-code-chat"><img src="https://img.shields.io/badge/Based%20on-claude--code--chat-orange" alt="Based on claude-code-chat"></a>
 </div>
 
 **🌐 Languages: English | [简体中文](./README.zh-CN.md) | [繁體中文](./README.zh-TW.md)**
@@ -15,7 +15,8 @@
 
 ## 🎯 Core Advantages
 
-* ✅ **Zero WSL Dependency**: Runs with just Git Bash and Node.js.
+* ✅ **Cross-Platform Support**: Works on both Windows and macOS!
+* ✅ **Zero WSL Dependency** (Windows): Runs with just Git Bash and Node.js.
 * ✅ **Real-time Cost Tracking**: Instantly see token counts and costs.
 * ✅ **MCP Adaptation**: Adapts to various MCPs with support for dynamic MCP tool queries.
 * ✅ **Third-party API Adaptation**: Supports various third-party APIs including anyrouter/tuziapi, as well as Kimi K2.
@@ -30,8 +31,10 @@ Updated 2025.11.05: Updated latest models and corresponding pricing, added Auto/
 
 ## 🚩 Why You Need This Project
 
-* **No More WSL Hassle**:
-    Finally, run Claude Code with **100% native Windows support**. It just works!
+* **Cross-Platform**:
+    Works seamlessly on both **Windows** and **macOS**!
+* **No More WSL Hassle** (Windows):
+    Run Claude Code with **100% native Windows support**. It just works!
 * **Say Goodbye to Path Errors**:
     Seamlessly converts between `C:\` and `/usr/` paths to avoid wasting time and tokens.
 * **Ditch the Terminal**:
@@ -67,12 +70,51 @@ Updated 2025.11.05: Updated latest models and corresponding pricing, added Auto/
 >
 > Claude Code official has released v2.0.33, which can be directly installed using methods compatible with v1.0.48. We recommend using v2.0.33 with plugin version 2.0.2.
 >
-> **⚠️ If you encounter bash tool invocation issues:**
+> **⚠️ If you encounter bash tool invocation issues (Windows):**
 >
 > 1. Add `C:\Program Files\Git\bin` and `C:\Program Files\Git\bin\bash.exe` to system environment variables
 > 2. Delete the `shell-snapshots` folder in `C:\Users\<yourname>\.claude` folder
 > 3. Uninstall the current version and reinstall v2.0.33
 >
+
+---
+
+## 🍎 macOS Setup
+
+### 🔹 Step 1: Install Prerequisites
+
+```bash
+# 1. Install Node.js (LTS version recommended, ≥ 18)
+# Using Homebrew:
+brew install node
+
+# Or download from: https://nodejs.org/
+
+# 2. Install Claude Code CLI
+npm install -g @anthropic-ai/claude-code
+
+# 3. Login to Claude Code
+claude
+# Follow the prompts to authenticate
+```
+
+### 🔹 Step 2: Install the Extension
+
+1. Open VS Code or Cursor
+2. Press `Cmd+Shift+X` to open Extensions
+3. Search for `Claude-Code ChatUI` or `lkbaba`
+4. Click **Install**
+
+### 🔹 Step 3: Start Using
+
+* **Open Chat Panel**: Press `Cmd+Shift+C`
+* Or click the Claude icon in the Activity Bar
+
+That's it! macOS setup is much simpler than Windows. 🎉
+
+---
+
+## 🪟 Windows Setup
 
 ### 🔹 Step 1: Set Up Your Environment (One-Time Only)
 

@@ -1,7 +1,7 @@
 {
   "name": "claude-code-chatui",
-  "displayName": "Claude-Code ChatUI for Windows",
-  "description": "Claude Code – ChatUI – Windows (No WSL)",
+  "displayName": "Claude-Code ChatUI",
+  "description": "Claude Code – ChatUI – Windows & macOS",
   "version": "2.1.0",
   "publisher": "lkbaba",
   "author": "lkbaba",
@@ -53,7 +53,8 @@
     "ui"
   ],
   "os": [
-    "win32"
+    "win32",
+    "darwin"
   ],
   "activationEvents": [
     "onStartupFinished"

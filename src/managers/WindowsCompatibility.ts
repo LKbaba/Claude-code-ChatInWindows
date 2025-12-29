@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { ApiConfigManager } from './config/ApiConfigManager';
 
 export interface ExecutionEnvironment {
@@ -9,220 +10,288 @@ export interface ExecutionEnvironment {
     claudeExecutablePath: string | undefined;
 }
 
-export class WindowsCompatibility {
+/**
+ * 跨平台兼容性管理器
+ * 支持 Windows 和 macOS
+ */
+export class PlatformCompatibility {
+    private readonly _platform: NodeJS.Platform;
+    private readonly _homeDir: string;
+    private readonly _claudeHome: string;
+
     constructor(
         private readonly _npmPrefixPromise: Promise<string | undefined>,
         private readonly _configurationManager: ApiConfigManager
-    ) {}
+    ) {
+        this._platform = process.platform;
+        this._homeDir = os.homedir();
+        this._claudeHome = path.join(this._homeDir, '.claude');
+    }
 
+    /**
+     * 获取当前平台
+     */
+    get platform(): NodeJS.Platform {
+        return this._platform;
+    }
+
+    /**
+     * 是否为 macOS
+     */
+    get isMacOS(): boolean {
+        return this._platform === 'darwin';
+    }
+
+    /**
+     * 是否为 Windows
+     */
+    get isWindows(): boolean {
+        return this._platform === 'win32';
+    }
+
+    /**
+     * 确保 Claude 配置目录存在
+     */
+    private ensureClaudeHomeExists(): void {
+        if (!fs.existsSync(this._claudeHome)) {
+            fs.mkdirSync(this._claudeHome, { recursive: true });
+            console.log(`[PlatformCompatibility] Created Claude home directory: ${this._claudeHome}`);
+        }
+    }
+
+    /**
+     * 获取执行环境配置
+     */
     async getExecutionEnvironment(forTerminal = false): Promise<ExecutionEnvironment> {
         const spawnOptions: cp.SpawnOptions = {
-            env: { ...process.env }
+            env: { ...process.env },
+            shell: true
         };
-        let claudeExecutablePath: string | undefined = 'claude'; // Default
+        let claudeExecutablePath: string | undefined = 'claude';
 
-        const platform = process.platform;
-        
-        // Claude Code v1.0.48+ uses ~/.claude instead of /tmp for shell snapshots
-        // Set CLAUDE_HOME to ensure Claude uses the correct directory
-        const homeDir = require('os').homedir();
-        let claudeHome = path.join(homeDir, '.claude');
-        
-        // Convert to Unix-style path for Git Bash on Windows
-        if (platform === 'win32') {
+        // 确保 Claude 配置目录存在
+        this.ensureClaudeHomeExists();
+
+        // 设置 CLAUDE_HOME
+        let claudeHome = this._claudeHome;
+        if (this.isWindows) {
             claudeHome = claudeHome.replace(/\\/g, '/');
         }
-        
         spawnOptions.env!.CLAUDE_HOME = claudeHome;
-        
-        // On Windows, also set proper temp directory to avoid path issues
-        if (platform === 'win32') {
-            // Ensure ~/.claude directory exists
-            if (!fs.existsSync(claudeHome)) {
-                fs.mkdirSync(claudeHome, { recursive: true });
-            }
-            
-            // Set temp directory to /tmp for Git Bash compatibility
-            // This avoids Windows path format issues when Claude CLI runs in Git Bash
-            spawnOptions.env!.TEMP = '/tmp';
-            spawnOptions.env!.TMP = '/tmp';
-            spawnOptions.env!.TMPDIR = '/tmp';
-            
-            const npmPrefix = await this._npmPrefixPromise;
-            if (!npmPrefix) {
-                // This should have been caught by the EnvironmentChecker, but we log it just in case.
-                console.error('Could not determine npm prefix during execution.');
-                return { spawnOptions, claudeExecutablePath: undefined };
-            }
 
-            // For terminal commands, we just need the PATH, not the absolute executable
-            if (forTerminal) {
-                spawnOptions.env!.PATH = `${npmPrefix}${path.delimiter}${spawnOptions.env!.PATH}`;
-                spawnOptions.shell = true;
-            } else {
-                // For direct spawn, use the absolute path to avoid PATH issues
-                const potentialPath = path.join(npmPrefix, 'claude.cmd');
-                if (fs.existsSync(potentialPath)) {
-                    claudeExecutablePath = potentialPath;
-                } else {
-                    console.error(`claude.cmd not found at expected path: ${potentialPath}`);
-                    return { spawnOptions, claudeExecutablePath: undefined };
-                }
-            }
-
-            // Both scenarios need the Posix shell
-            const windowsConfig = this._configurationManager.getWindowsConfig();
-            const gitBashPath = windowsConfig.gitBashPath;
-            if (gitBashPath && fs.existsSync(gitBashPath)) {
-                spawnOptions.shell = true;
-                spawnOptions.env!.SHELL = gitBashPath;
-            } else if (gitBashPath) {
-                // Only log warning if path is configured but not found
-                console.warn(`Git Bash path configured but not found at: ${gitBashPath}`);
-            }
-            // If no Git Bash path configured, Claude will use the default shell
-        }
-
-        if (!spawnOptions.shell) {
-            spawnOptions.shell = true;
+        if (this.isMacOS) {
+            claudeExecutablePath = await this._getMacOSExecutablePath();
+        } else if (this.isWindows) {
+            const result = await this._getWindowsExecutionEnvironment(forTerminal, spawnOptions);
+            claudeExecutablePath = result.claudeExecutablePath;
         }
 
         return { spawnOptions, claudeExecutablePath };
     }
 
-    fixWindowsPath(cwd: string, spawnOptions: cp.SpawnOptions): string {
-        // Fix Windows path issue when using Git Bash
-        if (process.platform === 'win32' && spawnOptions.shell) {
-            // Convert Windows paths to Unix-style for Git Bash
+    /**
+     * macOS: 获取 Claude 可执行文件路径
+     */
+    private async _getMacOSExecutablePath(): Promise<string> {
+        const npmPrefix = await this._npmPrefixPromise;
+        if (npmPrefix) {
+            const potentialPath = path.join(npmPrefix, 'bin', 'claude');
+            if (fs.existsSync(potentialPath)) {
+                return potentialPath;
+            }
+        }
+        
+        // 检查常见的 macOS 安装路径
+        const commonPaths = [
+            '/usr/local/bin/claude',
+            '/opt/homebrew/bin/claude',
+            path.join(this._homeDir, '.npm-global/bin/claude')
+        ];
+        
+        for (const p of commonPaths) {
+            if (fs.existsSync(p)) {
+                return p;
+            }
+        }
+        
+        return 'claude'; // 依赖 PATH
+    }
+
+    /**
+     * Windows: 获取执行环境配置
+     */
+    private async _getWindowsExecutionEnvironment(
+        forTerminal: boolean,
+        spawnOptions: cp.SpawnOptions
+    ): Promise<{ claudeExecutablePath: string | undefined }> {
+        // Windows 特定的临时目录设置
+        spawnOptions.env!.TEMP = '/tmp';
+        spawnOptions.env!.TMP = '/tmp';
+        spawnOptions.env!.TMPDIR = '/tmp';
+
+        const npmPrefix = await this._npmPrefixPromise;
+        if (!npmPrefix) {
+            console.error('[PlatformCompatibility] Could not determine npm prefix on Windows');
+            return { claudeExecutablePath: undefined };
+        }
+
+        let claudeExecutablePath: string | undefined;
+
+        if (forTerminal) {
+            spawnOptions.env!.PATH = `${npmPrefix}${path.delimiter}${spawnOptions.env!.PATH}`;
+            claudeExecutablePath = 'claude';
+        } else {
+            const potentialPath = path.join(npmPrefix, 'claude.cmd');
+            if (fs.existsSync(potentialPath)) {
+                claudeExecutablePath = potentialPath;
+            } else {
+                console.error(`[PlatformCompatibility] claude.cmd not found at: ${potentialPath}`);
+                return { claudeExecutablePath: undefined };
+            }
+        }
+
+        // 配置 Git Bash
+        const windowsConfig = this._configurationManager.getWindowsConfig();
+        const gitBashPath = windowsConfig.gitBashPath;
+        if (gitBashPath && fs.existsSync(gitBashPath)) {
+            spawnOptions.env!.SHELL = gitBashPath;
+        }
+
+        return { claudeExecutablePath };
+    }
+
+    /**
+     * 修复路径格式（Windows Git Bash 兼容）
+     */
+    fixPath(cwd: string, spawnOptions: cp.SpawnOptions): string {
+        if (this.isWindows && spawnOptions.shell) {
             return cwd.replace(/\\/g, '/');
         }
         return cwd;
     }
 
-    getWindowsEnvironmentInfo(): string {
-        if (process.platform === 'win32') {
-            const osRelease = require('os').release();
+    /**
+     * 获取平台特定的环境信息（注入到消息中）
+     */
+    getPlatformEnvironmentInfo(): string {
+        if (this.isWindows) {
+            const osRelease = os.release();
             const shell = process.env.SHELL || 'Git Bash';
-            return `[SYSTEM INFO: You are running on Windows ${osRelease}. Shell: ${shell}. Use Windows-compatible commands and paths. File system is case-insensitive.]\n\n`;
+            return `[SYSTEM INFO: Windows ${osRelease}, Shell: ${shell}. Use Windows-compatible commands.]\n\n`;
         }
         return '';
     }
 
-    async createTerminal(
-        name: string,
-        forModel = false
-    ): Promise<vscode.Terminal> {
+    /**
+     * 创建终端
+     */
+    async createTerminal(name: string): Promise<vscode.Terminal> {
         const { spawnOptions } = await this.getExecutionEnvironment(true);
         const terminalOptions: vscode.TerminalOptions = {
-            name: name,
+            name,
             env: spawnOptions.env
         };
-        
-        // On Windows, use Git Bash for slash commands to avoid PowerShell issues
-        if (process.platform === 'win32') {
+
+        if (this.isWindows) {
             const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
             const gitBashPath = config.get<string>('windows.gitBashPath');
-            
-            // Check if Git Bash path is configured and exists
             if (gitBashPath && fs.existsSync(gitBashPath)) {
                 terminalOptions.shellPath = gitBashPath;
-                // Add shell args to ensure proper bash behavior
                 terminalOptions.shellArgs = ['--login', '-i'];
             }
         }
-        
+
         return vscode.window.createTerminal(terminalOptions);
     }
 
-    getTerminalCommand(
-        command: string,
-        sessionId?: string
-    ): string {
-        let fullCommand = command;
-        if (sessionId) {
-            fullCommand = `${command} --session ${sessionId}`;
-        }
-
-        // The environment is already configured by spawnOptions
+    /**
+     * 获取终端命令
+     */
+    getTerminalCommand(command: string, sessionId?: string): string {
+        const fullCommand = sessionId ? `${command} --session ${sessionId}` : command;
         return `claude ${fullCommand}`;
     }
 
+    /**
+     * 获取登录命令
+     */
     getLoginCommand(): string {
         return 'claude';
     }
 
+    /**
+     * 提供平台特定的错误信息
+     */
     providePlatformSpecificError(error: any): string {
-        let errorMessage = error.message;
-        
-        if (process.platform === 'win32') {
-            if (error.message.includes('ENOENT') || error.message.includes('not found')) {
-                errorMessage = `Failed to start Claude. Please ensure:\n` +
-                    `1. Claude CLI is installed globally: npm install -g @anthropic-ai/claude-cli\n` +
-                    `2. Git Bash is installed and configured in settings\n` +
-                    `3. You've logged in to Claude by running 'claude' in a terminal\n\n` +
-                    `Original error: ${error.message}`;
-            } else if (error.message.includes('npm')) {
-                errorMessage = `NPM configuration error. Please ensure Node.js and npm are properly installed.\n\n` +
-                    `Original error: ${error.message}`;
-            } else if (error.message.includes('Git Bash') || error.message.includes('bash.exe')) {
-                errorMessage = `Git Bash not found. Please install Git for Windows and ensure the path to bash.exe is configured in settings.\n\n` +
-                    `Original error: ${error.message}`;
+        const msg = error.message || String(error);
+
+        if (this.isMacOS) {
+            if (msg.includes('ENOENT') || msg.includes('not found')) {
+                return `Claude CLI 未找到。请确保：\n` +
+                    `1. 已安装 Claude CLI: npm install -g @anthropic-ai/claude-code\n` +
+                    `2. 已在终端运行 'claude' 完成登录\n\n` +
+                    `原始错误: ${msg}`;
+            }
+            if (msg.includes('npm')) {
+                return `NPM 配置错误。请确保 Node.js 和 npm 已正确安装。\n\n原始错误: ${msg}`;
             }
         }
-        
-        return errorMessage;
+
+        if (this.isWindows) {
+            if (msg.includes('ENOENT') || msg.includes('not found')) {
+                return `Claude CLI 未找到。请确保：\n` +
+                    `1. 已安装 Claude CLI: npm install -g @anthropic-ai/claude-code\n` +
+                    `2. Git Bash 已安装并在设置中配置\n` +
+                    `3. 已在终端运行 'claude' 完成登录\n\n` +
+                    `原始错误: ${msg}`;
+            }
+            if (msg.includes('Git Bash') || msg.includes('bash.exe')) {
+                return `Git Bash 未找到。请安装 Git for Windows 并在设置中配置 bash.exe 路径。\n\n原始错误: ${msg}`;
+            }
+        }
+
+        return msg;
     }
 
-    async killProcess(pid: number): Promise<void>;
-    async killProcess(processToKill: cp.ChildProcess): Promise<void>;
+    /**
+     * 终止进程
+     */
     async killProcess(processOrPid: cp.ChildProcess | number): Promise<void> {
         const pid = typeof processOrPid === 'number' ? processOrPid : processOrPid.pid;
-        const processToKill = typeof processOrPid === 'number' ? null : processOrPid;
-        
-        // Platform-specific termination
-        if (process.platform === 'win32' && pid) {
-            // On Windows, use taskkill to ensure all child processes are terminated
+        const proc = typeof processOrPid === 'number' ? null : processOrPid;
+
+        if (this.isWindows && pid) {
+            // Windows: 使用 taskkill
             try {
-                // /T flag terminates child processes, /F forces termination
                 cp.exec(`taskkill /pid ${pid} /t /f`, (error) => {
                     if (error) {
-                        console.error('Failed to kill process with taskkill:', error);
+                        console.error('[PlatformCompatibility] taskkill failed:', error);
                     }
                 });
             } catch (error) {
-                console.error('Error executing taskkill:', error);
-                // Fallback to Node.js kill
-                if (processToKill) {
-                    processToKill.kill();
-                }
+                console.error('[PlatformCompatibility] Error executing taskkill:', error);
+                proc?.kill();
             }
         } else {
-            // On Unix-like systems, use standard signals
-            if (processToKill) {
-                processToKill.kill('SIGTERM');
-                
-                // Force kill after 2 seconds if still running
+            // macOS/Linux: 使用 SIGTERM/SIGKILL
+            if (proc) {
+                proc.kill('SIGTERM');
                 setTimeout(() => {
-                    if (processToKill && !processToKill.killed) {
-                        // DEBUG: console.log('Force killing Claude process...');
-                        processToKill.kill('SIGKILL');
+                    if (!proc.killed) {
+                        proc.kill('SIGKILL');
                     }
                 }, 2000);
             } else if (pid) {
-                // If we only have a PID, use process.kill
                 try {
                     process.kill(pid, 'SIGTERM');
                     setTimeout(() => {
-                        try {
-                            process.kill(pid, 'SIGKILL');
-                        } catch (error) {
-                            // Process may have already terminated
-                        }
+                        try { process.kill(pid, 'SIGKILL'); } catch {}
                     }, 2000);
-                } catch (error) {
-                    console.error('Error killing process:', error);
-                }
+                } catch {}
             }
         }
     }
 }
+
+// 导出别名以保持向后兼容
+export { PlatformCompatibility as WindowsCompatibility };

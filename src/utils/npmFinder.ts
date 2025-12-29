@@ -15,36 +15,53 @@ const exec = util.promisify(cp.exec);
  * Try multiple possible locations including system path and common installation locations
  */
 export async function findNpmExecutable(): Promise<string | null> {
-    const possiblePaths: string[] = [
-        // 1. Try direct execution (if in PATH)
-        'npm',
+    const platform = process.platform;
+    const possiblePaths: string[] = [];
 
-        // 2. User-level npm installation location
-        path.join(process.env.APPDATA || '', 'npm', 'npm.cmd'),
-        path.join(process.env.APPDATA || '', 'npm', 'npm'),
+    // 1. Try direct execution (if in PATH) - works on all platforms
+    possiblePaths.push('npm');
 
-        // 3. System-level Node.js installation location
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm'),
+    if (platform === 'darwin') {
+        // macOS 特定路径
+        possiblePaths.push(
+            // Homebrew 安装位置
+            '/usr/local/bin/npm',
+            '/opt/homebrew/bin/npm',
+            // nvm 安装位置
+            path.join(process.env.HOME || '', '.nvm/versions/node/*/bin/npm'),
+            // 系统默认位置
+            '/usr/bin/npm'
+        );
+    } else if (platform === 'win32') {
+        // Windows 特定路径
+        possiblePaths.push(
+            // 2. User-level npm installation location
+            path.join(process.env.APPDATA || '', 'npm', 'npm.cmd'),
+            path.join(process.env.APPDATA || '', 'npm', 'npm'),
 
-        // 4. x86 version of Node.js
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm'),
+            // 3. System-level Node.js installation location
+            path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
+            path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm'),
 
-        // 5. Common custom installation locations
-        'C:\\nodejs\\npm.cmd',
-        'C:\\nodejs\\npm',
-        'D:\\nodejs\\npm.cmd',
-        'D:\\nodejs\\npm',
+            // 4. x86 version of Node.js
+            path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
+            path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm'),
 
-        // 6. Additional Scoop installation location (popular Windows package manager)
-        path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'npm.cmd'),
-        path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'npm'),
+            // 5. Common custom installation locations
+            'C:\\nodejs\\npm.cmd',
+            'C:\\nodejs\\npm',
+            'D:\\nodejs\\npm.cmd',
+            'D:\\nodejs\\npm',
 
-        // 7. Chocolatey installation location
-        'C:\\ProgramData\\chocolatey\\bin\\npm.cmd',
-        'C:\\ProgramData\\chocolatey\\bin\\npm',
-    ];
+            // 6. Additional Scoop installation location (popular Windows package manager)
+            path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'npm.cmd'),
+            path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'npm'),
+
+            // 7. Chocolatey installation location
+            'C:\\ProgramData\\chocolatey\\bin\\npm.cmd',
+            'C:\\ProgramData\\chocolatey\\bin\\npm'
+        );
+    }
 
     console.log('[npmFinder] Starting to find npm executable...');
 
@@ -56,7 +73,7 @@ export async function findNpmExecutable(): Promise<string | null> {
                 const { stdout } = await exec('npm --version');
                 console.log(`[npmFinder] Success: Found npm in PATH, version: ${stdout.trim()}`);
                 return 'npm';
-            } else if (npmPath && fs.existsSync(npmPath)) {
+            } else if (npmPath && !npmPath.includes('*') && fs.existsSync(npmPath)) {
                 // Check if file exists and is executable
                 const { stdout } = await exec(`"${npmPath}" --version`);
                 console.log(`[npmFinder] Success: Found npm at ${npmPath}, version: ${stdout.trim()}`);

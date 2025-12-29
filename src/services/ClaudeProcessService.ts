@@ -17,12 +17,11 @@ export interface ProcessOptions {
     cwd: string;
     sessionId?: string;
     model: string;
-    windowsEnvironmentInfo?: string;
+    platformEnvironmentInfo?: string;
     customInstructions?: string;
     resumeFrom?: string;
     imagesInMessage?: string[];
     // Note: planMode and thinkingMode are handled through message prefixes
-    // thinkingIntensity is also no longer needed here
 }
 
 export interface ProcessCallbacks {
@@ -72,8 +71,8 @@ export class ClaudeProcessService {
             throw new Error('Claude executable path could not be determined');
         }
 
-        // Fix Windows path issue when using Git Bash
-        const fixedCwd = this._windowsCompatibility.fixWindowsPath(options.cwd, execEnvironment.spawnOptions);
+        // Fix path for cross-platform compatibility
+        const fixedCwd = this._windowsCompatibility.fixPath(options.cwd, execEnvironment.spawnOptions);
         
         // Set the working directory in spawn options
         execEnvironment.spawnOptions.cwd = fixedCwd;
@@ -197,7 +196,9 @@ export class ClaudeProcessService {
         }
 
         // Add model if not default
-        if (options.model && options.model !== 'default' && VALID_MODELS.includes(options.model as ValidModel)) {
+        // 注意：当使用 Bedrock 时，不传递 --model 参数，让 Claude CLI 自动处理
+        const isUsingBedrock = process.env.CLAUDE_CODE_USE_BEDROCK === '1';
+        if (!isUsingBedrock && options.model && options.model !== 'default' && VALID_MODELS.includes(options.model as ValidModel)) {
             args.push('--model', options.model);
         }
 

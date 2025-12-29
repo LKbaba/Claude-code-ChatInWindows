@@ -24,7 +24,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 	
 	// Create ~/.claude directory for Claude Code v1.0.48+
-	if (process.platform === 'win32') {
+	// 支持 Windows 和 macOS
+	if (process.platform === 'win32' || process.platform === 'darwin') {
 		try {
 			const homeDir = require('os').homedir();
 			const claudeDir = require('path').join(homeDir, '.claude');
