@@ -229,20 +229,37 @@ npm install  # Install dependencies
 
 ##### Package as VSIX and Install
 
-```powershell
+```bash
 # 1. Make sure you are in the project root and have run npm install
 
 # 2. Compile and package the extension
 npm run package
 
-#    This command will automatically compile and package the extension into a .vsix file.
+# This will generate a .vsix file like: claude-code-chatui-2.1.0.vsix
 ```
 
 **To install the `.vsix` file:**
 
-1. In VS Code or Cursor, press `Ctrl+Shift+P` to open the Command Palette.
-2. Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**.
-3. Select the generated `.vsix` file from the project root to install.
+**Method 1: Command Line (Recommended)**
+
+```bash
+# VS Code
+code --install-extension claude-code-chatui-2.1.0.vsix --force
+
+# Cursor
+cursor --install-extension claude-code-chatui-2.1.0.vsix --force
+
+# macOS: If 'code' command not found, open VS Code and run:
+# Cmd+Shift+P → "Shell Command: Install 'code' command in PATH"
+```
+
+**Method 2: GUI**
+
+1. In VS Code or Cursor, press `Ctrl+Shift+P` (Windows) or `Cmd+Shift+P` (macOS)
+2. Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**
+3. Select the generated `.vsix` file from the project root
+
+**After installation, restart VS Code/Cursor to apply changes.**
 
 ---
 
