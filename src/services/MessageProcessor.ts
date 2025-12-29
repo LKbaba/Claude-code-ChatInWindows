@@ -110,14 +110,69 @@ export class MessageProcessor {
      * Process parsed JSON data
      */
     private _processJsonData(jsonData: any, callbacks: MessageCallbacks): void {
+        console.log('[MessageProcessor] _processJsonData called with:', JSON.stringify(jsonData, null, 2));
+        
         // Handle different message types
         if ((jsonData.type === 'assistant' || jsonData.type === 'user' || jsonData.type === 'system') && jsonData.message) {
+            console.log('[MessageProcessor] Processing message type:', jsonData.type);
             this._processMessage(jsonData.message, callbacks);
         } else if (jsonData.type === 'result') {
+            console.log('[MessageProcessor] Processing result');
             this._processResult(jsonData, callbacks);
         } else if (jsonData.error) {
+            console.log('[MessageProcessor] Processing error');
             this._processError(jsonData, callbacks);
+        } else if (jsonData.type === 'content_block_delta' || jsonData.type === 'content_block_start') {
+            // Handle streaming content blocks (new Claude API format)
+            console.log('[MessageProcessor] Processing content block:', jsonData.type);
+            this._processContentBlock(jsonData, callbacks);
+        } else if (jsonData.type === 'message_start' || jsonData.type === 'message_delta' || jsonData.type === 'message_stop') {
+            // Handle message lifecycle events
+            console.log('[MessageProcessor] Processing message event:', jsonData.type);
+            this._processMessageEvent(jsonData, callbacks);
+        } else {
+            console.log('[MessageProcessor] Unhandled JSON type:', jsonData.type);
         }
+    }
+    
+    /**
+     * Process content block events (streaming API format)
+     */
+    private _processContentBlock(jsonData: any, callbacks: MessageCallbacks): void {
+        if (jsonData.type === 'content_block_start') {
+            // Content block starting
+            const contentBlock = jsonData.content_block;
+            if (contentBlock?.type === 'text') {
+                // Text block starting, might have initial text
+                if (contentBlock.text) {
+                    callbacks.onAssistantMessage(contentBlock.text);
+                }
+            }
+        } else if (jsonData.type === 'content_block_delta') {
+            // Content block delta (streaming text)
+            const delta = jsonData.delta;
+            if (delta?.type === 'text_delta' && delta.text) {
+                callbacks.onAssistantMessage(delta.text);
+            }
+        }
+    }
+    
+    /**
+     * Process message lifecycle events
+     */
+    private _processMessageEvent(jsonData: any, callbacks: MessageCallbacks): void {
+        if (jsonData.type === 'message_start') {
+            // Message starting, might contain usage info
+            if (jsonData.message?.usage) {
+                this._updateTokens(jsonData.message.usage, callbacks);
+            }
+        } else if (jsonData.type === 'message_delta') {
+            // Message delta, might contain stop reason and usage
+            if (jsonData.usage) {
+                this._updateTokens(jsonData.usage, callbacks);
+            }
+        }
+        // message_stop doesn't need special handling
     }
 
     /**

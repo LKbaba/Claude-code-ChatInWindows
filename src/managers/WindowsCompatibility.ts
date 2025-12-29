@@ -65,7 +65,9 @@ export class PlatformCompatibility {
     async getExecutionEnvironment(forTerminal = false): Promise<ExecutionEnvironment> {
         const spawnOptions: cp.SpawnOptions = {
             env: { ...process.env },
-            shell: true
+            // 在 macOS 上不使用 shell，避免特殊字符被解释
+            // 在 Windows 上需要 shell 来正确处理路径
+            shell: this.isWindows
         };
         let claudeExecutablePath: string | undefined = 'claude';
 

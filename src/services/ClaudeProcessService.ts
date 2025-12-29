@@ -249,19 +249,24 @@ export class ClaudeProcessService {
         // Handle stdout data
         process.stdout?.on('data', (data: Buffer) => {
             const chunk = data.toString();
+            console.log('[ClaudeProcessService] Raw stdout chunk:', chunk);
             stdoutBuffer += chunk;
             
             // Process complete JSON objects from the buffer
             const lines = stdoutBuffer.split('\n');
             stdoutBuffer = lines.pop() || ''; // Keep incomplete line in buffer
             
+            console.log('[ClaudeProcessService] Processing', lines.length, 'lines');
             for (const line of lines) {
                 if (line.trim()) {
+                    console.log('[ClaudeProcessService] Processing line:', line.substring(0, 200));
                     try {
                         const jsonData = JSON.parse(line);
+                        console.log('[ClaudeProcessService] Parsed JSON type:', jsonData.type);
                         callbacks.onData(jsonData);
                     } catch (error) {
                         // Not JSON, might be plain text output
+                        console.log('[ClaudeProcessService] Non-JSON line, sending as text');
                         callbacks.onData({ type: 'text', data: line });
                     }
                 }
@@ -270,12 +275,15 @@ export class ClaudeProcessService {
 
         // Handle stderr data
         process.stderr?.on('data', (data: Buffer) => {
-            stderrBuffer += data.toString();
+            const chunk = data.toString();
+            console.log('[ClaudeProcessService] Raw stderr chunk:', chunk);
+            stderrBuffer += chunk;
             const lines = stderrBuffer.split('\n');
             stderrBuffer = lines.pop() || '';
             
             for (const line of lines) {
                 if (line.trim()) {
+                    console.log('[ClaudeProcessService] stderr line:', line);
                     callbacks.onError(line);
                 }
             }
@@ -283,8 +291,11 @@ export class ClaudeProcessService {
 
         // Handle process close
         process.on('close', (code: number | null) => {
+            console.log('[ClaudeProcessService] Process closed with code:', code);
+            
             // Process any remaining buffered data
             if (stdoutBuffer.trim()) {
+                console.log('[ClaudeProcessService] Processing remaining stdout buffer:', stdoutBuffer.substring(0, 200));
                 try {
                     const jsonData = JSON.parse(stdoutBuffer);
                     callbacks.onData(jsonData);
@@ -294,6 +305,7 @@ export class ClaudeProcessService {
             }
             
             if (stderrBuffer.trim()) {
+                console.log('[ClaudeProcessService] Processing remaining stderr buffer:', stderrBuffer);
                 callbacks.onError(stderrBuffer);
             }
 

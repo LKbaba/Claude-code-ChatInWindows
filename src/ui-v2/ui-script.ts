@@ -1894,15 +1894,20 @@ export const uiScript = `
 			if (customCommandsList && customCommandsSection) {
 				if (commands.length > 0) {
 					customCommandsSection.style.display = 'block';
-					customCommandsList.innerHTML = commands.map(cmd => \`
-						<div class="slash-command-item" onclick="executeCustomCommand('\${cmd.command}')">
-							<div class="slash-command-icon">\${cmd.icon || '⚡'}</div>
+					customCommandsList.innerHTML = commands.map(cmd => {
+						// 命令名已经包含前缀（如 /project:test），不需要再加 /
+						const displayName = cmd.name.startsWith('/') ? cmd.name : '/' + cmd.name;
+						const sourceLabel = cmd.source === 'project' ? '📁' : (cmd.source === 'user' ? '👤' : '⚡');
+						return \`
+						<div class="slash-command-item" onclick="executeCustomCommand('\${cmd.command.replace(/'/g, "\\\\'")}')">
+							<div class="slash-command-icon">\${sourceLabel}</div>
 							<div class="slash-command-content">
-								<div class="slash-command-title">/\${cmd.name}</div>
+								<div class="slash-command-title">\${displayName}</div>
 								<div class="slash-command-description">\${cmd.description}</div>
 							</div>
 						</div>
-					\`).join('');
+					\`;
+					}).join('');
 				} else {
 					customCommandsSection.style.display = 'none';
 				}

@@ -765,8 +765,11 @@ export function getBodyContent(): string {
 				<div id="customCommandsSection" style="display: none;">
 					<div style="padding: 10px 15px; border-top: 1px solid var(--vscode-panel-border); margin-top: 10px;">
 						<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-							<span style="font-size: 12px; font-weight: 600; color: var(--vscode-foreground);">Your Custom Commands</span>
+							<span style="font-size: 12px; font-weight: 600; color: var(--vscode-foreground);">📁 Custom Slash Commands</span>
 							<button class="manage-btn" onclick="hideSlashCommandsModal(); showCustomCommandsModal();" style="font-size: 11px; padding: 2px 8px;">Manage</button>
+						</div>
+						<div style="font-size: 10px; color: var(--vscode-descriptionForeground); margin-bottom: 8px;">
+							📁 Project (.claude/commands/) · 👤 User (~/.claude/commands/) · ⚡ UI Created
 						</div>
 						<div id="customCommandsList">
 							<!-- Custom commands will be dynamically added here -->
