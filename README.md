@@ -24,8 +24,9 @@
 * ✅ **Multi-language Support**: Multi-language communication and code comments.
 * ✅ **Perfect for "Vibe Coding"**: Smooth UI interface for an ultra-comfortable coding environment.
 * 🔄 **Operation History**: Real-time display of all file operations with one-click undo/redo
+* ⚡ **Slash Commands (Skills)**: Full support for Claude Code's custom slash commands from `.claude/commands/`
 
-Updated 2025.11.05: Updated latest models and corresponding pricing, added Auto/Max button to solve Anthropic's official backend Haiku dilution issue.
+Updated 2025.12.29: Added macOS support, cross-platform refactoring, AWS Bedrock support, and slash commands integration.
 
 ---
 
@@ -297,6 +298,66 @@ claude chat -m opus "hello"  # Test if configuration works
 > * Third-party APIs are usually more affordable for budget-conscious users. Common services: [api.tu-zi.com](https://api.tu-zi.com/), [openrouter.ai](https://openrouter.ai), [anyrouter.top](https://anyrouter.top)
 > * Toggle between official account and custom API anytime via the switch
 > * Wrong API key will show "processing" until timeout
+
+### ⚡ Slash Commands (Skills)
+
+This extension fully supports Claude Code's custom slash commands, allowing you to create reusable prompts and workflows.
+
+#### How Slash Commands Work
+
+Slash commands are Markdown files stored in special directories:
+
+| Scope | Directory | Command Prefix |
+|-------|-----------|----------------|
+| Project | `.claude/commands/` | `/project:` |
+| User (Global) | `~/.claude/commands/` | `/user:` |
+
+#### Creating a Slash Command
+
+1. Create a `.md` file in the commands directory:
+
+```bash
+# Project-level command
+mkdir -p .claude/commands
+echo "Review this code for bugs and suggest improvements." > .claude/commands/review.md
+
+# User-level command (available in all projects)
+mkdir -p ~/.claude/commands
+echo "Explain this code in simple terms." > ~/.claude/commands/explain.md
+```
+
+2. Use the command in chat:
+   - Type `/project:review` or `/user:explain`
+   - Or click the `/` button to see all available commands
+
+#### Using Arguments
+
+Commands support `$ARGUMENTS` placeholder:
+
+```markdown
+<!-- .claude/commands/test.md -->
+Write unit tests for the following code:
+$ARGUMENTS
+
+Use Jest and follow best practices.
+```
+
+Usage: `/project:test [paste your code here]`
+
+#### Organizing Commands
+
+You can organize commands in subdirectories:
+
+```
+.claude/commands/
+├── posts/
+│   ├── new.md          → /project:posts:new
+│   └── publish.md      → /project:posts:publish
+├── code/
+│   ├── review.md       → /project:code:review
+│   └── refactor.md     → /project:code:refactor
+└── test.md             → /project:test
+```
 
 ### ❓ FAQ
 
