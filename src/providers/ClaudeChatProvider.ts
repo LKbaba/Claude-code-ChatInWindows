@@ -428,17 +428,15 @@ export class ClaudeChatProvider {
 		// Get thinking intensity setting
 		const thinkingIntensity = this._configurationManager.getThinkingIntensity();
 
-		// Check if this is the first message of a new session and we're on Windows
+		// Check if this is the first message of a new session
 		const isFirstMessage = !this._currentSessionId || this._conversationManager.currentConversation.length === 0;
-		const isWindows = process.platform === 'win32';
-		let windowsEnvironmentInfo = '';
+		let platformEnvironmentInfo = '';
 
-		if (isFirstMessage && isWindows) {
-			// Inject Windows environment information
-			windowsEnvironmentInfo = this._windowsCompatibility.getWindowsEnvironmentInfo();
+		if (isFirstMessage) {
+			// Inject platform-specific environment information (only for Windows)
+			platformEnvironmentInfo = this._windowsCompatibility.getPlatformEnvironmentInfo();
 			
-			// Also update or create CLAUDE.md in the project root if it doesn't have Windows info
-			// 获取当前启用的 MCP 服务器
+			// Also update or create CLAUDE.md in the project root if needed
 			const mcpStatus = this._configurationManager.getMcpStatus();
 			await updateClaudeMdWithWindowsInfo(workspaceFolder, mcpStatus.servers);
 		}
@@ -451,10 +449,10 @@ export class ClaudeChatProvider {
 		}
 
 		// Prepend mode instructions if enabled
-		let actualMessage = windowsEnvironmentInfo + message;
+		let actualMessage = platformEnvironmentInfo + message;
 		if (planMode) {
 			// Plan First mode: Claude will create a detailed plan and wait for approval before implementing
-			actualMessage = windowsEnvironmentInfo + 'PLAN FIRST FOR THIS MESSAGE ONLY: Plan first before making any changes. Show me in detail what you will change and wait for my explicit approval in a separate message before proceeding. Do not implement anything until I confirm. This planning requirement applies ONLY to this current message.\n\n' + message;
+			actualMessage = platformEnvironmentInfo + 'PLAN FIRST FOR THIS MESSAGE ONLY: Plan first before making any changes. Show me in detail what you will change and wait for my explicit approval in a separate message before proceeding. Do not implement anything until I confirm. This planning requirement applies ONLY to this current message.\n\n' + message;
 		}
 		if (thinkingMode) {
 			// Thinking Mode: Claude will show its step-by-step reasoning process
@@ -481,7 +479,7 @@ export class ClaudeChatProvider {
 				default:
 					thinkingPrompt = 'THINK';
 			}
-			actualMessage = windowsEnvironmentInfo + thinkingPrompt + thinkingMessage + actualMessage;
+			actualMessage = platformEnvironmentInfo + thinkingPrompt + thinkingMessage + actualMessage;
 		}
 		
 		// Language Mode: Add language instruction at the end
@@ -539,7 +537,7 @@ export class ClaudeChatProvider {
 			cwd: cwd,
 			sessionId: this._currentSessionId,
 			model: this._selectedModel,
-			windowsEnvironmentInfo: windowsEnvironmentInfo
+			platformEnvironmentInfo: platformEnvironmentInfo
 			// Note: planMode and thinkingMode are handled through message prefixes above,
 			// not passed to ProcessService
 		};
@@ -2561,7 +2559,7 @@ export class ClaudeChatProvider {
 
 	private async _openModelTerminal(): Promise<void> {
 		try {
-			const terminal = await this._windowsCompatibility.createTerminal('Claude Code Model Setup', true);
+			const terminal = await this._windowsCompatibility.createTerminal('Claude Code Model Setup');
 			terminal.sendText('claude model');
 			terminal.show();
 		} catch (error: any) {

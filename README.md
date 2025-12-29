@@ -1,12 +1,12 @@
-# Claude Code Chat UI – for Windows (No WSL)
+# Claude Code Chat UI – for Windows & macOS
 
-> **A Native UI for Windows That Makes Claude Code Instantly Better! 🚀**
+> **A Native UI That Makes Claude Code Instantly Better! 🚀**
 
 <div align="center">
   <img src="icon.png" alt="Claude Code Chat Icon" width="128" height="128">
 
   <!-- Badges -->
-  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-Ready-purple" alt="Cursor Ready"></a> <a href="https://github.com/andrepimenta/claude-code-chat"><img src="https://img.shields.io/badge/Based%20on-claude--code--chat-orange" alt="Based on claude-code-chat"></a>
+  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-Supported-black" alt="macOS"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-Ready-purple" alt="Cursor Ready"></a> <a href="https://github.com/andrepimenta/claude-code-chat"><img src="https://img.shields.io/badge/Based%20on-claude--code--chat-orange" alt="Based on claude-code-chat"></a>
 </div>
 
 **🌐 Languages: English | [简体中文](./README.zh-CN.md) | [繁體中文](./README.zh-TW.md)**
@@ -15,7 +15,8 @@
 
 ## 🎯 Core Advantages
 
-* ✅ **Zero WSL Dependency**: Runs with just Git Bash and Node.js.
+* ✅ **Cross-Platform Support**: Works on both Windows and macOS!
+* ✅ **Zero WSL Dependency** (Windows): Runs with just Git Bash and Node.js.
 * ✅ **Real-time Cost Tracking**: Instantly see token counts and costs.
 * ✅ **MCP Adaptation**: Adapts to various MCPs with support for dynamic MCP tool queries.
 * ✅ **Third-party API Adaptation**: Supports various third-party APIs including anyrouter/tuziapi, as well as Kimi K2.
@@ -23,15 +24,18 @@
 * ✅ **Multi-language Support**: Multi-language communication and code comments.
 * ✅ **Perfect for "Vibe Coding"**: Smooth UI interface for an ultra-comfortable coding environment.
 * 🔄 **Operation History**: Real-time display of all file operations with one-click undo/redo
+* ⚡ **Slash Commands (Skills)**: Full support for Claude Code's custom slash commands from `.claude/commands/`
 
-Updated 2025.11.05: Updated latest models and corresponding pricing, added Auto/Max button to solve Anthropic's official backend Haiku dilution issue.
+Updated 2025.12.29: Added macOS support, cross-platform refactoring, AWS Bedrock support, and slash commands integration.
 
 ---
 
 ## 🚩 Why You Need This Project
 
-* **No More WSL Hassle**:
-    Finally, run Claude Code with **100% native Windows support**. It just works!
+* **Cross-Platform**:
+    Works seamlessly on both **Windows** and **macOS**!
+* **No More WSL Hassle** (Windows):
+    Run Claude Code with **100% native Windows support**. It just works!
 * **Say Goodbye to Path Errors**:
     Seamlessly converts between `C:\` and `/usr/` paths to avoid wasting time and tokens.
 * **Ditch the Terminal**:
@@ -67,12 +71,51 @@ Updated 2025.11.05: Updated latest models and corresponding pricing, added Auto/
 >
 > Claude Code official has released v2.0.33, which can be directly installed using methods compatible with v1.0.48. We recommend using v2.0.33 with plugin version 2.0.2.
 >
-> **⚠️ If you encounter bash tool invocation issues:**
+> **⚠️ If you encounter bash tool invocation issues (Windows):**
 >
 > 1. Add `C:\Program Files\Git\bin` and `C:\Program Files\Git\bin\bash.exe` to system environment variables
 > 2. Delete the `shell-snapshots` folder in `C:\Users\<yourname>\.claude` folder
 > 3. Uninstall the current version and reinstall v2.0.33
 >
+
+---
+
+## 🍎 macOS Setup
+
+### 🔹 Step 1: Install Prerequisites
+
+```bash
+# 1. Install Node.js (LTS version recommended, ≥ 18)
+# Using Homebrew:
+brew install node
+
+# Or download from: https://nodejs.org/
+
+# 2. Install Claude Code CLI
+npm install -g @anthropic-ai/claude-code
+
+# 3. Login to Claude Code
+claude
+# Follow the prompts to authenticate
+```
+
+### 🔹 Step 2: Install the Extension
+
+1. Open VS Code or Cursor
+2. Press `Cmd+Shift+X` to open Extensions
+3. Search for `Claude-Code ChatUI` or `lkbaba`
+4. Click **Install**
+
+### 🔹 Step 3: Start Using
+
+* **Open Chat Panel**: Press `Cmd+Shift+C`
+* Or click the Claude icon in the Activity Bar
+
+That's it! macOS setup is much simpler than Windows. 🎉
+
+---
+
+## 🪟 Windows Setup
 
 ### 🔹 Step 1: Set Up Your Environment (One-Time Only)
 
@@ -186,20 +229,37 @@ npm install  # Install dependencies
 
 ##### Package as VSIX and Install
 
-```powershell
+```bash
 # 1. Make sure you are in the project root and have run npm install
 
 # 2. Compile and package the extension
 npm run package
 
-#    This command will automatically compile and package the extension into a .vsix file.
+# This will generate a .vsix file like: claude-code-chatui-2.1.0.vsix
 ```
 
 **To install the `.vsix` file:**
 
-1. In VS Code or Cursor, press `Ctrl+Shift+P` to open the Command Palette.
-2. Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**.
-3. Select the generated `.vsix` file from the project root to install.
+**Method 1: Command Line (Recommended)**
+
+```bash
+# VS Code
+code --install-extension claude-code-chatui-2.1.0.vsix --force
+
+# Cursor
+cursor --install-extension claude-code-chatui-2.1.0.vsix --force
+
+# macOS: If 'code' command not found, open VS Code and run:
+# Cmd+Shift+P → "Shell Command: Install 'code' command in PATH"
+```
+
+**Method 2: GUI**
+
+1. In VS Code or Cursor, press `Ctrl+Shift+P` (Windows) or `Cmd+Shift+P` (macOS)
+2. Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**
+3. Select the generated `.vsix` file from the project root
+
+**After installation, restart VS Code/Cursor to apply changes.**
 
 ---
 
@@ -255,6 +315,66 @@ claude chat -m opus "hello"  # Test if configuration works
 > * Third-party APIs are usually more affordable for budget-conscious users. Common services: [api.tu-zi.com](https://api.tu-zi.com/), [openrouter.ai](https://openrouter.ai), [anyrouter.top](https://anyrouter.top)
 > * Toggle between official account and custom API anytime via the switch
 > * Wrong API key will show "processing" until timeout
+
+### ⚡ Slash Commands (Skills)
+
+This extension fully supports Claude Code's custom slash commands, allowing you to create reusable prompts and workflows.
+
+#### How Slash Commands Work
+
+Slash commands are Markdown files stored in special directories:
+
+| Scope | Directory | Command Prefix |
+|-------|-----------|----------------|
+| Project | `.claude/commands/` | `/project:` |
+| User (Global) | `~/.claude/commands/` | `/user:` |
+
+#### Creating a Slash Command
+
+1. Create a `.md` file in the commands directory:
+
+```bash
+# Project-level command
+mkdir -p .claude/commands
+echo "Review this code for bugs and suggest improvements." > .claude/commands/review.md
+
+# User-level command (available in all projects)
+mkdir -p ~/.claude/commands
+echo "Explain this code in simple terms." > ~/.claude/commands/explain.md
+```
+
+2. Use the command in chat:
+   - Type `/project:review` or `/user:explain`
+   - Or click the `/` button to see all available commands
+
+#### Using Arguments
+
+Commands support `$ARGUMENTS` placeholder:
+
+```markdown
+<!-- .claude/commands/test.md -->
+Write unit tests for the following code:
+$ARGUMENTS
+
+Use Jest and follow best practices.
+```
+
+Usage: `/project:test [paste your code here]`
+
+#### Organizing Commands
+
+You can organize commands in subdirectories:
+
+```
+.claude/commands/
+├── posts/
+│   ├── new.md          → /project:posts:new
+│   └── publish.md      → /project:posts:publish
+├── code/
+│   ├── review.md       → /project:code:review
+│   └── refactor.md     → /project:code:refactor
+└── test.md             → /project:test
+```
 
 ### ❓ FAQ
 
