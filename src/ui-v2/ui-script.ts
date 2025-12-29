@@ -28,6 +28,52 @@ export const uiScript = `
 		let inputHistory = [''];
 		let historyPosition = 0;
 		let isUpdatingFromHistory = false;
+
+		// Scroll control: pause auto-scroll when user is holding the scrollbar
+		let isUserHoldingScrollbar = false;  // Whether user is holding the scrollbar
+		let autoScrollEnabled = true;        // Whether auto-scroll is enabled
+
+		/**
+		 * Smart scroll to bottom
+		 * Only scrolls when user is not holding the scrollbar
+		 */
+		function scrollToBottom() {
+			if (autoScrollEnabled && !isUserHoldingScrollbar) {
+				messagesDiv.scrollTop = messagesDiv.scrollHeight;
+			}
+		}
+
+		/**
+		 * Initialize scrollbar interaction listener
+		 * Detects when user holds the scrollbar and pauses auto-scroll
+		 */
+		function initScrollbarInteraction() {
+			// Listen for mousedown events
+			messagesDiv.addEventListener('mousedown', (e) => {
+				// Detect if click is in the scrollbar area
+				// clientWidth is content width (excluding scrollbar), if click position exceeds clientWidth, it's on the scrollbar
+				const rect = messagesDiv.getBoundingClientRect();
+				const clickX = e.clientX - rect.left;
+
+				// Check if click is in the scrollbar area (right edge)
+				if (clickX >= messagesDiv.clientWidth) {
+					console.log('[Scroll] User is holding scrollbar, pausing auto-scroll');
+					isUserHoldingScrollbar = true;
+					autoScrollEnabled = false;
+				}
+			});
+
+			// Listen for mouseup events (on document, since user may release outside the container)
+			document.addEventListener('mouseup', () => {
+				if (isUserHoldingScrollbar) {
+					console.log('[Scroll] User released scrollbar, resuming auto-scroll');
+					isUserHoldingScrollbar = false;
+					autoScrollEnabled = true;
+					// Optionally scroll to bottom immediately after release
+					// scrollToBottom();
+				}
+			});
+		}
 		
 		// 存储图片路径到webview URI的映射
 		const imagePathMap = new Map();
@@ -95,7 +141,7 @@ export const uiScript = `
 			
 			messageDiv.appendChild(contentDiv);
 			messagesDiv.appendChild(messageDiv);
-			messagesDiv.scrollTop = messagesDiv.scrollHeight;
+			scrollToBottom();  // Use smart scroll function
 		}
 
 
@@ -178,7 +224,7 @@ export const uiScript = `
 			}
 			
 			messagesDiv.appendChild(messageDiv);
-			messagesDiv.scrollTop = messagesDiv.scrollHeight;
+			scrollToBottom();  // Use smart scroll function
 		}
 
 
@@ -259,7 +305,7 @@ export const uiScript = `
 			
 			messageDiv.appendChild(contentDiv);
 			messagesDiv.appendChild(messageDiv);
-			messagesDiv.scrollTop = messagesDiv.scrollHeight;
+			scrollToBottom();  // Use smart scroll function
 		}
 
 		function formatToolInputUI(input) {
@@ -2549,7 +2595,7 @@ export const uiScript = `
 			\`;
 			
 			messagesDiv.appendChild(restoreContainer);
-			messagesDiv.scrollTop = messagesDiv.scrollHeight;
+			scrollToBottom();  // Use smart scroll function
 		}
 
 		function hideRestoreContainer(commitSha) {
@@ -2612,10 +2658,13 @@ export const uiScript = `
 		}
 
 		updateStatus('Initializing...', 'disconnected');
-		
+
 		// Initialize status immediately
 		updateStatusWithTotals();
-		
+
+		// Initialize scrollbar interaction (pause auto-scroll when holding scrollbar)
+		initScrollbarInteraction();
+
 		// Request operation history on load
 		vscode.postMessage({ type: 'getOperationHistory' });
 
