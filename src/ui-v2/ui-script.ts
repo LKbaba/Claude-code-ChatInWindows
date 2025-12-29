@@ -2235,7 +2235,36 @@ export const uiScript = `
 					totalTokensInput = message.data.totalTokensInput || 0;
 					totalTokensOutput = message.data.totalTokensOutput || 0;
 					requestCount = message.data.requestCount || 0;
-					
+
+					// Update context window indicator with accurate multi-model data
+					if (message.data.maxContextPercentage !== undefined && message.data.maxContextTokens !== undefined) {
+						const maxPercentage = message.data.maxContextPercentage;
+						const maxTokens = message.data.maxContextTokens;
+						const TOTAL_CONTEXT = 200000;
+
+						console.log('[Context] Multi-model context update:', {
+							maxPercentage: maxPercentage.toFixed(1) + '%',
+							maxTokens: maxTokens,
+							bottleneckModel: message.data.bottleneckModel || 'unknown'
+						});
+
+						// Update max tracking if this is higher
+						if (maxTokens > maxContextTokensInSession) {
+							maxContextTokensInSession = maxTokens;
+
+							// Calculate remaining percentage for display
+							const remainingPercentage = Math.max(0, 100 - maxPercentage);
+
+							updateTokenUsageIndicator({
+								used: maxTokens,
+								total: TOTAL_CONTEXT,
+								percentage: Math.round(remainingPercentage),
+								inputTokens: maxTokens,
+								outputTokens: 0
+							});
+						}
+					}
+
 					// Update status bar with new totals
 					updateStatusWithTotals();
 					
