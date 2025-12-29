@@ -10,124 +10,6 @@ import { ConversationManager } from '../managers/ConversationManager';
 import { OperationTracker } from '../managers/OperationTracker';
 import { Operation, OperationType, OperationData } from '../types/Operation';
 
-/**
- * Model context window limits (in tokens)
- * Used to calculate context window usage percentage for different models
- *
- * Reference: https://docs.anthropic.com/en/docs/about-claude/models
- * Last updated: 2025-12-29
- */
-const MODEL_CONTEXT_LIMITS: Record<string, number> = {
-    // === Claude 4.5 Models (Latest) ===
-    // Note: Sonnet 4.5 supports 1M beta with special header, but we use default 200K
-    'claude-opus-4-5-20251101': 200000,
-    'claude-sonnet-4-5-20250929': 200000,
-    'claude-haiku-4-5-20251001': 200000,
-
-    // === Claude 4 Models ===
-    'claude-opus-4-1-20250805': 200000,
-    'claude-opus-4-20250514': 200000,
-    'claude-sonnet-4-20250514': 200000,
-
-    // === Claude 3.7 Models (Deprecated) ===
-    'claude-3-7-sonnet-20250219': 200000,
-
-    // === Claude 3.5 Models (Deprecated/Retired) ===
-    'claude-3-5-sonnet-20241022': 200000,
-    'claude-3-5-sonnet-20240620': 200000,
-    'claude-3-5-haiku-20241022': 200000,
-
-    // === Claude 3 Models (Legacy) ===
-    'claude-3-opus-20240229': 200000,
-    'claude-3-sonnet-20240229': 200000,
-    'claude-3-haiku-20240307': 200000,
-
-    // === Fuzzy match keys (for partial matching) ===
-    'claude-opus-4-5': 200000,
-    'claude-opus-4-1': 200000,
-    'claude-opus-4': 200000,
-    'claude-sonnet-4-5': 200000,
-    'claude-sonnet-4': 200000,
-    'claude-haiku-4-5': 200000,
-    'claude-3-7-sonnet': 200000,
-    'claude-3-5-sonnet': 200000,
-    'claude-3-5-haiku': 200000,
-    'claude-3-opus': 200000,
-    'claude-3-sonnet': 200000,
-    'claude-3-haiku': 200000,
-
-    // Default fallback
-    'default': 200000
-};
-
-/**
- * Get context window limit for a model
- * First tries exact match, then falls back to fuzzy matching
- */
-function getModelContextLimit(modelName: string): number {
-    // 1. Try exact match first
-    if (MODEL_CONTEXT_LIMITS[modelName]) {
-        return MODEL_CONTEXT_LIMITS[modelName];
-    }
-
-    // 2. Try fuzzy matching (model name contains key)
-    for (const [key, limit] of Object.entries(MODEL_CONTEXT_LIMITS)) {
-        if (key !== 'default' && modelName.includes(key)) {
-            return limit;
-        }
-    }
-
-    // 3. Fallback to default
-    return MODEL_CONTEXT_LIMITS['default'];
-}
-
-/**
- * Calculate the maximum context window usage across all models
- * Returns the highest usage percentage among all models used
- */
-function calculateMaxContextUsage(modelUsage: Record<string, any>): {
-    maxPercentage: number;
-    maxTokens: number;
-    bottleneckModel: string;
-    totalInputTokens: number;
-} {
-    let maxPercentage = 0;
-    let maxTokens = 0;
-    let bottleneckModel = '';
-    let totalInputTokens = 0;
-
-    for (const [modelName, usage] of Object.entries(modelUsage)) {
-        // Calculate context usage for this model
-        // Context = input_tokens + cache_read_input_tokens + cache_creation_input_tokens
-        const inputTokens = usage.inputTokens || 0;
-        const cacheReadTokens = usage.cacheReadInputTokens || 0;
-        const cacheCreationTokens = usage.cacheCreationInputTokens || 0;
-
-        const contextTokens = inputTokens + cacheReadTokens + cacheCreationTokens;
-        totalInputTokens += contextTokens;
-
-        // Get the limit for this model
-        const limit = getModelContextLimit(modelName);
-        const percentage = (contextTokens / limit) * 100;
-
-        console.log(`[MessageProcessor] Model ${modelName}: ${contextTokens} tokens (${percentage.toFixed(1)}% of ${limit})`);
-
-        // Track the highest usage
-        if (percentage > maxPercentage) {
-            maxPercentage = percentage;
-            maxTokens = contextTokens;
-            bottleneckModel = modelName;
-        }
-    }
-
-    return {
-        maxPercentage,
-        maxTokens,
-        bottleneckModel,
-        totalInputTokens
-    };
-}
-
 export interface MessageCallbacks {
     onSystemMessage: (data: any) => void;
     onAssistantMessage: (data: any) => void;
@@ -864,7 +746,7 @@ export class MessageProcessor {
      */
     private _processResult(jsonData: any, callbacks: MessageCallbacks): void {
         // Check for login errors
-        if (jsonData.error && typeof jsonData.error === 'string' &&
+        if (jsonData.error && typeof jsonData.error === 'string' && 
             jsonData.error.includes('login')) {
             callbacks.onError('Authentication required. Please run "claude login" in your terminal.');
             return;
@@ -873,37 +755,6 @@ export class MessageProcessor {
         // Current request tokens are already tracked in the instance variables
         const currentTokensInput = this._currentRequestTokensInput;
         const currentTokensOutput = this._currentRequestTokensOutput;
-
-        // Calculate max context usage from modelUsage if available
-        // This handles multi-model scenarios (e.g., Opus main + Sonnet subagent)
-        let maxContextData = {
-            maxPercentage: 0,
-            maxTokens: 0,
-            bottleneckModel: '',
-            totalInputTokens: 0
-        };
-
-        if (jsonData.modelUsage && typeof jsonData.modelUsage === 'object') {
-            console.log('[MessageProcessor] Calculating context usage from modelUsage:', Object.keys(jsonData.modelUsage));
-            maxContextData = calculateMaxContextUsage(jsonData.modelUsage);
-            console.log('[MessageProcessor] Max context usage:', maxContextData);
-        } else if (jsonData.usage) {
-            // Fallback to top-level usage if modelUsage not available
-            const usage = jsonData.usage;
-            const inputTokens = usage.input_tokens || 0;
-            const cacheReadTokens = usage.cache_read_input_tokens || 0;
-            const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
-            const totalContext = inputTokens + cacheReadTokens + cacheCreationTokens;
-            const limit = MODEL_CONTEXT_LIMITS['default'];
-
-            maxContextData = {
-                maxPercentage: (totalContext / limit) * 100,
-                maxTokens: totalContext,
-                bottleneckModel: 'default',
-                totalInputTokens: totalContext
-            };
-            console.log('[MessageProcessor] Using fallback usage calculation:', maxContextData);
-        }
 
         // Update tracking
         this._requestCount++;
@@ -919,7 +770,7 @@ export class MessageProcessor {
             turns: jsonData.num_turns
         });
 
-        // Send totals update with current request token details and max context usage
+        // Send totals update with current request token details
         callbacks.sendToWebview({
             type: 'updateTotals',
             data: {
@@ -931,11 +782,7 @@ export class MessageProcessor {
                 currentDuration: jsonData.duration_ms,
                 currentTurns: jsonData.num_turns,
                 currentTokensInput: currentTokensInput,
-                currentTokensOutput: currentTokensOutput,
-                // Max context window usage across all models (for accurate context indicator)
-                maxContextPercentage: maxContextData.maxPercentage,
-                maxContextTokens: maxContextData.maxTokens,
-                bottleneckModel: maxContextData.bottleneckModel
+                currentTokensOutput: currentTokensOutput
             }
         });
 
