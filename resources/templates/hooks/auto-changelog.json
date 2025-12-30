@@ -1,0 +1,36 @@
+{
+  "id": "hook-auto-changelog",
+  "name": "Auto Changelog",
+  "description": "Automatically update changelog based on commit messages",
+  "category": "hook",
+  "tags": ["changelog", "automation", "documentation"],
+  "version": "1.0.0",
+  "author": "Claude Code Chat",
+  "hook": {
+    "event": "post-commit",
+    "command": "npx conventional-changelog -p angular -i CHANGELOG.md -s",
+    "description": "Updates CHANGELOG.md based on conventional commits",
+    "failOnError": false,
+    "timeout": 30000
+  },
+  "config": {
+    "preset": "angular",
+    "outputFile": "CHANGELOG.md",
+    "commitTypes": {
+      "feat": "Features",
+      "fix": "Bug Fixes",
+      "docs": "Documentation",
+      "style": "Styles",
+      "refactor": "Code Refactoring",
+      "perf": "Performance Improvements",
+      "test": "Tests",
+      "chore": "Chores"
+    }
+  },
+  "setup": {
+    "dependencies": ["conventional-changelog-cli"],
+    "scripts": {
+      "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s"
+    }
+  }
+}

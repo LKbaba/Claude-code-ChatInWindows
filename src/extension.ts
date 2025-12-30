@@ -5,6 +5,7 @@ import { ClaudeChatViewProvider } from './providers/ClaudeChatViewProvider';
 import { ClaudeChatProvider } from './providers/ClaudeChatProvider';
 import { PluginManager } from './services/PluginManager';
 import { secretService } from './services/SecretService';
+import { TemplateHubProvider } from './template-hub/providers/TemplateHubProvider';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// DEBUG: console.log('Claude Code Chat extension is being activated!');
@@ -79,6 +80,33 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Make tree provider accessible to chat provider for refreshing
 	provider.setTreeProvider(treeProvider);
 
+	// Initialize Template Hub Provider
+	const templateHubProvider = new TemplateHubProvider(context.extensionUri, context);
+	
+	// Register Template Hub webview view provider
+	const templateHubViewDisposable = vscode.window.registerWebviewViewProvider(
+		TemplateHubProvider.viewType,
+		templateHubProvider
+	);
+
+	// Register Template Hub commands
+	const openTemplateHubCommand = vscode.commands.registerCommand(
+		'claude-code-chatui.openTemplateHub',
+		() => {
+			// Focus on the Template Hub view in the sidebar
+			vscode.commands.executeCommand('templateHub.view.focus');
+		}
+	);
+
+	const initClaudeCodeCommand = vscode.commands.registerCommand(
+		'claude-code-chatui.initClaudeCode',
+		async () => {
+			// Focus on Template Hub view and trigger the init wizard
+			await vscode.commands.executeCommand('templateHub.view.focus');
+			templateHubProvider.showInitWizard();
+		}
+	);
+
 	// Create status bar item
 	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 	statusBarItem.text = "Claude";
@@ -86,7 +114,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	statusBarItem.command = 'claude-code-chatui.openChat';
 	statusBarItem.show();
 
-	context.subscriptions.push(disposable, loadConversationDisposable, operationTrackedCommand, operationChangedCommand, statusBarItem);
+	context.subscriptions.push(
+		disposable,
+		loadConversationDisposable,
+		operationTrackedCommand,
+		operationChangedCommand,
+		statusBarItem,
+		templateHubViewDisposable,
+		openTemplateHubCommand,
+		initClaudeCodeCommand
+	);
 	// DEBUG: console.log('Claude Code Chat extension activation completed successfully!');
 }
 

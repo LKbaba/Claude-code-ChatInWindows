@@ -1,0 +1,27 @@
+{
+  "id": "hook-pre-commit-test",
+  "name": "Pre-Commit Test",
+  "description": "Run tests before committing to ensure code correctness",
+  "category": "hook",
+  "tags": ["pre-commit", "test", "quality"],
+  "version": "1.0.0",
+  "author": "Claude Code Chat",
+  "hook": {
+    "event": "pre-commit",
+    "command": "npm test -- --run",
+    "description": "Runs test suite on affected files before commit",
+    "failOnError": true,
+    "timeout": 120000
+  },
+  "config": {
+    "runOnlyAffected": true,
+    "filePatterns": ["*.ts", "*.tsx", "*.js", "*.jsx"],
+    "testFilePatterns": ["*.test.ts", "*.spec.ts", "*.test.js", "*.spec.js"]
+  },
+  "setup": {
+    "dependencies": ["vitest"],
+    "scripts": {
+      "test": "vitest"
+    }
+  }
+}

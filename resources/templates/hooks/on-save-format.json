@@ -1,0 +1,31 @@
+{
+  "id": "hook-on-save-format",
+  "name": "On Save Format",
+  "description": "Automatically format code when saving files",
+  "category": "hook",
+  "tags": ["on-save", "format", "prettier"],
+  "version": "1.0.0",
+  "author": "Claude Code Chat",
+  "hook": {
+    "event": "on-save",
+    "command": "npx prettier --write",
+    "description": "Formats the saved file using Prettier",
+    "failOnError": false,
+    "timeout": 10000
+  },
+  "config": {
+    "filePatterns": ["*.ts", "*.tsx", "*.js", "*.jsx", "*.json", "*.css", "*.scss", "*.md"],
+    "excludePatterns": ["node_modules/**", "dist/**", "*.min.js"]
+  },
+  "setup": {
+    "dependencies": ["prettier"],
+    "configFiles": {
+      ".prettierrc": {
+        "semi": true,
+        "singleQuote": true,
+        "tabWidth": 2,
+        "trailingComma": "es5"
+      }
+    }
+  }
+}

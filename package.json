@@ -66,6 +66,18 @@
         "title": "Open Claude Code Chat",
         "category": "Claude Code Chat",
         "icon": "icon.png"
+      },
+      {
+        "command": "claude-code-chatui.openTemplateHub",
+        "title": "Open Template Hub",
+        "category": "Claude Code Chat",
+        "icon": "$(library)"
+      },
+      {
+        "command": "claude-code-chatui.initClaudeCode",
+        "title": "Initialize Claude Code",
+        "category": "Claude Code Chat",
+        "icon": "$(wand)"
       }
     ],
     "keybindings": [
@@ -79,6 +91,12 @@
       "commandPalette": [
         {
           "command": "claude-code-chatui.openChat"
+        },
+        {
+          "command": "claude-code-chatui.openTemplateHub"
+        },
+        {
+          "command": "claude-code-chatui.initClaudeCode"
         }
       ],
       "editor/context": [
@@ -143,6 +161,14 @@
           "when": "true",
           "icon": "icon.png",
           "contextualTitle": "Claude Code Chat"
+        },
+        {
+          "type": "webview",
+          "id": "templateHub.view",
+          "name": "Template Hub",
+          "when": "true",
+          "icon": "$(library)",
+          "contextualTitle": "Template Hub"
         }
       ]
     },

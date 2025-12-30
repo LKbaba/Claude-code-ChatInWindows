@@ -1,0 +1,31 @@
+{
+  "id": "hook-notification-slack",
+  "name": "Slack Notification",
+  "description": "Send notifications to Slack channel on specific events",
+  "category": "hook",
+  "tags": ["notification", "slack", "integration"],
+  "version": "1.0.0",
+  "author": "Claude Code Chat",
+  "hook": {
+    "event": "post-commit",
+    "command": "node scripts/notify-slack.js",
+    "description": "Sends commit notification to configured Slack channel",
+    "failOnError": false,
+    "timeout": 30000
+  },
+  "config": {
+    "webhookUrl": "${SLACK_WEBHOOK_URL}",
+    "channel": "#dev-notifications",
+    "username": "Claude Code Bot",
+    "messageTemplate": "New commit by ${author}: ${message}"
+  },
+  "setup": {
+    "envVariables": ["SLACK_WEBHOOK_URL"],
+    "scripts": {
+      "notify-slack": "node scripts/notify-slack.js"
+    },
+    "files": {
+      "scripts/notify-slack.js": "// Slack notification script\nconst https = require('https');\n// Implementation here"
+    }
+  }
+}

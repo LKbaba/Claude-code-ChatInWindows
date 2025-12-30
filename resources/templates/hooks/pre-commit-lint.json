@@ -1,0 +1,26 @@
+{
+  "id": "hook-pre-commit-lint",
+  "name": "Pre-Commit Lint",
+  "description": "Run linting checks before committing code to ensure code quality",
+  "category": "hook",
+  "tags": ["pre-commit", "lint", "quality"],
+  "version": "1.0.0",
+  "author": "Claude Code Chat",
+  "hook": {
+    "event": "pre-commit",
+    "command": "npm run lint",
+    "description": "Runs ESLint on staged files before commit",
+    "failOnError": true,
+    "timeout": 60000
+  },
+  "config": {
+    "filePatterns": ["*.ts", "*.tsx", "*.js", "*.jsx"],
+    "excludePatterns": ["node_modules/**", "dist/**", "build/**"]
+  },
+  "setup": {
+    "dependencies": ["eslint"],
+    "scripts": {
+      "lint": "eslint . --ext .ts,.tsx,.js,.jsx"
+    }
+  }
+}
