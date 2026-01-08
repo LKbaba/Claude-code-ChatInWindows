@@ -1,10 +1,18 @@
 # Headless mode
 
-> Run Claude Code programmatically without interactive UI
+> Run Claude Code programmatically without interactive UI (v2.1.0+)
 
 ## Overview
 
 The headless mode allows you to run Claude Code programmatically from command line scripts and automation tools without any interactive UI.
+
+## What's New in v2.1.0
+
+- **`--tools` flag**: Restrict which built-in tools Claude can use during interactive sessions
+- **`CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS`**: Environment variable to override the default file read token limit
+- **`/plan` command**: Shortcut to enable plan mode directly from the prompt
+- **Slash command autocomplete**: Support when `/` appears anywhere in input
+- **Unified Ctrl+B backgrounding**: Background both bash commands and agents simultaneously
 
 ## Basic usage
 
@@ -24,14 +32,16 @@ The SDK leverages all the CLI options available in Claude Code. Here are the key
 | :------------------------- | :----------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------ |
 | `--print`, `-p`            | Run in non-interactive mode                                                                            | `claude -p "query"`                                                                                                       |
 | `--output-format`          | Specify output format (`text`, `json`, `stream-json`)                                                  | `claude -p --output-format json`                                                                                          |
-| `--resume`, `-r`           | Resume a conversation by session ID                                                                    | `claude --resume abc123`                                                                                                  |
+| `--resume`, `-r`           | Resume a conversation by session ID or name                                                            | `claude --resume abc123` or `claude --resume my-session`                                                                  |
 | `--continue`, `-c`         | Continue the most recent conversation                                                                  | `claude --continue`                                                                                                       |
 | `--verbose`                | Enable verbose logging                                                                                 | `claude --verbose`                                                                                                        |
 | `--append-system-prompt`   | Append to system prompt (only with `--print`)                                                          | `claude --append-system-prompt "Custom instruction"`                                                                      |
 | `--allowedTools`           | Space-separated list of allowed tools, or <br /><br /> string of comma-separated list of allowed tools | `claude --allowedTools mcp__slack mcp__filesystem`<br /><br />`claude --allowedTools "Bash(npm install),mcp__filesystem"` |
-| `--disallowedTools`        | Space-separated list of denied tools, or <br /><br /> string of comma-separated list of denied tools   | `claude --disallowedTools mcp__splunk mcp__github`<br /><br />`claude --disallowedTools "Bash(git commit),mcp__github"`   |
+| `--disallowedTools`        | Space-separated list of denied tools, or <br /><br /> string of comma-separated list of denied tools   | `claude --disallowedTools mcp__splunk mcp__github`<br /><br />`claude --disallowedTools "Bash(git commit),Task(AgentName)"`|
+| `--tools`                  | Restrict which built-in tools Claude can use (v2.1.0+)                                                 | `claude --tools "Read,Write,Grep"`                                                                                        |
 | `--mcp-config`             | Load MCP servers from a JSON file                                                                      | `claude --mcp-config servers.json`                                                                                        |
 | `--permission-prompt-tool` | MCP tool for handling permission prompts (only with `--print`)                                         | `claude --permission-prompt-tool mcp__auth__prompt`                                                                       |
+| `--session-id`             | Custom session ID when forking sessions                                                                | `claude --resume abc123 --fork-session --session-id my-fork`                                                              |
 
 For a complete list of CLI options and features, see the [CLI reference](/en/docs/claude-code/cli-reference) documentation.
 
@@ -48,6 +58,13 @@ claude --resume 550e8400-e29b-41d4-a716-446655440000 "Update the tests"
 
 # Resume in non-interactive mode
 claude --resume 550e8400-e29b-41d4-a716-446655440000 "Fix all linting issues" --no-interactive
+
+# 使用命名会话 (v2.0.64+)
+# 在 REPL 中使用 /rename 命名当前会话，然后通过名称恢复
+claude --resume my-auth-session "Continue implementing OAuth"
+
+# 使用自定义会话 ID 创建 fork (v2.0.73+)
+claude --resume abc123 --fork-session --session-id my-feature-branch
 ```
 
 ## Output Formats

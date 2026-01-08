@@ -1,10 +1,19 @@
 # Subagents in the SDK
 
-Working with subagents in the Claude Code SDK
+Working with subagents in the Claude Code SDK (v2.1.0+)
 
 Subagents in the Claude Code SDK are specialized AIs that are orchestrated by the main agent.
 Use subagents for context management and parallelization.
 This guide explains how SDK applications interact with and utilize subagents that are created via markdown files.
+
+## What's New in v2.1.0
+
+- **Agent-scoped hooks**: Define PreToolUse, PostToolUse, and Stop hooks in agent frontmatter
+- **Disable specific agents**: Use `Task(AgentName)` syntax in `--disallowedTools` or settings.json permissions
+- **SubagentStop hooks**: Configure hooks to execute when a subagent considers stopping
+- **Improved subagent inheritance**: Subagents now properly inherit the parent's model by default
+- **Async agent support**: Agents can run asynchronously and send messages to wake up the main agent
+- **Background agent tokens**: Spinner token counter properly accumulates tokens from subagents
 
 ## Overview
 
@@ -68,6 +77,34 @@ the subagent should follow.
 | `name` | Yes | Unique identifier using lowercase letters and hyphens |
 | `description` | Yes | Natural language description of when to use this subagent |
 | `tools` | No | Comma-separated list of allowed tools. If omitted, inherits all tools |
+| `model` | No | Model to use for this agent (e.g., `inherit`, `claude-sonnet-4`, `claude-opus-4`) |
+| `color` | No | Color for agent identification (e.g., `blue`, `green`, `red`) |
+| `hooks` | No | Agent-scoped hooks for PreToolUse, PostToolUse, Stop events (v2.1.0+) |
+
+### Agent Frontmatter with Hooks (v2.1.0+)
+
+```markdown
+---
+name: secure-code-reviewer
+description: Security-focused code reviewer with validation hooks
+model: inherit
+color: red
+tools: Read, Grep, Glob
+hooks:
+  PreToolUse:
+    - matcher: "*"
+      hooks:
+        - type: prompt
+          prompt: "Verify this tool usage is security-safe"
+  Stop:
+    - matcher: "*"
+      hooks:
+        - type: prompt
+          prompt: "Ensure all security checks are complete before stopping"
+---
+
+You are a security-focused code reviewer...
+```
 
 ## How the SDK Uses Subagents
 

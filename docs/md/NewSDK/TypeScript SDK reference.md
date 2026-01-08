@@ -1,6 +1,73 @@
 # TypeScript SDK reference
 
-> Complete API reference for the Claude Code TypeScript SDK, including all functions, types, and interfaces.
+> Complete API reference for the Claude Agent SDK (TypeScript) - 原 Claude Code TypeScript SDK
+
+## ⚠️ 包名变更
+
+```bash
+# 旧包名 (已废弃)
+npm uninstall @anthropic-ai/claude-code
+
+# 新包名
+npm install @anthropic-ai/claude-agent-sdk
+```
+
+```typescript
+// 更新导入语句
+// 旧: import { query } from "@anthropic-ai/claude-code";
+import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
+```
+
+## 🆕 V2 接口预览 (unstable)
+
+TypeScript SDK 现在提供简化的 V2 接口，使用 `send()`/`stream()` 模式简化多轮对话：
+
+```typescript
+import {
+  unstable_v2_createSession,
+  unstable_v2_resumeSession,
+  unstable_v2_prompt
+} from '@anthropic-ai/claude-agent-sdk';
+
+// 单次查询
+const result = await unstable_v2_prompt('What is 2 + 2?', {
+  model: 'claude-sonnet-4-5-20250929'
+});
+
+// 多轮对话
+await using session = unstable_v2_createSession({
+  model: 'claude-sonnet-4-5-20250929'
+});
+
+await session.send('Hello!');
+for await (const msg of session.stream()) {
+  if (msg.type === 'assistant') {
+    console.log(msg.message.content);
+  }
+}
+
+// 继续对话
+await session.send('Tell me more');
+for await (const msg of session.stream()) {
+  // 处理响应...
+}
+
+// 恢复会话
+await using resumed = unstable_v2_resumeSession(sessionId, {
+  model: 'claude-sonnet-4-5-20250929'
+});
+```
+
+**V2 Session 接口:**
+```typescript
+interface Session {
+  send(message: string): Promise<void>;  // 发送消息
+  stream(): AsyncGenerator<SDKMessage>;  // 获取响应流
+  close(): void;                         // 关闭会话
+}
+```
+
+> ⚠️ V2 接口目前为不稳定预览版。Session forking 等高级功能仍需使用 V1 接口。
 
 <script src="/components/typescript-sdk-type-links.js" defer />
 
@@ -8,7 +75,7 @@
 
 ### `query()`
 
-The primary function for interacting with Claude Code. Creates an async generator that streams messages as they arrive.
+The primary function for interacting with Claude. Creates an async generator that streams messages as they arrive.
 
 ```ts
 function query({
