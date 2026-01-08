@@ -1,10 +1,17 @@
 # MCP in the SDK
 
-Extend Claude Code with custom tools using Model Context Protocol servers
+Extend Claude Code with custom tools using Model Context Protocol servers (v2.1.0+)
 
 ## Overview
 
 Model Context Protocol (MCP) servers extend Claude Code with custom tools and capabilities. MCPs can run as external processes, connect via HTTP/SSE, or execute directly within your SDK application.
+
+## What's New in v2.1.0
+
+- **`list_changed` 通知**: MCP 服务器可以动态更新其可用的工具、提示和资源，无需重新连接
+- **通配符工具权限**: 使用 `mcp__server__*` 语法允许或拒绝服务器的所有工具
+- **改进的 MCP 加载**: 修复了使用 `--dangerously-skip-permissions` 时 `.mcp.json` 中的 MCP 服务器不加载的问题
+- **Streamable HTTP**: Atlassian MCP 集成更新为使用更可靠的默认配置
 
 ## Configuration
 
@@ -297,6 +304,54 @@ async for message in query(
     
     if message["type"] == "result" and message.get("subtype") == "error_during_execution":
         print("Execution failed")
+```
+
+## Wildcard Tool Permissions (v2.0.70+)
+
+使用通配符语法批量允许或拒绝 MCP 服务器的工具：
+
+**TypeScript**
+```typescript
+import { query } from "@anthropic-ai/claude-code";
+
+for await (const message of query({
+  prompt: "Analyze my codebase",
+  options: {
+    mcpConfig: ".mcp.json",
+    // 允许 filesystem 服务器的所有工具
+    allowedTools: ["mcp__filesystem__*"],
+    // 拒绝 dangerous 服务器的所有工具
+    disallowedTools: ["mcp__dangerous__*"]
+  }
+})) {
+  console.log(message);
+}
+```
+
+**Python**
+```python
+from claude_code import query
+
+async for message in query(
+    prompt="Analyze my codebase",
+    options={
+        "mcp_config": ".mcp.json",
+        # 允许 filesystem 服务器的所有工具
+        "allowed_tools": ["mcp__filesystem__*"],
+        # 拒绝 dangerous 服务器的所有工具
+        "disallowed_tools": ["mcp__dangerous__*"]
+    }
+):
+    print(message)
+```
+
+## Dynamic Tool Updates (v2.1.0+)
+
+MCP 服务器现在可以通过 `list_changed` 通知动态更新其工具列表：
+
+```typescript
+// MCP 服务器可以发送通知来更新工具列表
+// SDK 会自动处理这些更新，无需重新连接
 ```
 
 ## Related Resources

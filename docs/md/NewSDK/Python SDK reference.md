@@ -1,27 +1,56 @@
 # Python SDK reference
 
-> Complete API reference for the Claude Code Python SDK, including all functions, types, and classes.
+> Complete API reference for the Claude Agent SDK (Python) - 原 Claude Code Python SDK
+
+## ⚠️ 包名和类型变更
+
+```bash
+# 旧包名 (已废弃)
+pip uninstall claude-code-sdk
+
+# 新包名
+pip install claude-agent-sdk
+```
+
+```python
+# 更新导入语句
+# 旧: from claude_code_sdk import query, ClaudeCodeOptions
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+# 类型重命名: ClaudeCodeOptions → ClaudeAgentOptions
+```
+
+## 两种使用方式对比
+
+| 特性 | `query()` | `ClaudeSDKClient` |
+|------|-----------|-------------------|
+| 会话 | 每次创建新会话 | 复用同一会话 |
+| 对话 | 单次交换 | 同一上下文多次交换 |
+| 中断支持 | ❌ 不支持 | ✅ 支持 |
+| Hooks | ❌ 不支持 | ✅ 支持 |
+| 自定义工具 | ❌ 不支持 | ✅ 支持 |
+| 适用场景 | 一次性任务 | 持续对话 |
 
 ## Functions
 
 ### `query()`
 
-The primary async function for interacting with Claude Code. Returns an async iterator that yields messages as they arrive.
+The primary async function for interacting with Claude. Returns an async iterator that yields messages as they arrive.
 
 ```python
 async def query(
     *,
     prompt: str | AsyncIterable[dict[str, Any]],
-    options: ClaudeCodeOptions | None = None
+    options: ClaudeAgentOptions | None = None
 ) -> AsyncIterator[Message]
 ```
 
 #### Parameters
 
-| Parameter | Type                         | Description                                                               |
-| :-------- | :--------------------------- | :------------------------------------------------------------------------ |
-| `prompt`  | `str \| AsyncIterable[dict]` | The input prompt as a string or async iterable for streaming mode         |
-| `options` | `ClaudeCodeOptions \| None`  | Optional configuration object (defaults to `ClaudeCodeOptions()` if None) |
+| Parameter | Type                          | Description                                                                |
+| :-------- | :---------------------------- | :------------------------------------------------------------------------- |
+| `prompt`  | `str \| AsyncIterable[dict]`  | The input prompt as a string or async iterable for streaming mode          |
+| `options` | `ClaudeAgentOptions \| None`  | Optional configuration object (defaults to `ClaudeAgentOptions()` if None) |
 
 #### Returns
 
@@ -31,7 +60,7 @@ Returns an `AsyncIterator[Message]` that yields messages from the conversation.
 
 ```python
 import asyncio
-from claude_code_sdk import query
+from claude_agent_sdk import query
 
 async def main():
     async for message in query(prompt="What is 2+2?"):
@@ -43,12 +72,11 @@ asyncio.run(main())
 #### Example - With options
 
 ```python
-
 import asyncio
-from claude_code_sdk import query, ClaudeCodeOptions
+from claude_agent_sdk import query, ClaudeAgentOptions
 
 async def main():
-    options = ClaudeCodeOptions(
+    options = ClaudeAgentOptions(
         system_prompt="You are an expert Python developer",
         permission_mode='acceptEdits',
         cwd="/home/user/project"
@@ -60,6 +88,28 @@ async def main():
     ):
         print(message)
 
+asyncio.run(main())
+```
+
+#### Example - 使用 Claude Code 系统提示 (v0.1.0+ 需要显式设置)
+
+```python
+import asyncio
+from claude_agent_sdk import query, ClaudeAgentOptions
+
+async def main():
+    options = ClaudeAgentOptions(
+        # 显式使用 Claude Code 的系统提示
+        system_prompt={"type": "preset", "preset": "claude_code"},
+        # 加载文件系统设置
+        setting_sources=["project"]
+    )
+
+    async for message in query(
+        prompt="Fix the bug in auth.py",
+        options=options
+    ):
+        print(message)
 
 asyncio.run(main())
 ```
