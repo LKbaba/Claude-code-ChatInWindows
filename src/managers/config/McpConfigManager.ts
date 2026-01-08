@@ -19,21 +19,126 @@ export interface McpStatus {
 
 export class McpConfigManager {
     /**
+     * 获取当前活动编辑器的资源 URI
+     * 用于多根工作区场景下获取正确的配置作用域
+     * @returns 资源 URI 或 undefined
+     */
+    private getActiveResourceUri(): vscode.Uri | undefined {
+        // 优先使用活动编辑器的文档 URI
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor) {
+            return activeEditor.document.uri;
+        }
+
+        // 其次使用第一个工作区文件夹
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            return workspaceFolders[0].uri;
+        }
+
+        return undefined;
+    }
+
+    /**
+     * 获取合并后的 MCP 服务器配置
+     * 优先级：工作区配置 > 用户配置
+     * 合并策略：
+     *   - 同名服务器：工作区配置覆盖用户配置
+     *   - 不同名服务器：合并显示
+     *   - disabled: true 的服务器：从最终结果中排除
+     * @param resource 可选的资源 URI，用于多根工作区
+     * @returns 合并后的服务器列表（已过滤禁用的服务器）
+     */
+    private getMergedMcpServers(resource?: vscode.Uri): any[] {
+        // 使用资源 URI 获取正确作用域的配置
+        const resourceUri = resource || this.getActiveResourceUri();
+        const config = vscode.workspace.getConfiguration('claudeCodeChatUI', resourceUri);
+
+        // 获取配置的详细信息，包括来源
+        const serversInspect = config.inspect<any[]>('mcp.servers');
+
+        // 用户级别配置（全局）
+        const userServers = serversInspect?.globalValue || [];
+        // 工作区级别配置（项目特定）
+        const workspaceServers = serversInspect?.workspaceValue || [];
+        // 工作区文件夹级别配置（多根工作区）
+        const folderServers = serversInspect?.workspaceFolderValue || [];
+
+        // 如果工作区或文件夹有配置，进行智能合并
+        if (workspaceServers.length > 0 || folderServers.length > 0) {
+            // 创建服务器名称到配置的映射
+            const serverMap = new Map<string, any>();
+
+            // 首先添加用户级别的服务器
+            for (const server of userServers) {
+                if (server.name) {
+                    serverMap.set(server.name, server);
+                }
+            }
+
+            // 然后用工作区级别的服务器覆盖/添加
+            for (const server of workspaceServers) {
+                if (server.name) {
+                    serverMap.set(server.name, server);
+                }
+            }
+
+            // 最后用文件夹级别的服务器覆盖/添加
+            for (const server of folderServers) {
+                if (server.name) {
+                    serverMap.set(server.name, server);
+                }
+            }
+
+            // 过滤掉 disabled: true 的服务器
+            const mergedServers = Array.from(serverMap.values())
+                .filter(server => !server.disabled);
+
+            console.log('[McpConfigManager] MCP servers merged:', {
+                userCount: userServers.length,
+                workspaceCount: workspaceServers.length,
+                folderCount: folderServers.length,
+                mergedCount: mergedServers.length,
+                resourceUri: resourceUri?.toString() || 'none'
+            });
+
+            return mergedServers;
+        }
+
+        // 没有工作区配置，直接返回默认获取的值（VS Code 会自动选择最具体的配置）
+        // 同样需要过滤 disabled 的服务器
+        const servers = config.get<any[]>('mcp.servers', []);
+        return servers.filter(server => !server.disabled);
+    }
+
+    /**
+     * 获取 MCP 启用状态
+     * VS Code 的 config.get() 已自动处理作用域优先级
+     * @param resource 可选的资源 URI，用于多根工作区
+     * @returns MCP 是否启用
+     */
+    private getMcpEnabled(resource?: vscode.Uri): boolean {
+        const resourceUri = resource || this.getActiveResourceUri();
+        const config = vscode.workspace.getConfiguration('claudeCodeChatUI', resourceUri);
+        // VS Code 自动按优先级返回：workspaceFolder > workspace > user > default
+        return config.get<boolean>('mcp.enabled', false);
+    }
+
+    /**
      * Gets MCP (Model Context Protocol) status
      * @returns MCP status object
      */
     public getMcpStatus(): McpStatus {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        const mcpEnabled = config.get('mcp.enabled', false);
-        const mcpServers = config.get('mcp.servers', []) as any[];
-        
+        const mcpEnabled = this.getMcpEnabled();
+        const mcpServers = this.getMergedMcpServers();
+
         // Only report as configured if MCP is enabled AND there are servers
         const isActuallyConfigured = mcpEnabled && mcpServers.length > 0;
-        
+
         return {
             status: isActuallyConfigured ? 'configured' : 'disabled',
-            message: isActuallyConfigured 
-                ? `${mcpServers.length} server(s) configured` 
+            message: isActuallyConfigured
+                ? `${mcpServers.length} server(s) configured`
                 : (mcpEnabled ? 'MCP enabled but no servers configured' : 'MCP disabled'),
             servers: isActuallyConfigured ? mcpServers : []
         };
@@ -44,9 +149,8 @@ export class McpConfigManager {
      * @returns MCP configuration object and temp file path
      */
     public async buildMcpConfig(): Promise<{ config: any, configPath: string | null }> {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        const mcpEnabled = config.get<boolean>('mcp.enabled', false);
-        const mcpServers = config.get<any[]>('mcp.servers', []);
+        const mcpEnabled = this.getMcpEnabled();
+        const mcpServers = this.getMergedMcpServers();
         
         if (!mcpEnabled || mcpServers.length === 0) {
             // Clean up old MCP configs when MCP is disabled or no servers

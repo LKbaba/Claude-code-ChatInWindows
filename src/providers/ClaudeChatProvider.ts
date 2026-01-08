@@ -1051,58 +1051,127 @@ export class ClaudeChatProvider {
 					const fileSize = stats.size;
 					
 					if (fileSize < FILE_SIZE_THRESHOLD) {
-						// 小文件：直接读取整个文件
+						// 小文件：直接读取整个文件，使用预索引策略过滤 Warmup 消息
 						const content = await fs.readFile(file, 'utf-8');
 						const lines = content.split('\n').filter((line: string) => line.trim());
-						
+
+						// 第一遍：解析所有条目并收集 Warmup 相关的 UUID（支持链式过滤）
+						const entries: any[] = [];
+						const warmupUuids = new Set<string>();
+
 						for (const line of lines) {
 							try {
 								const entry = JSON.parse(line);
-								
-								// 生成唯一哈希用于去重
-								const messageHash = this._generateMessageHash(entry);
-								if (this._statisticsCache.isProcessed(messageHash)) {
-									continue; // 跳过已处理的消息
+								entries.push(entry);
+
+								// 收集 Warmup 用户消息的 UUID
+								if (entry.type === 'user' && entry.message?.content === 'Warmup' && entry.uuid) {
+									warmupUuids.add(entry.uuid);
 								}
-								this._statisticsCache.markAsProcessed(messageHash);
-								
-								if (entry.message?.usage) {
-									const statsEntry: StatisticsEntry = {
-										timestamp: entry.timestamp,
-										usage: entry.message.usage,
-										costUSD: entry.costUSD || 0,
-										model: entry.message.model,
-										cacheCreationTokens: entry.message.usage.cache_creation_input_tokens || 0,
-										cacheReadTokens: entry.message.usage.cache_read_input_tokens || 0,
-										file: file
-									};
-									fileEntries.push(statsEntry);
-								}
-							} catch (e) {
+							} catch {
 								// 跳过无效的 JSON 行
+							}
+						}
+
+						// 第二遍：过滤并处理统计数据，支持链式过滤（多轮 Warmup 对话）
+						for (const entry of entries) {
+							// 跳过 Warmup 用户消息本身
+							if (entry.type === 'user' && entry.message?.content === 'Warmup') {
+								continue;
+							}
+
+							// 跳过 Warmup 的响应消息（父消息是 Warmup 或其链式响应）
+							if (entry.parentUuid && warmupUuids.has(entry.parentUuid)) {
+								// 链式过滤：将当前响应的 UUID 也加入黑名单，处理多轮对话
+								if (entry.uuid) {
+									warmupUuids.add(entry.uuid);
+								}
+								continue;
+							}
+
+							// 生成唯一哈希用于去重
+							const messageHash = this._generateMessageHash(entry);
+							if (this._statisticsCache.isProcessed(messageHash)) {
+								continue; // 跳过已处理的消息
+							}
+							this._statisticsCache.markAsProcessed(messageHash);
+
+							if (entry.message?.usage) {
+								const statsEntry: StatisticsEntry = {
+									timestamp: entry.timestamp,
+									usage: entry.message.usage,
+									costUSD: entry.costUSD || 0,
+									model: entry.message.model,
+									cacheCreationTokens: entry.message.usage.cache_creation_input_tokens || 0,
+									cacheReadTokens: entry.message.usage.cache_read_input_tokens || 0,
+									file: file
+								};
+								fileEntries.push(statsEntry);
 							}
 						}
 					} else {
 						// 大文件：使用流式读取，减少内存占用
+						// 两遍扫描：第一遍收集 Warmup 消息的 UUID，第二遍过滤
+
+						// 第一遍：收集 Warmup 消息的 UUID
+						const warmupUuids = new Set<string>();
 						await new Promise<void>((resolve, reject) => {
 							const rl = readline.createInterface({
 								input: createReadStream(file),
 								crlfDelay: Infinity
 							});
-							
+
 							rl.on('line', (line: string) => {
 								if (!line.trim()) return;
-								
 								try {
 									const entry = JSON.parse(line);
-									
+									// 如果是 Warmup 用户消息，记录其 UUID
+									if (entry.type === 'user' && entry.message?.content === 'Warmup' && entry.uuid) {
+										warmupUuids.add(entry.uuid);
+									}
+								} catch {
+									// 跳过无效行
+								}
+							});
+
+							rl.on('close', () => resolve());
+							rl.on('error', (err: Error) => reject(err));
+						});
+
+						// 第二遍：处理统计数据，跳过 Warmup 相关的消息（支持链式过滤）
+						await new Promise<void>((resolve, reject) => {
+							const rl = readline.createInterface({
+								input: createReadStream(file),
+								crlfDelay: Infinity
+							});
+
+							rl.on('line', (line: string) => {
+								if (!line.trim()) return;
+
+								try {
+									const entry = JSON.parse(line);
+
+									// 跳过 Warmup 用户消息
+									if (entry.type === 'user' && entry.message?.content === 'Warmup') {
+										return;
+									}
+
+									// 跳过 Warmup 的响应消息（父消息是 Warmup 或其链式响应）
+									if (entry.parentUuid && warmupUuids.has(entry.parentUuid)) {
+										// 链式过滤：将当前响应的 UUID 也加入黑名单，处理多轮对话
+										if (entry.uuid) {
+											warmupUuids.add(entry.uuid);
+										}
+										return;
+									}
+
 									// 生成唯一哈希用于去重
 									const messageHash = this._generateMessageHash(entry);
 									if (this._statisticsCache.isProcessed(messageHash)) {
 										return; // 跳过已处理的消息
 									}
 									this._statisticsCache.markAsProcessed(messageHash);
-									
+
 									if (entry.message?.usage) {
 										const statsEntry: StatisticsEntry = {
 											timestamp: entry.timestamp,
@@ -1119,7 +1188,7 @@ export class ClaudeChatProvider {
 									// 跳过无效的 JSON 行
 								}
 							});
-							
+
 							rl.on('close', () => resolve());
 							rl.on('error', (err: Error) => reject(err));
 						});
@@ -1162,13 +1231,13 @@ export class ClaudeChatProvider {
 		const messageId = entry.message?.id || '';
 		const requestId = entry.requestId || '';
 		const timestamp = entry.timestamp || '';
-		
+
 		// 如果没有唯一ID，使用时间戳和内容的组合
 		if (!messageId && !requestId) {
 			const usage = entry.message?.usage || {};
 			return `${timestamp}_${usage.input_tokens}_${usage.output_tokens}`;
 		}
-		
+
 		return `${messageId}_${requestId}`;
 	}
 
@@ -2227,7 +2296,7 @@ export class ClaudeChatProvider {
 					protocolVersion: '2024-11-05',
 					clientInfo: {
 						name: 'claude-code-chatui',
-						version: '2.1.1'
+						version: '2.1.2'
 					},
 					capabilities: {}
 				}

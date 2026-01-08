@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -176,12 +176,14 @@
         "claudeCodeChatUI.mcp.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable Model Context Protocol (MCP) integration"
+          "scope": "resource",
+          "description": "Enable Model Context Protocol (MCP) integration. Can be configured per-workspace in .vscode/settings.json"
         },
         "claudeCodeChatUI.mcp.servers": {
           "type": "array",
           "default": [],
-          "description": "MCP server configurations",
+          "scope": "resource",
+          "description": "MCP server configurations. Can be configured per-workspace in .vscode/settings.json",
           "items": {
             "type": "object",
             "properties": {
@@ -222,6 +224,11 @@
               "env": {
                 "type": "object",
                 "description": "Environment variables"
+              },
+              "disabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Set to true in workspace config to disable a server inherited from user config"
               }
             },
             "required": [
