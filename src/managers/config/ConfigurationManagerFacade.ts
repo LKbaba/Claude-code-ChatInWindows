@@ -1,10 +1,10 @@
 /**
  * Configuration Manager Facade
- * Provides backward compatibility by combining all configuration managers
+ * 提供向后兼容性，组合所有配置管理器
  */
 
 import * as cp from 'child_process';
-import { VsCodeConfigManager, VsCodeSettings } from './VsCodeConfigManager';
+import { VsCodeConfigManager, VsCodeSettings, McpConfigTarget } from './VsCodeConfigManager';
 import { McpConfigManager, McpStatus } from './McpConfigManager';
 import { ApiConfigManager, ApiConfig, WindowsConfig } from './ApiConfigManager';
 
@@ -118,5 +118,20 @@ export class ConfigurationManagerFacade {
      */
     public async cleanupOldMcpConfigs(): Promise<void> {
         return this.mcpManager.cleanupOldMcpConfigs();
+    }
+
+    /**
+     * 设置 MCP 配置保存目标
+     * @param target 'user' 或 'workspace'
+     */
+    public setMcpConfigTarget(target: McpConfigTarget): void {
+        this.vsCodeManager.setMcpConfigTarget(target);
+    }
+
+    /**
+     * 获取 MCP 配置保存目标
+     */
+    public getMcpConfigTarget(): McpConfigTarget {
+        return this.vsCodeManager.getMcpConfigTarget();
     }
 }

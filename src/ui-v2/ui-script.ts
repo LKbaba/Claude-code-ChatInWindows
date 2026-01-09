@@ -2477,19 +2477,38 @@ export const uiScript = `
 				}
 				
 				// Skip WSL settings as those elements don't exist in the UI
-				
+
 				// Load MCP settings
 				const mcpEnabledCheckbox = document.getElementById('mcp-enabled');
 				const mcpOptionsDiv = document.getElementById('mcpOptions');
-				
+
 				if (mcpEnabledCheckbox) {
 					mcpEnabledCheckbox.checked = message.data['mcp.enabled'] || false;
 				}
-				
+
 				if (mcpOptionsDiv) {
 					mcpOptionsDiv.style.display = message.data['mcp.enabled'] ? 'block' : 'none';
 				}
-				
+
+				// Load MCP config target (配置保存位置)
+				const mcpConfigTargetSelect = document.getElementById('mcpConfigTarget');
+				if (mcpConfigTargetSelect) {
+					mcpConfigTargetSelect.value = message.data['mcp.configTarget'] || 'workspace';
+				}
+
+				// Display config source info
+				const mcpConfigSource = message.data['mcp.configSource'];
+				const mcpConfigSourceInfo = document.getElementById('mcpConfigSourceInfo');
+				if (mcpConfigSourceInfo && mcpConfigSource) {
+					const sourceLabels = {
+						'workspace': 'from workspace',
+						'user': 'from user settings',
+						'default': 'default'
+					};
+					const serversSource = sourceLabels[mcpConfigSource.servers] || mcpConfigSource.servers;
+					mcpConfigSourceInfo.textContent = serversSource;
+				}
+
 				// Load MCP servers
 				const mcpServers = message.data['mcp.servers'] || [];
 				const serversList = document.getElementById('mcpServersList');
@@ -2505,7 +2524,7 @@ export const uiScript = `
 						addMcpServer(server);
 					}
 				});
-				
+
 				// Load API configuration
 				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
 				document.getElementById('api-key').value = message.data['api.key'] || '';
@@ -3300,7 +3319,20 @@ export const uiScript = `
 				type: 'testMcpConnection'
 			});
 		}
-		
+
+		// Update MCP config save target (workspace or user)
+		function updateMcpConfigTarget() {
+			const selector = document.getElementById('mcpConfigTarget');
+			if (selector) {
+				const target = selector.value;
+				console.log('[MCP] Config target changed to:', target);
+				vscode.postMessage({
+					type: 'setMcpConfigTarget',
+					target: target
+				});
+			}
+		}
+
 		function updateMcpStatus(data) {
 			const statusElement = document.getElementById('mcpStatusValue');
 			if (!statusElement) return;
@@ -4352,19 +4384,38 @@ export const uiScript = `
 				}
 				
 				// Skip WSL settings as those elements don't exist in the UI
-				
+
 				// Load MCP settings
 				const mcpEnabledCheckbox = document.getElementById('mcp-enabled');
 				const mcpOptionsDiv = document.getElementById('mcpOptions');
-				
+
 				if (mcpEnabledCheckbox) {
 					mcpEnabledCheckbox.checked = message.data['mcp.enabled'] || false;
 				}
-				
+
 				if (mcpOptionsDiv) {
 					mcpOptionsDiv.style.display = message.data['mcp.enabled'] ? 'block' : 'none';
 				}
-				
+
+				// Load MCP config target (配置保存位置)
+				const mcpConfigTargetSelect = document.getElementById('mcpConfigTarget');
+				if (mcpConfigTargetSelect) {
+					mcpConfigTargetSelect.value = message.data['mcp.configTarget'] || 'workspace';
+				}
+
+				// Display config source info
+				const mcpConfigSource = message.data['mcp.configSource'];
+				const mcpConfigSourceInfo = document.getElementById('mcpConfigSourceInfo');
+				if (mcpConfigSourceInfo && mcpConfigSource) {
+					const sourceLabels = {
+						'workspace': 'from workspace',
+						'user': 'from user settings',
+						'default': 'default'
+					};
+					const serversSource = sourceLabels[mcpConfigSource.servers] || mcpConfigSource.servers;
+					mcpConfigSourceInfo.textContent = serversSource;
+				}
+
 				// Load MCP servers
 				const mcpServers = message.data['mcp.servers'] || [];
 				const serversList = document.getElementById('mcpServersList');
@@ -4380,7 +4431,7 @@ export const uiScript = `
 						addMcpServer(server);
 					}
 				});
-				
+
 				// Load API configuration
 				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
 				document.getElementById('api-key').value = message.data['api.key'] || '';
