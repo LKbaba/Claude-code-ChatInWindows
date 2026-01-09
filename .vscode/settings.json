@@ -9,5 +9,15 @@
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
 	"typescript.tsc.autoDetect": "off",
 	"claudeCodeChatUI.mcp.enabled": true,
-	"claudeCodeChatUI.mcp.servers": []
+	"claudeCodeChatUI.mcp.servers": [
+		{
+			"name": "playwright",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@executeautomation/playwright-mcp-server"
+			],
+			"env": {}
+		}
+	]
 }
