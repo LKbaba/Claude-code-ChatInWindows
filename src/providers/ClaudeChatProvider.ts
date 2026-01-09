@@ -241,6 +241,10 @@ export class ClaudeChatProvider {
 					case 'testMcpConnection':
 						this._testMcpConnection();
 						return;
+					case 'setMcpConfigTarget':
+						// 设置 MCP 配置保存目标（'user' 或 'workspace'）
+						this._configurationManager.setMcpConfigTarget(message.target);
+						return;
 					case 'getMcpTools':
 						this._getMcpTools(message.serverId, message.serverName);
 						return;

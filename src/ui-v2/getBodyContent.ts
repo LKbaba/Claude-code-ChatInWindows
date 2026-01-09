@@ -306,13 +306,21 @@ export function getBodyContent(): string {
 					</div>
 					
 					<div id="mcpOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
-						<div id="mcpStatusBar" style="margin-bottom: 12px; padding: 8px; background: var(--vscode-panel-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
-							<div id="mcpStatusText" style="font-size: 12px;">
-								<span style="opacity: 0.8;">Status:</span> <span id="mcpStatusValue" style="font-weight: 500;">Not configured</span>
+						<div id="mcpStatusBar" style="margin-bottom: 12px; padding: 8px; background: var(--vscode-panel-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px;">
+							<div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+								<div id="mcpStatusText" style="font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+									<span style="opacity: 0.8;">Status:</span> <span id="mcpStatusValue" style="font-weight: 500;">Not configured</span>
+								</div>
+								<div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+									<select id="mcpConfigTarget" onchange="updateMcpConfigTarget()" title="Config scope: Workspace isolates settings to this project" style="font-size: 11px; padding: 2px 6px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); border-radius: 4px;">
+										<option value="workspace">Workspace</option>
+										<option value="user">User (Global)</option>
+									</select>
+									<button class="btn outlined" onclick="testMcpConnection()" style="font-size: 11px; padding: 2px 8px;">
+										Test
+									</button>
+								</div>
 							</div>
-							<button class="btn outlined" onclick="testMcpConnection()" style="font-size: 11px; padding: 2px 8px;">
-								Test Connection
-							</button>
 						</div>
 						<div id="mcpServersList" style="margin-bottom: 12px;">
 							<!-- MCP servers will be dynamically added here -->
