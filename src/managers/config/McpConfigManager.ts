@@ -64,51 +64,43 @@ export class McpConfigManager {
         // 工作区文件夹级别配置（多根工作区）
         const folderServers = serversInspect?.workspaceFolderValue || [];
 
-        // 如果工作区或文件夹有配置，进行智能合并
-        if (workspaceServers.length > 0 || folderServers.length > 0) {
-            // 创建服务器名称到配置的映射
-            const serverMap = new Map<string, any>();
+        // 创建服务器名称到配置的映射，进行智能合并
+        const serverMap = new Map<string, any>();
 
-            // 首先添加用户级别的服务器
-            for (const server of userServers) {
-                if (server.name) {
-                    serverMap.set(server.name, server);
-                }
+        // 首先添加用户级别的服务器（全局）
+        for (const server of userServers) {
+            if (server.name) {
+                serverMap.set(server.name, server);
             }
-
-            // 然后用工作区级别的服务器覆盖/添加
-            for (const server of workspaceServers) {
-                if (server.name) {
-                    serverMap.set(server.name, server);
-                }
-            }
-
-            // 最后用文件夹级别的服务器覆盖/添加
-            for (const server of folderServers) {
-                if (server.name) {
-                    serverMap.set(server.name, server);
-                }
-            }
-
-            // 过滤掉 disabled: true 的服务器
-            const mergedServers = Array.from(serverMap.values())
-                .filter(server => !server.disabled);
-
-            console.log('[McpConfigManager] MCP servers merged:', {
-                userCount: userServers.length,
-                workspaceCount: workspaceServers.length,
-                folderCount: folderServers.length,
-                mergedCount: mergedServers.length,
-                resourceUri: resourceUri?.toString() || 'none'
-            });
-
-            return mergedServers;
         }
 
-        // 没有工作区配置，直接返回默认获取的值（VS Code 会自动选择最具体的配置）
-        // 同样需要过滤 disabled 的服务器
-        const servers = config.get<any[]>('mcp.servers', []);
-        return servers.filter(server => !server.disabled);
+        // 然后用工作区级别的服务器覆盖/添加
+        for (const server of workspaceServers) {
+            if (server.name) {
+                serverMap.set(server.name, server);
+            }
+        }
+
+        // 最后用文件夹级别的服务器覆盖/添加
+        for (const server of folderServers) {
+            if (server.name) {
+                serverMap.set(server.name, server);
+            }
+        }
+
+        // 过滤掉 disabled: true 的服务器
+        const mergedServers = Array.from(serverMap.values())
+            .filter(server => !server.disabled);
+
+        console.log('[McpConfigManager] MCP servers merged:', {
+            userCount: userServers.length,
+            workspaceCount: workspaceServers.length,
+            folderCount: folderServers.length,
+            mergedCount: mergedServers.length,
+            resourceUri: resourceUri?.toString() || 'none'
+        });
+
+        return mergedServers;
     }
 
     /**
@@ -175,8 +167,6 @@ export class McpConfigManager {
             const serverConfig: any = {};
             const serverType = server.type || 'stdio'; // Default to stdio
 
-            console.log(`[MCP] Processing server: ${server.name}, type: ${serverType}`);
-
             if (serverType === 'http' || serverType === 'sse') {
                 // ===== HTTP/SSE mode =====
                 if (!server.url) {
@@ -208,6 +198,25 @@ export class McpConfigManager {
                 const needsWindowsWrapper = process.platform === 'win32' &&
                     windowsCommandsNeedingWrapper.includes(command.toLowerCase());
 
+                // Helper function: normalize args to correct array format
+                // Handle incorrectly split array elements (e.g., ["-y @pkg-", "name"] -> ["-y", "@pkg-name"])
+                const normalizeArgs = (rawArgs: string | string[]): string[] => {
+                    let argsStr: string;
+                    if (typeof rawArgs === 'string') {
+                        argsStr = rawArgs.trim();
+                    } else if (Array.isArray(rawArgs)) {
+                        // Join array elements into string, then re-split
+                        argsStr = rawArgs.join(' ').trim();
+                    } else {
+                        return [];
+                    }
+
+                    if (!argsStr) return [];
+
+                    // Split by whitespace, preserving each argument's integrity
+                    return argsStr.split(/\s+/).filter(arg => arg.length > 0).map(expandVariables);
+                };
+
                 if (needsWindowsWrapper) {
                     // Convert command to cmd /c format
                     command = 'cmd';
@@ -215,24 +224,12 @@ export class McpConfigManager {
 
                     // Add original args
                     if (server.args) {
-                        if (typeof server.args === 'string') {
-                            args.push(...server.args.trim().split(/\s+/).map((arg: string) => expandVariables(arg)));
-                        } else if (Array.isArray(server.args)) {
-                            args.push(...server.args.map((arg: any) =>
-                                typeof arg === 'string' ? expandVariables(arg) : arg
-                            ));
-                        }
+                        args.push(...normalizeArgs(server.args));
                     }
                 } else {
                     // Non-Windows or non-npx command, use original logic
                     if (server.args) {
-                        if (typeof server.args === 'string') {
-                            args = server.args.trim().split(/\s+/).map((arg: string) => expandVariables(arg));
-                        } else if (Array.isArray(server.args)) {
-                            args = server.args.map((arg: any) =>
-                                typeof arg === 'string' ? expandVariables(arg) : arg
-                            );
-                        }
+                        args = normalizeArgs(server.args);
                     }
                 }
 
@@ -342,8 +339,10 @@ export class McpConfigManager {
     ): Promise<McpStatus> {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         const mcpEnabled = config.get<boolean>('mcp.enabled', false);
-        const mcpServers = config.get<any[]>('mcp.servers', []);
-        
+
+        // Use getMergedMcpServers to get merged server list (global + workspace)
+        const mcpServers = this.getMergedMcpServers();
+
         if (!mcpEnabled || mcpServers.length === 0) {
             return {
                 status: 'disabled',

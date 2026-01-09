@@ -3996,7 +3996,8 @@ export const uiScript = `
 					let argsArray = [];
 					if (argsStr.trim()) {
 						// 简单的空格分隔解析
-						argsArray = argsStr.split(/\s+/).filter(arg => arg.length > 0);
+						// 注意：在模板字符串中必须使用 \\s 而不是 \s，否则会被解释为字母 s
+						argsArray = argsStr.split(/\\s+/).filter(arg => arg.length > 0);
 					}
 
 					// 解析 env：尝试解析 JSON 或 KEY=VALUE 格式

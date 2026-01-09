@@ -1819,35 +1819,31 @@ export class ClaudeChatProvider {
 	 * @param servers 服务器配置数组
 	 */
 	private async _updateMcpServersForScope(scope: 'global' | 'workspace', servers: any[]): Promise<void> {
-		console.log(`[ClaudeChatProvider] 准备更新 ${scope} 级别的 MCP 服务器，数量:`, servers.length);
-
 		try {
 			const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
 
-			// 严格校验工作区状态，不允许将工作区配置静默保存到全局（这会导致数据污染和丢失）
+			// Strict workspace validation - do not silently save workspace config to global
 			if (scope === 'workspace') {
 				if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-					console.warn('[ClaudeChatProvider] 无法保存工作区配置：当前未打开任何文件夹');
-					vscode.window.showWarningMessage('无法保存工作区配置：当前未打开任何文件夹（工作区）。请打开一个文件夹后再试。');
+					console.warn('[ClaudeChatProvider] Cannot save workspace config: no folder is open');
+					vscode.window.showWarningMessage('Cannot save workspace config: no folder is open. Please open a folder first.');
 					return;
 				}
-				// 保存到工作区
+				// Save to workspace
 				await config.update('mcp.servers', servers, vscode.ConfigurationTarget.Workspace);
-				console.log(`[ClaudeChatProvider] 成功保存到工作区级别`);
 			} else {
-				// 保存到全局
+				// Save to global
 				await config.update('mcp.servers', servers, vscode.ConfigurationTarget.Global);
-				console.log(`[ClaudeChatProvider] 成功保存到全局级别`);
 			}
 
-			// 发送 MCP 状态更新
+			// Send MCP status update
 			this._sendMcpStatus();
 
-			const scopeName = scope === 'workspace' ? '工作区' : '全局';
-			vscode.window.setStatusBarMessage(`MCP 服务器配置已更新 (${scopeName})`, 3000);
+			const scopeName = scope === 'workspace' ? 'Workspace' : 'Global';
+			vscode.window.setStatusBarMessage(`MCP servers updated (${scopeName})`, 3000);
 		} catch (error) {
-			console.error(`[ClaudeChatProvider] 更新 ${scope} MCP 配置失败:`, error);
-			vscode.window.showErrorMessage(`配置保存失败: ${error instanceof Error ? error.message : String(error)}`);
+			console.error(`[ClaudeChatProvider] Failed to update ${scope} MCP config:`, error);
+			vscode.window.showErrorMessage(`Failed to save config: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 

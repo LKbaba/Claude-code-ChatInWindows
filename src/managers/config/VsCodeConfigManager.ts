@@ -40,7 +40,7 @@ export class VsCodeConfigManager {
      */
     public setMcpConfigTarget(target: McpConfigTarget): void {
         this._mcpConfigTarget = target;
-        console.log(`[VsCodeConfigManager] MCP 配置保存目标已更改为: ${target}`);
+        console.log(`[VsCodeConfigManager] MCP config target changed to: ${target}`);
     }
 
     /**
@@ -96,21 +96,8 @@ export class VsCodeConfigManager {
         // ========== 分别获取全局和工作区的 MCP 服务器配置 ==========
         const serversInspect = config.inspect<any[]>('mcp.servers');
 
-        // 调试：打印 inspect 返回的原始值
-        console.log('[VsCodeConfigManager] MCP inspect 原始值:', {
-            globalValue: serversInspect?.globalValue,
-            workspaceValue: serversInspect?.workspaceValue,
-            defaultValue: serversInspect?.defaultValue,
-            workspaceFolderValue: serversInspect?.workspaceFolderValue
-        });
-
         settings['mcp.globalServers'] = serversInspect?.globalValue || [];
         settings['mcp.workspaceServers'] = serversInspect?.workspaceValue || [];
-
-        console.log('[VsCodeConfigManager] MCP 配置分离:', {
-            globalCount: (settings['mcp.globalServers'] as any[]).length,
-            workspaceCount: (settings['mcp.workspaceServers'] as any[]).length
-        });
 
         return settings;
     }
@@ -151,7 +138,7 @@ export class VsCodeConfigManager {
         if (this.isMcpRelatedKey(key)) {
             // 如果没有工作区，则回退到全局配置
             if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-                console.log(`[VsCodeConfigManager] 无工作区，MCP 配置 "${key}" 保存到用户级别`);
+                console.log(`[VsCodeConfigManager] No workspace, MCP config "${key}" saved to user level`);
                 return vscode.ConfigurationTarget.Global;
             }
 
@@ -181,9 +168,9 @@ export class VsCodeConfigManager {
 
         for (const [key, value] of Object.entries(settings)) {
             const target = this.getConfigTargetForKey(key);
-            const targetName = target === vscode.ConfigurationTarget.Workspace ? '工作区' : '用户';
+            const targetName = target === vscode.ConfigurationTarget.Workspace ? 'workspace' : 'user';
 
-            console.log(`[VsCodeConfigManager] 保存配置 "${key}" 到 ${targetName} 级别`);
+            console.log(`[VsCodeConfigManager] Saving config "${key}" to ${targetName} level`);
             await config.update(key, value, target);
 
             // 对于 mcp.servers，需要清理另一个级别的配置
@@ -223,13 +210,13 @@ export class VsCodeConfigManager {
         if (savedTarget === vscode.ConfigurationTarget.Global) {
             // 保存到用户级别，需要清空工作区级别
             if (serversInspect?.workspaceValue !== undefined) {
-                console.log('[VsCodeConfigManager] 清空工作区级别的 mcp.servers（防止配置合并）');
+                console.log('[VsCodeConfigManager] Clearing workspace level mcp.servers (prevent config merge)');
                 await config.update('mcp.servers', undefined, vscode.ConfigurationTarget.Workspace);
             }
         } else if (savedTarget === vscode.ConfigurationTarget.Workspace) {
             // 保存到工作区级别，需要清空用户级别
             if (serversInspect?.globalValue !== undefined) {
-                console.log('[VsCodeConfigManager] 清空用户级别的 mcp.servers（防止配置合并）');
+                console.log('[VsCodeConfigManager] Clearing user level mcp.servers (prevent config merge)');
                 await config.update('mcp.servers', undefined, vscode.ConfigurationTarget.Global);
             }
         }
@@ -252,16 +239,16 @@ export class VsCodeConfigManager {
 
         // 如果没有工作区且目标是工作区，回退到全局
         if (target === 'workspace' && (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0)) {
-            console.log('[VsCodeConfigManager] 无工作区，MCP 配置保存到用户级别');
+            console.log('[VsCodeConfigManager] No workspace, MCP config saved to user level');
             for (const [key, value] of Object.entries(settings)) {
                 await config.update(key, value, vscode.ConfigurationTarget.Global);
             }
             return;
         }
 
-        const targetName = target === 'workspace' ? '工作区' : '用户';
+        const targetName = target === 'workspace' ? 'workspace' : 'user';
         for (const [key, value] of Object.entries(settings)) {
-            console.log(`[VsCodeConfigManager] 保存 MCP 配置 "${key}" 到 ${targetName} 级别`);
+            console.log(`[VsCodeConfigManager] Saving MCP config "${key}" to ${targetName} level`);
             await config.update(key, value, vsTarget);
         }
     }
@@ -292,10 +279,10 @@ export class VsCodeConfigManager {
             if (userServers && userServers.length > 0) {
                 await config.update('mcp.servers', userServers, vscode.ConfigurationTarget.Workspace);
             }
-            console.log('[VsCodeConfigManager] MCP 配置已迁移到工作区级别');
-            vscode.window.showInformationMessage('MCP 配置已复制到当前工作区');
+            console.log('[VsCodeConfigManager] MCP config migrated to workspace level');
+            vscode.window.showInformationMessage('MCP config copied to current workspace');
         } else {
-            vscode.window.showInformationMessage('没有找到用户级别的 MCP 配置需要迁移');
+            vscode.window.showInformationMessage('No user level MCP config found to migrate');
         }
     }
 
