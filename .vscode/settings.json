@@ -7,5 +7,37 @@
 		"out": true // set this to false to include "out" folder in search results
 	},
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
-	"typescript.tsc.autoDetect": "off"
+	"typescript.tsc.autoDetect": "off",
+	"claudeCodeChatUI.mcp.enabled": true,
+	"claudeCodeChatUI.mcp.servers": [
+		{
+			"name": "context7",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@upstash/context7-mcp@latest"
+			],
+			"env": {}
+		},
+		{
+			"name": "gemini-assistant",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@lkbaba/mcp-server-gemini"
+			],
+			"env": {
+				"GEMINI_API_KEY": "xxxxxxx"
+			}
+		},
+		{
+			"name": "playwright",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@executeautomation/playwright-mcp-server"
+			],
+			"env": {}
+		}
+	]
 }

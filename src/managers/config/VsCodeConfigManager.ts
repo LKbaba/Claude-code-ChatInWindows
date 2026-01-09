@@ -93,13 +93,24 @@ export class VsCodeConfigManager {
             }
         }
 
-        // 添加 MCP 配置来源信息，帮助 UI 显示
-        const configSource = this.getMcpConfigSource();
-        settings['mcp.configSource'] = configSource;
+        // ========== 分别获取全局和工作区的 MCP 服务器配置 ==========
+        const serversInspect = config.inspect<any[]>('mcp.servers');
 
-        // configTarget 应该基于实际配置来源，而不是用户选择
-        // 这样下拉框会显示配置实际存储的位置
-        settings['mcp.configTarget'] = configSource.servers === 'workspace' ? 'workspace' : 'user';
+        // 调试：打印 inspect 返回的原始值
+        console.log('[VsCodeConfigManager] MCP inspect 原始值:', {
+            globalValue: serversInspect?.globalValue,
+            workspaceValue: serversInspect?.workspaceValue,
+            defaultValue: serversInspect?.defaultValue,
+            workspaceFolderValue: serversInspect?.workspaceFolderValue
+        });
+
+        settings['mcp.globalServers'] = serversInspect?.globalValue || [];
+        settings['mcp.workspaceServers'] = serversInspect?.workspaceValue || [];
+
+        console.log('[VsCodeConfigManager] MCP 配置分离:', {
+            globalCount: (settings['mcp.globalServers'] as any[]).length,
+            workspaceCount: (settings['mcp.workspaceServers'] as any[]).length
+        });
 
         return settings;
     }
@@ -158,6 +169,10 @@ export class VsCodeConfigManager {
     /**
      * 更新扩展设置
      * MCP 相关配置会根据 mcpConfigTarget 保存到对应级别
+     *
+     * 重要：对于 mcp.servers，需要同时清理另一个级别的配置，
+     * 否则两个级别的配置会合并导致删除不生效
+     *
      * @param settings 要更新的设置
      * @returns 设置更新完成后的 Promise
      */
@@ -170,6 +185,53 @@ export class VsCodeConfigManager {
 
             console.log(`[VsCodeConfigManager] 保存配置 "${key}" 到 ${targetName} 级别`);
             await config.update(key, value, target);
+
+            // 对于 mcp.servers，需要清理另一个级别的配置
+            // 否则两个级别的配置会合并，导致删除操作看起来不生效
+            if (key === 'mcp.servers') {
+                await this.cleanupMcpServersFromOtherLevel(config, target, value);
+            }
+        }
+    }
+
+    /**
+     * 清理另一个级别的 mcp.servers 配置
+     * 确保删除操作能正确生效
+     *
+     * 策略：
+     * - 如果保存到用户级别：清空工作区级别的 mcp.servers
+     * - 如果保存到工作区级别：清空用户级别的 mcp.servers
+     *
+     * @param config VS Code 配置对象
+     * @param savedTarget 已保存到的目标级别
+     * @param newServers 新的服务器列表
+     */
+    private async cleanupMcpServersFromOtherLevel(
+        config: vscode.WorkspaceConfiguration,
+        savedTarget: vscode.ConfigurationTarget,
+        newServers: any[]
+    ): Promise<void> {
+        // 检查是否有工作区
+        const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
+        if (!hasWorkspace) {
+            // 没有工作区，无需清理
+            return;
+        }
+
+        const serversInspect = config.inspect<any[]>('mcp.servers');
+
+        if (savedTarget === vscode.ConfigurationTarget.Global) {
+            // 保存到用户级别，需要清空工作区级别
+            if (serversInspect?.workspaceValue !== undefined) {
+                console.log('[VsCodeConfigManager] 清空工作区级别的 mcp.servers（防止配置合并）');
+                await config.update('mcp.servers', undefined, vscode.ConfigurationTarget.Workspace);
+            }
+        } else if (savedTarget === vscode.ConfigurationTarget.Workspace) {
+            // 保存到工作区级别，需要清空用户级别
+            if (serversInspect?.globalValue !== undefined) {
+                console.log('[VsCodeConfigManager] 清空用户级别的 mcp.servers（防止配置合并）');
+                await config.update('mcp.servers', undefined, vscode.ConfigurationTarget.Global);
+            }
         }
     }
 
