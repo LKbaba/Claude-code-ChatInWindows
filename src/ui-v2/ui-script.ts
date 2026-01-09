@@ -2509,21 +2509,17 @@ export const uiScript = `
 					mcpConfigSourceInfo.textContent = serversSource;
 				}
 
-				// Load MCP servers
-				const mcpServers = message.data['mcp.servers'] || [];
-				const serversList = document.getElementById('mcpServersList');
-				serversList.innerHTML = ''; // Clear existing servers
+				// Load MCP servers - 分栏加载全局和工作区配置
 				mcpServerCount = 0; // Reset counter
 				mcpServerExpandStates.clear(); // Clear expansion states
 
-				mcpServers.forEach(server => {
-					// 根据服务器类型调用不同的函数
-					if (server.type === 'http' || server.type === 'sse') {
-						addHttpMcpServer(server);
-					} else {
-						addMcpServer(server);
-					}
-				});
+				// 加载全局 MCP 服务器
+				const globalServers = message.data['mcp.globalServers'] || [];
+				loadMcpServersToSection(globalServers, 'global');
+
+				// 加载工作区 MCP 服务器
+				const workspaceServers = message.data['mcp.workspaceServers'] || [];
+				loadMcpServersToSection(workspaceServers, 'workspace');
 
 				// Load API configuration
 				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
@@ -3379,10 +3375,31 @@ export const uiScript = `
 		// Store expansion state for each server
 		const mcpServerExpandStates = new Map();
 		
-		function addMcpServer(serverConfig = null) {
+		function addMcpServer(serverConfigOrScope = null, scopeParam = null) {
+			// 处理参数：支持 addMcpServer('global') 或 addMcpServer(config, 'global')
+			let serverConfig = null;
+			let scope = 'global';
+
+			if (typeof serverConfigOrScope === 'string') {
+				// addMcpServer('global') 或 addMcpServer('workspace')
+				scope = serverConfigOrScope;
+			} else if (serverConfigOrScope && typeof serverConfigOrScope === 'object') {
+				// addMcpServer(config, 'global')
+				serverConfig = serverConfigOrScope;
+				scope = scopeParam || 'global';
+			}
+
 			mcpServerCount++;
 			const serverId = 'mcp-server-' + mcpServerCount;
-			const serversList = document.getElementById('mcpServersList');
+
+			// 根据 scope 选择目标列表
+			const listId = scope === 'workspace' ? 'mcpWorkspaceServersList' : 'mcpGlobalServersList';
+			const serversList = document.getElementById(listId);
+
+			// 隐藏空状态提示
+			const emptyId = scope === 'workspace' ? 'mcpWorkspaceEmpty' : 'mcpGlobalEmpty';
+			const emptyHint = document.getElementById(emptyId);
+			if (emptyHint) emptyHint.style.display = 'none';
 			
 			// 初始化为折叠状态
 			mcpServerExpandStates.set(serverId, false);
@@ -3443,7 +3460,7 @@ export const uiScript = `
 			removeBtn.textContent = 'Remove';
 			removeBtn.onclick = (e) => {
 				e.stopPropagation(); // 防止触发header的点击事件
-				removeMcpServer(serverId);
+				removeMcpServer(serverId, scope);
 			};
 			
 			buttonsDiv.appendChild(viewToolsBtn);
@@ -3473,10 +3490,28 @@ export const uiScript = `
 			
 			// Command field
 			const commandDiv = createField('Command', 'mcp-server-command', 'npx -y @modelcontextprotocol/server-sqlite', serverConfig?.command || '');
-			// Args field
-			const argsDiv = createField('Arguments (optional)', 'mcp-server-args', '--db path/to/database.db', serverConfig?.args?.join(' ') || '');
-			// Env field
-			const envDiv = createField('Environment Variables (optional)', 'mcp-server-env', '{"API_KEY": "xxx"} or API_KEY=xxx,OTHER=yyy', serverConfig?.env ? JSON.stringify(serverConfig.env) : '');
+
+			// Args field - 处理数组或字符串格式
+			let argsDisplayValue = '';
+			if (serverConfig?.args) {
+				if (Array.isArray(serverConfig.args)) {
+					argsDisplayValue = serverConfig.args.join(' ');
+				} else if (typeof serverConfig.args === 'string') {
+					argsDisplayValue = serverConfig.args;
+				}
+			}
+			const argsDiv = createField('Arguments (optional)', 'mcp-server-args', '--db path/to/database.db', argsDisplayValue);
+
+			// Env field - 处理对象或字符串格式
+			let envDisplayValue = '';
+			if (serverConfig?.env) {
+				if (typeof serverConfig.env === 'object') {
+					envDisplayValue = Object.keys(serverConfig.env).length > 0 ? JSON.stringify(serverConfig.env) : '';
+				} else if (typeof serverConfig.env === 'string') {
+					envDisplayValue = serverConfig.env;
+				}
+			}
+			const envDiv = createField('Environment Variables (optional)', 'mcp-server-env', '{"API_KEY": "xxx"} or API_KEY=xxx,OTHER=yyy', envDisplayValue);
 			
 			fieldsDiv.appendChild(nameDiv);
 			fieldsDiv.appendChild(commandDiv);
@@ -3535,31 +3570,51 @@ export const uiScript = `
 			
 			function createField(label, className, placeholder, value) {
 				const div = document.createElement('div');
-				
+
 				const labelEl = document.createElement('label');
 				labelEl.style.cssText = 'display: block; margin-bottom: 4px; font-size: 11px; color: var(--vscode-descriptionForeground);';
 				labelEl.textContent = label;
-				
+
 				const input = document.createElement('input');
 				input.type = 'text';
 				input.className = className + ' file-search-input';
 				input.style.cssText = 'width: 100%; box-sizing: border-box;';
 				input.placeholder = placeholder;
 				input.value = value;
-				input.onchange = updateSettings;
-				
+				// 使用闭包捕获 scope，确保更新到正确的配置级别
+				input.onchange = () => updateMcpSettingsForScope(scope);
+
 				div.appendChild(labelEl);
 				div.appendChild(input);
-				
+
 				return div;
 			}
 		}
 
 		// ===== HTTP/SSE MCP Server Functions =====
-		function addHttpMcpServer(serverConfig = null) {
+		function addHttpMcpServer(serverConfigOrScope = null, scopeParam = null) {
+			// 处理参数：支持 addHttpMcpServer('global') 或 addHttpMcpServer(config, 'global')
+			let serverConfig = null;
+			let scope = 'global';
+
+			if (typeof serverConfigOrScope === 'string') {
+				scope = serverConfigOrScope;
+			} else if (serverConfigOrScope && typeof serverConfigOrScope === 'object') {
+				serverConfig = serverConfigOrScope;
+				scope = scopeParam || 'global';
+			}
+
 			mcpServerCount++;
 			const serverId = 'mcp-server-' + mcpServerCount;
-			const serversList = document.getElementById('mcpServersList');
+
+			// 根据 scope 选择目标列表
+			const listId = scope === 'workspace' ? 'mcpWorkspaceServersList' : 'mcpGlobalServersList';
+			const serversList = document.getElementById(listId);
+
+			// 隐藏空状态提示
+			const emptyId = scope === 'workspace' ? 'mcpWorkspaceEmpty' : 'mcpGlobalEmpty';
+			const emptyHint = document.getElementById(emptyId);
+			if (emptyHint) emptyHint.style.display = 'none';
 
 			// Initialize to collapsed state
 			mcpServerExpandStates.set(serverId, false);
@@ -3621,7 +3676,7 @@ export const uiScript = `
 			removeBtn.textContent = 'Remove';
 			removeBtn.onclick = (e) => {
 				e.stopPropagation();
-				removeMcpServer(serverId);
+				removeMcpServer(serverId, scope);
 			};
 
 			buttonsDiv.appendChild(viewToolsBtn);
@@ -3756,7 +3811,8 @@ export const uiScript = `
 				input.style.cssText = 'width: 100%; box-sizing: border-box;';
 				input.placeholder = placeholder;
 				input.value = value;
-				input.onchange = updateSettings;
+				// 使用闭包捕获 scope，确保更新到正确的配置级别
+				input.onchange = () => updateMcpSettingsForScope(scope);
 
 				div.appendChild(labelEl);
 				div.appendChild(input);
@@ -3786,7 +3842,8 @@ export const uiScript = `
 					radio.checked = type === selectedType;
 					radio.onchange = () => {
 						serverDiv.setAttribute('data-server-type', type);
-						updateSettings();
+						// 使用闭包捕获 scope，确保更新到正确的配置级别
+						updateMcpSettingsForScope(scope);
 					};
 
 					const text = document.createElement('span');
@@ -3813,7 +3870,8 @@ export const uiScript = `
 				keyInput.style.cssText = 'flex: 1;';
 				keyInput.placeholder = 'Header name (e.g., Authorization)';
 				keyInput.value = key;
-				keyInput.onchange = updateSettings;
+				// 使用闭包捕获 scope，确保更新到正确的配置级别
+				keyInput.onchange = () => updateMcpSettingsForScope(scope);
 
 				const valueInput = document.createElement('input');
 				valueInput.type = 'text';
@@ -3821,7 +3879,8 @@ export const uiScript = `
 				valueInput.style.cssText = 'flex: 2;';
 				valueInput.placeholder = 'Header value (e.g., Bearer token...)';
 				valueInput.value = value;
-				valueInput.onchange = updateSettings;
+				// 使用闭包捕获 scope，确保更新到正确的配置级别
+				valueInput.onchange = () => updateMcpSettingsForScope(scope);
 
 				const removeBtn = document.createElement('button');
 				removeBtn.className = 'btn outlined';
@@ -3829,8 +3888,9 @@ export const uiScript = `
 				removeBtn.textContent = '×';
 				removeBtn.onclick = () => {
 					rowDiv.remove();
-					updateSettings();
-					// Recalculate expanded area height after removing header
+					// 使用闭包捕获 scope，确保更新到正确的配置级别
+					updateMcpSettingsForScope(scope);
+					// 重新计算展开区域高度
 					updateDetailsHeight();
 				};
 
@@ -3856,12 +3916,123 @@ export const uiScript = `
 			}
 		}
 
-		function removeMcpServer(serverId) {
+		function removeMcpServer(serverId, scope) {
 			const serverEl = document.getElementById(serverId);
 			if (serverEl) {
 				serverEl.remove();
-				updateSettings();
+				// 根据 scope 更新对应级别的设置
+				updateMcpSettingsForScope(scope || 'global');
 			}
+		}
+
+		/**
+		 * 加载 MCP 服务器到指定的分栏
+		 * @param servers 服务器列表
+		 * @param scope 'global' | 'workspace'
+		 */
+		function loadMcpServersToSection(servers, scope) {
+			const listId = scope === 'global' ? 'mcpGlobalServersList' : 'mcpWorkspaceServersList';
+			const emptyId = scope === 'global' ? 'mcpGlobalEmpty' : 'mcpWorkspaceEmpty';
+			const serversList = document.getElementById(listId);
+			const emptyHint = document.getElementById(emptyId);
+
+			if (!serversList) return;
+
+			serversList.innerHTML = '';
+
+			if (!servers || servers.length === 0) {
+				if (emptyHint) emptyHint.style.display = 'block';
+				return;
+			}
+
+			if (emptyHint) emptyHint.style.display = 'none';
+
+			servers.forEach(server => {
+				if (server.type === 'http' || server.type === 'sse') {
+					addHttpMcpServer(server, scope);
+				} else {
+					addMcpServer(server, scope);
+				}
+			});
+		}
+
+		/**
+		 * 更新指定 scope 的 MCP 设置
+		 * @param scope 'global' | 'workspace'
+		 */
+		function updateMcpSettingsForScope(scope) {
+			const listId = scope === 'global' ? 'mcpGlobalServersList' : 'mcpWorkspaceServersList';
+			const serversList = document.getElementById(listId);
+			if (!serversList) return;
+
+			const servers = [];
+			const serverElements = serversList.querySelectorAll('.mcp-server-item');
+
+			serverElements.forEach((serverEl) => {
+				const serverType = serverEl.getAttribute('data-server-type');
+				const nameInput = serverEl.querySelector('input.mcp-server-name');
+
+				if (!nameInput || !nameInput.value) {
+					return;
+				}
+
+				if (serverType === 'http' || serverType === 'sse') {
+					// Http/SSE 类型服务器
+					const urlInput = serverEl.querySelector('input.mcp-server-url');
+					const server = {
+						name: nameInput.value,
+						type: serverType,
+						url: urlInput?.value || ''
+					};
+					servers.push(server);
+				} else {
+					// stdio 类型服务器
+					const commandInput = serverEl.querySelector('input.mcp-server-command');
+					const argsInput = serverEl.querySelector('input.mcp-server-args');
+					const envInput = serverEl.querySelector('input.mcp-server-env');
+
+					// 解析 args：将空格分隔的字符串转换为数组
+					const argsStr = argsInput?.value || '';
+					let argsArray = [];
+					if (argsStr.trim()) {
+						// 简单的空格分隔解析
+						argsArray = argsStr.split(/\s+/).filter(arg => arg.length > 0);
+					}
+
+					// 解析 env：尝试解析 JSON 或 KEY=VALUE 格式
+					const envStr = envInput?.value || '';
+					let envObj = {};
+					if (envStr.trim()) {
+						try {
+							// 尝试 JSON 解析
+							envObj = JSON.parse(envStr);
+						} catch {
+							// 尝试 KEY=VALUE,KEY2=VALUE2 格式
+							envStr.split(',').forEach(pair => {
+								const [key, ...valueParts] = pair.split('=');
+								if (key && valueParts.length > 0) {
+									envObj[key.trim()] = valueParts.join('=').trim();
+								}
+							});
+						}
+					}
+
+					const server = {
+						name: nameInput.value,
+						command: commandInput?.value || '',
+						args: argsArray,
+						env: envObj
+					};
+					servers.push(server);
+				}
+			});
+
+			// 发送更新请求，指定 scope
+			vscode.postMessage({
+				type: 'updateMcpServers',
+				scope: scope,
+				servers: servers
+			});
 		}
 		
 		function toggleMcpTools(serverId) {
@@ -3998,8 +4169,11 @@ export const uiScript = `
 			}
 		}
 		
-		function addMcpFromTemplate() {
-			const templateSelector = document.getElementById('mcpTemplateSelector');
+		function addMcpFromTemplate(scope = 'global') {
+			// 根据 scope 选择对应的模板选择器
+			const selectorId = scope === 'workspace' ? 'mcpWorkspaceTemplateSelector' : 'mcpGlobalTemplateSelector';
+			const templateSelector = document.getElementById(selectorId);
+			if (!templateSelector) return;
 			const templateValue = templateSelector.value;
 			
 			console.log('Template selected:', templateValue);
@@ -4068,15 +4242,16 @@ export const uiScript = `
 			
 			const template = templates[templateValue];
 			if (template) {
-				console.log('Adding MCP server with template:', template);
-				addMcpServer(template);
+				console.log('Adding MCP server with template:', template, 'scope:', scope);
+				addMcpServer(template, scope);
 				// Reset selector
 				templateSelector.value = '';
 				// Trigger settings update after a delay
 				setTimeout(() => {
-					updateSettings();
+					updateMcpSettingsForScope(scope);
 					// Scroll to the new server
-					const serversList = document.getElementById('mcpServersList');
+					const listId = scope === 'workspace' ? 'mcpWorkspaceServersList' : 'mcpGlobalServersList';
+					const serversList = document.getElementById(listId);
 					if (serversList && serversList.lastElementChild) {
 						serversList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 					}
@@ -4416,21 +4591,17 @@ export const uiScript = `
 					mcpConfigSourceInfo.textContent = serversSource;
 				}
 
-				// Load MCP servers
-				const mcpServers = message.data['mcp.servers'] || [];
-				const serversList = document.getElementById('mcpServersList');
-				serversList.innerHTML = ''; // Clear existing servers
+				// Load MCP servers - 分栏加载全局和工作区配置
 				mcpServerCount = 0; // Reset counter
 				mcpServerExpandStates.clear(); // Clear expansion states
 
-				mcpServers.forEach(server => {
-					// 根据服务器类型调用不同的函数
-					if (server.type === 'http' || server.type === 'sse') {
-						addHttpMcpServer(server);
-					} else {
-						addMcpServer(server);
-					}
-				});
+				// 加载全局 MCP 服务器
+				const globalServers = message.data['mcp.globalServers'] || [];
+				loadMcpServersToSection(globalServers, 'global');
+
+				// 加载工作区 MCP 服务器
+				const workspaceServers = message.data['mcp.workspaceServers'] || [];
+				loadMcpServersToSection(workspaceServers, 'workspace');
 
 				// Load API configuration
 				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;

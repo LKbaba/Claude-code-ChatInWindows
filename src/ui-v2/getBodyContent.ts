@@ -306,42 +306,81 @@ export function getBodyContent(): string {
 					</div>
 					
 					<div id="mcpOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
+						<!-- 状态栏 -->
 						<div id="mcpStatusBar" style="margin-bottom: 12px; padding: 8px; background: var(--vscode-panel-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px;">
 							<div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
 								<div id="mcpStatusText" style="font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
 									<span style="opacity: 0.8;">Status:</span> <span id="mcpStatusValue" style="font-weight: 500;">Not configured</span>
 								</div>
-								<div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-									<select id="mcpConfigTarget" onchange="updateMcpConfigTarget()" title="Config scope: Workspace isolates settings to this project" style="font-size: 11px; padding: 2px 6px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); border-radius: 4px;">
-										<option value="workspace">Workspace</option>
-										<option value="user">User (Global)</option>
-									</select>
-									<button class="btn outlined" onclick="testMcpConnection()" style="font-size: 11px; padding: 2px 8px;">
+								<div style="flex-shrink: 0;">
+									<button class="btn outlined" onclick="testMcpConnection()" style="font-size: 12px; padding: 4px 14px;">
 										Test
 									</button>
 								</div>
 							</div>
 						</div>
-						<div id="mcpServersList" style="margin-bottom: 12px;">
-							<!-- MCP servers will be dynamically added here -->
+
+						<!-- ========== 全局配置区 ========== -->
+						<div id="mcpGlobalSection" style="margin-bottom: 16px;">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--vscode-panel-border);">
+								<span style="font-size: 12px; font-weight: 600; color: var(--vscode-foreground);">User (Global)</span>
+								<span style="font-size: 10px; color: var(--vscode-descriptionForeground);">All projects</span>
+							</div>
+							<div id="mcpGlobalServersList" style="margin-bottom: 8px;">
+								<!-- 全局 MCP 服务器列表 -->
+							</div>
+							<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+								<button class="btn outlined" onclick="addMcpServer('global')" style="font-size: 11px; padding: 4px 10px;">
+									+ Add MCP Server
+								</button>
+								<button class="btn outlined" onclick="addHttpMcpServer('global')" style="font-size: 11px; padding: 4px 10px;">
+									+ Add MCP Server(Http)
+								</button>
+								<select id="mcpGlobalTemplateSelector" onchange="addMcpFromTemplate('global')" style="font-size: 11px; padding: 4px 10px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); border-radius: 4px;">
+									<option value="">Add from template...</option>
+									<option value="sequential-thinking">Sequential Thinking</option>
+									<option value="context7">Context7</option>
+									<option value="basic-memory">Basic Memory</option>
+									<option value="playwright">Playwright</option>
+									<option value="n8n">n8n</option>
+									<option value="shadcn">shadcn/ui</option>
+									<option value="gemini-assistant">Gemini Assistant</option>
+								</select>
+							</div>
 						</div>
-						<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-							<button class="btn outlined" onclick="addMcpServer()" style="font-size: 12px; padding: 4px 8px;">
-								+ Add MCP Server
-							</button>
-							<button class="btn outlined" onclick="addHttpMcpServer()" style="font-size: 12px; padding: 4px 8px;">
-								+ Add MCP Server(Http)
-							</button>
-							<select id="mcpTemplateSelector" onchange="addMcpFromTemplate()" style="font-size: 12px; padding: 4px 8px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); border-radius: 4px;">
-								<option value="">Add from template...</option>
-								<option value="sequential-thinking">Sequential Thinking</option>
-								<option value="context7">Context7</option>
-								<option value="basic-memory">Basic Memory</option>
-								<option value="playwright">Playwright</option>
-								<option value="n8n">n8n</option>
-								<option value="shadcn">shadcn/ui</option>
-								<option value="gemini-assistant">Gemini Assistant</option>
-							</select>
+
+						<!-- ========== 工作区配置区 ========== -->
+						<div id="mcpWorkspaceSection" style="margin-bottom: 12px;">
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--vscode-panel-border);">
+								<span style="font-size: 12px; font-weight: 600; color: var(--vscode-foreground);">Workspace</span>
+								<span style="font-size: 10px; color: var(--vscode-descriptionForeground);">This project only</span>
+							</div>
+							<div id="mcpWorkspaceServersList" style="margin-bottom: 8px;">
+								<!-- 工作区 MCP 服务器列表 -->
+							</div>
+							<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+								<button class="btn outlined" onclick="addMcpServer('workspace')" style="font-size: 11px; padding: 4px 10px;">
+									+ Add MCP Server
+								</button>
+								<button class="btn outlined" onclick="addHttpMcpServer('workspace')" style="font-size: 11px; padding: 4px 10px;">
+									+ Add MCP Server(Http)
+								</button>
+								<select id="mcpWorkspaceTemplateSelector" onchange="addMcpFromTemplate('workspace')" style="font-size: 11px; padding: 4px 10px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); border-radius: 4px;">
+									<option value="">Add from template...</option>
+									<option value="sequential-thinking">Sequential Thinking</option>
+									<option value="context7">Context7</option>
+									<option value="basic-memory">Basic Memory</option>
+									<option value="playwright">Playwright</option>
+									<option value="n8n">n8n</option>
+									<option value="shadcn">shadcn/ui</option>
+									<option value="gemini-assistant">Gemini Assistant</option>
+								</select>
+							</div>
+						</div>
+
+						<!-- 保留原有的 mcpServersList 用于兼容，但隐藏 -->
+						<div id="mcpServersList" style="display: none;">
+							<!-- 兼容旧逻辑 -->
 						</div>
 						<div style="margin-top: 12px; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
 							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
