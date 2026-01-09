@@ -2338,7 +2338,7 @@ export class ClaudeChatProvider {
 					protocolVersion: '2024-11-05',
 					clientInfo: {
 						name: 'claude-code-chatui',
-						version: '2.1.2'
+						version: '2.1.3'
 					},
 					capabilities: {}
 				}
