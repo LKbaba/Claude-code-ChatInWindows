@@ -2,6 +2,30 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.0.2]
+
+### Fixed
+- 修复 Context Window 计算公式，添加遗漏的 `cacheCreationTokens`
+  - 原问题：计算只包含 `input + cache_read`，导致百分比显示不准确
+  - 修复后：正确公式为 `input + cache_creation + cache_read`（不含 output）
+  - 现在 Context Window 显示与官方 Claude Code CLI 一致
+
+## [3.0.1]
+
+### Added
+- 新增调试日志系统，支持日志滚动备份
+  - 日志文件：`debug_log.txt`，备份文件：`debug_log.bak`
+  - 可通过设置 `claude-code-chatui.debug.maxLines` 控制日志行数上限
+- 新增 Playwright MCP 模板
+
+### Fixed
+- 修复多个 MCP 相关问题
+- 修复 Windows 路径兼容性问题
+
+### Changed
+- 优化 Token 统计和价格计算的准确性
+- 改进状态栏显示
+
 ## [2.1.3]
 
 ### Fixed
