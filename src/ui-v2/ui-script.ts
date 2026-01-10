@@ -2214,6 +2214,15 @@ export const uiScript = `
 					lastContextTokens = 0;
 					maxContextTokensInSession = 0;
 					updateStatusWithTotals();
+
+					// Reset Context Window indicator to 100% (important!)
+					updateTokenUsageIndicator({
+						used: 0,
+						total: 200000,
+						percentage: 100,
+						inputTokens: 0,
+						outputTokens: 0
+					});
 					break;
 
 				case 'setProcessing':
@@ -2303,26 +2312,43 @@ export const uiScript = `
 
 					// Calculate actual context window usage
 					// Context Window = input + cache_creation + cache_read (excluding output)
-					// output is current turn output, not yet counted as next turn input
+					// Note: This is token count for current request, not cumulative!
+					// When cache expires or rebuilds, this value may decrease
 					lastContextTokens = (message.data.currentInputTokens || 0) +
 					                   (message.data.cacheCreationTokens || 0) +
 					                   (message.data.cacheReadTokens || 0);
 
-					// Only update if this is higher than previous max (prevents jumping)
+					// Debug log: helps observe token changes
+					console.log('[Context Window] Current request:', {
+						input: message.data.currentInputTokens || 0,
+						cache_creation: message.data.cacheCreationTokens || 0,
+						cache_read: message.data.cacheReadTokens || 0,
+						total: lastContextTokens,
+						max: maxContextTokensInSession
+					});
+
+					// Only update UI when current value exceeds historical max
+					// Design rationale: context window should only grow (unless cache rebuilds)
+					// Using max value prevents UI jumping due to cache rebuilding
 					if (lastContextTokens > maxContextTokensInSession) {
 						maxContextTokensInSession = lastContextTokens;
 
-						// Update Context Window indicator with correct usage
+						// Update Context Window display
 						const TOTAL_CONTEXT = 200000;
 						const usedPercentage = (maxContextTokensInSession / TOTAL_CONTEXT) * 100;
 						const remainingPercentage = Math.max(0, 100 - usedPercentage);
+
+						console.log('[Context Window] Updating UI:', {
+							used: maxContextTokensInSession,
+							remaining: remainingPercentage.toFixed(1) + '%'
+						});
 
 						updateTokenUsageIndicator({
 							used: maxContextTokensInSession,
 							total: TOTAL_CONTEXT,
 							percentage: Math.round(remainingPercentage),
 							inputTokens: message.data.currentInputTokens || 0,
-							outputTokens: 0 // Not relevant for context window
+							outputTokens: 0 // context window excludes output
 						});
 					}
 					

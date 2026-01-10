@@ -5,6 +5,8 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
 ## [3.0.3]
 
 ### Fixed
+- **Context Window display issues**
+  - Fixed Context Window not resetting to 100% after Compact operation
 - **Compact button UX improvements**
   - Fixed race condition causing "Compacting conversation..." message to disappear prematurely
   - Fixed intermediate state showing cost statistics before summary appears
