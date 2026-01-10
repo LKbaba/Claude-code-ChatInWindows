@@ -2200,20 +2200,23 @@ export const uiScript = `
 					// Update token totals in real-time
 					totalTokensInput = message.data.totalTokensInput || 0;
 					totalTokensOutput = message.data.totalTokensOutput || 0;
-					
+
 					// Calculate actual context window usage
-					lastContextTokens = (message.data.currentInputTokens || 0) + 
+					// Context Window = input + cache_creation + cache_read (不含 output)
+					// output 是本轮输出，还未变成下一轮的输入
+					lastContextTokens = (message.data.currentInputTokens || 0) +
+					                   (message.data.cacheCreationTokens || 0) +
 					                   (message.data.cacheReadTokens || 0);
-					
+
 					// Only update if this is higher than previous max (prevents jumping)
 					if (lastContextTokens > maxContextTokensInSession) {
 						maxContextTokensInSession = lastContextTokens;
-						
+
 						// Update Context Window indicator with correct usage
 						const TOTAL_CONTEXT = 200000;
 						const usedPercentage = (maxContextTokensInSession / TOTAL_CONTEXT) * 100;
 						const remainingPercentage = Math.max(0, 100 - usedPercentage);
-						
+
 						updateTokenUsageIndicator({
 							used: maxContextTokensInSession,
 							total: TOTAL_CONTEXT,
