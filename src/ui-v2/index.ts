@@ -2389,6 +2389,63 @@ function getStylesOld(): string {
         font-style: italic;
     }
 
+    /* 压缩对话消息样式 */
+    .compacting-message {
+        position: relative;
+        overflow: hidden;
+        padding: 16px 12px;
+        background-color: var(--vscode-panel-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 8px;
+        margin: 8px 0;
+    }
+
+    .compacting-content {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .compacting-icon {
+        font-size: 18px;
+    }
+
+    .compacting-text {
+        font-size: 13px;
+        color: var(--vscode-foreground);
+        font-style: italic;
+    }
+
+    /* 黄色进度条动画 */
+    .compacting-progress-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #f5a623, #ffcc00, #f5a623);
+        animation: compactingProgress 1.5s ease-in-out infinite;
+    }
+
+    @keyframes compactingProgress {
+        0% {
+            transform: scaleX(0);
+            transform-origin: left;
+        }
+        50% {
+            transform: scaleX(1);
+            transform-origin: left;
+        }
+        51% {
+            transform: scaleX(1);
+            transform-origin: right;
+        }
+        100% {
+            transform: scaleX(0);
+            transform-origin: right;
+        }
+    }
+
     /* Tool completion indicator */
     .tool-completion {
         padding: 8px 12px;

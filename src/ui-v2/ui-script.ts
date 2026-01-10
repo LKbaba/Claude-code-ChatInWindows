@@ -33,6 +33,9 @@ export const uiScript = `
 		let isUserHoldingScrollbar = false;  // Whether user is holding the scrollbar
 		let autoScrollEnabled = true;        // Whether auto-scroll is enabled
 
+		// Compact 状态标志：用于在 sessionCleared 时判断是否显示压缩中消息
+		let isCompacting = false;
+
 		/**
 		 * Smart scroll to bottom
 		 * Only scrolls when user is not holding the scrollbar
@@ -77,6 +80,39 @@ export const uiScript = `
 		
 		// 存储图片路径到webview URI的映射
 		const imagePathMap = new Map();
+
+		// 显示压缩中消息（带黄色进度条动画）
+		function showCompactingMessage(text) {
+			console.log('[Compact] showCompactingMessage called with:', text);
+			// 如果已存在压缩消息，先移除
+			hideCompactingMessage();
+
+			const compactingDiv = document.createElement('div');
+			compactingDiv.id = 'compacting-message';
+			compactingDiv.className = 'message system compacting-message';
+			compactingDiv.innerHTML = \`
+				<div class="compacting-content">
+					<span class="compacting-icon">🗜️</span>
+					<span class="compacting-text">\${text}</span>
+				</div>
+				<div class="compacting-progress-bar"></div>
+			\`;
+			messagesDiv.appendChild(compactingDiv);
+			console.log('[Compact] Compacting message added to DOM, messagesDiv children:', messagesDiv.children.length);
+			scrollToBottom();
+		}
+
+		// 隐藏压缩中消息
+		function hideCompactingMessage() {
+			console.log('[Compact] hideCompactingMessage called');
+			const compactingDiv = document.getElementById('compacting-message');
+			if (compactingDiv) {
+				console.log('[Compact] Removing compacting message from DOM');
+				compactingDiv.remove();
+			} else {
+				console.log('[Compact] No compacting message found to remove');
+			}
+		}
 
 		function addMessage(content, type = 'claude') {
 			const messageDiv = document.createElement('div');
@@ -2092,7 +2128,12 @@ export const uiScript = `
 
 		window.addEventListener('message', event => {
 			const message = event.data;
-			
+
+			// 追踪所有消息类型（调试用）
+			if (message.type !== 'updateTokens') {  // 排除频繁的 token 更新消息
+				console.log('[MessageTrace] Received:', message.type, 'messagesDiv children:', messagesDiv.children.length);
+			}
+
 			switch (message.type) {
 				case 'ready':
 					addMessage(message.data, 'system');
@@ -2117,8 +2158,60 @@ export const uiScript = `
 					addMessage(message.data, 'system');
 					updateStatusWithTotals();
 					break;
-					
+
+				case 'compactStart':
+					// 新的压缩开始消息：设置 Processing 状态并显示压缩中提示
+					// 不清空消息列表，只是在后面追加压缩中消息
+					console.log('[Compact] compactStart received');
+
+					// 设置 Processing 状态
+					isProcessing = true;
+					startRequestTimer();
+					showStopButton();
+					disableButtons();
+					updateStatusWithTotals();
+
+					// 显示压缩中消息（追加到现有消息后面）
+					showCompactingMessage('Compacting conversation...');
+					break;
+
+				case 'compactingStart':
+					// 已废弃：保留以防向后兼容
+					console.log('[Deprecated] compactingStart received');
+					break;
+
+				case 'compactingEnd':
+					// 压缩完成，移除压缩中消息
+					console.log('[Compact] compactingEnd received');
+					hideCompactingMessage();
+					break;
+
+				case 'compactComplete':
+					// 压缩完全完成：清空消息列表，显示总结
+					// 这个消息在总结生成后发送
+					console.log('[Compact] compactComplete received with summary');
+
+					// 清空消息列表
+					messagesDiv.innerHTML = '';
+					hideSessionInfo();
+
+					// 显示压缩总结
+					if (message.summary) {
+						addMessage(parseSimpleMarkdown(message.summary, imagePathMap), 'claude');
+					}
+
+					// 重置统计数据
+					totalCost = 0;
+					totalTokensInput = 0;
+					totalTokensOutput = 0;
+					requestCount = 0;
+					lastContextTokens = 0;
+					maxContextTokensInSession = 0;
+					updateStatusWithTotals();
+					break;
+
 				case 'setProcessing':
+					console.log('[Compact] setProcessing received:', message.data, 'messagesDiv children:', messagesDiv.children.length);
 					isProcessing = message.data;
 					if (isProcessing) {
 						startRequestTimer();
@@ -2130,6 +2223,7 @@ export const uiScript = `
 						enableButtons();
 					}
 					updateStatusWithTotals();
+					console.log('[Compact] setProcessing done, messagesDiv children:', messagesDiv.children.length);
 					break;
 					
 				case 'clearLoading':
@@ -2280,11 +2374,35 @@ export const uiScript = `
 					break;
 					
 				case 'sessionCleared':
-					console.log('Session cleared');
+					// 使用消息中的标志，避免消息竞争问题
+					const isCompactingNow = message.isCompacting || false;
+					const isProcessingNow = message.isProcessing || false;
+					console.log('[Compact] sessionCleared received, message:', JSON.stringify(message));
+					console.log('[Compact] isCompactingNow:', isCompactingNow, 'isProcessingNow:', isProcessingNow);
+
+					// 如果是压缩操作，先设置 Processing 状态（避免异步消息竞争）
+					if (isProcessingNow) {
+						console.log('[Compact] Setting isProcessing = true');
+						isProcessing = true;
+						startRequestTimer();
+						showStopButton();
+						disableButtons();
+					}
+
 					// Clear all messages from UI
+					console.log('[Compact] Clearing messagesDiv');
 					messagesDiv.innerHTML = '';
 					hideSessionInfo();
-					addMessage('🆕 Started new session', 'system');
+
+					// 如果正在压缩，显示压缩消息；否则显示普通的新会话消息
+					if (isCompactingNow) {
+						console.log('[Compact] About to call showCompactingMessage');
+						showCompactingMessage('Compacting conversation...');
+						console.log('[Compact] showCompactingMessage called');
+					} else {
+						addMessage('🆕 Started new session', 'system');
+					}
+
 					// Reset totals
 					totalCost = 0;
 					totalTokensInput = 0;
@@ -2292,7 +2410,9 @@ export const uiScript = `
 					requestCount = 0;
 					lastContextTokens = 0; // Reset context window tracking
 					maxContextTokensInSession = 0; // Reset max context tracking
+					console.log('[Compact] Calling updateStatusWithTotals, isProcessing:', isProcessing);
 					updateStatusWithTotals();
+					console.log('[Compact] sessionCleared handling complete');
 					break;
 					
 				case 'loginRequired':
@@ -2575,20 +2695,11 @@ export const uiScript = `
 
 		// 压缩对话功能
 		function compactConversation() {
-			// 添加按钮激活效果
-			const compactBtn = document.getElementById('compactButton');
-			if (compactBtn) {
-				compactBtn.classList.add('active');
-				// 2秒后移除激活状态
-				setTimeout(() => {
-					compactBtn.classList.remove('active');
-				}, 2000);
-			}
-			
 			// 发送压缩请求到后端，包含语言设置
+			// 注意：不再使用固定 2 秒动画，UI 状态由 setProcessing 消息控制
 			const languageModeSwitch = document.getElementById('languageModeSwitch');
 			const isLanguageModeOn = languageModeSwitch ? languageModeSwitch.checked : false;
-			
+
 			vscode.postMessage({
 				type: 'compactConversation',
 				languageMode: isLanguageModeOn,
