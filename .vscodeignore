@@ -50,5 +50,13 @@ pnpm-lock.yaml
 .DS_Store
 Thumbs.db
 
+# 调试日志文件
+debug_log.txt
+debug_log.bak
+log.txt
+
+# Claude 本地配置
+.claude/**
+
 # 截图和PDF文件夹（如果很大的话）
 CCimages/**
