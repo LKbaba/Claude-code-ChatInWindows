@@ -655,19 +655,39 @@ export class ClaudeChatProvider {
 				}
 			},
 			onClose: (code: number | null) => {
-				// 在压缩模式下，显示格式化的总结
+				// 在压缩模式下，发送 compactComplete 消息
+				// 这会清空前端消息列表并显示总结
 				if (this._isCompactMode && this._compactSummaryBuffer.trim()) {
 					const summaryMessage = `## ⚓️ 对话总结\n\n${this._compactSummaryBuffer}\n\n---\n*以上是之前对话的总结。现在开始新的对话。*`;
-					
-					this._sendAndSaveMessage({
-						type: 'output',
+
+					debugLog('ClaudeChatProvider', '发送 compactComplete 消息');
+
+					// 发送 compactComplete 消息，前端会清空消息列表并显示总结
+					this._panel?.webview.postMessage({
+						type: 'compactComplete',
+						summary: summaryMessage
+					});
+
+					// 同时保存到对话历史
+					this._conversationManager.addMessage({
+						timestamp: new Date().toISOString(),
+						messageType: 'output',
 						data: summaryMessage
 					});
-					
+					void this._conversationManager.saveCurrentConversation(
+						this._currentSessionId || Date.now().toString(),
+						this._totalCost,
+						this._totalTokensInput,
+						this._totalTokensOutput
+					);
+
 					// 清空缓冲区
 					this._compactSummaryBuffer = '';
+
+					// 重置压缩模式标志
+					this._isCompactMode = false;
 				}
-				
+
 				this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
 				if (code !== 0) {
 					// Error handling is done through onError callback
@@ -690,7 +710,9 @@ export class ClaudeChatProvider {
 	// This method is no longer used - replaced by MessageProcessor
 	// private _processJsonStreamData(jsonData: any) { }
 
-	private _newSession() {
+	private _newSession(isCompacting: boolean = false) {
+		debugLog('ClaudeChatProvider', `_newSession called, isCompacting: ${isCompacting}`);
+
 		// Clear current session and conversation ID
 		this._currentSessionId = undefined;
 		this._conversationId = undefined;
@@ -709,14 +731,19 @@ export class ClaudeChatProvider {
 
 		// Reset message processor
 		this._messageProcessor.reset();
-		
+
 		// Reset operation tracker session
 		this._operationTracker.setCurrentSession('');
 
 		// Notify webview to clear all messages and reset session
+		// isCompacting 标志用于告诉前端是否正在压缩，避免消息竞争问题
+		debugLog('ClaudeChatProvider', `Sending sessionCleared message with isCompacting: ${isCompacting}, isProcessing: ${isCompacting}`);
 		this._panel?.webview.postMessage({
-			type: 'sessionCleared'
+			type: 'sessionCleared',
+			isCompacting: isCompacting,
+			isProcessing: isCompacting  // 如果是压缩，也要设置 Processing 状态
 		});
+		debugLog('ClaudeChatProvider', 'sessionCleared message sent');
 	}
 
 	/**
@@ -2841,25 +2868,15 @@ export class ClaudeChatProvider {
 	}
 
 	// 压缩对话功能
+	// 新设计：先显示压缩中状态，等总结生成后再清空并显示总结
 	private async _compactConversation(languageMode?: boolean, selectedLanguage?: string): Promise<void> {
 		try {
-			// 设置处理状态
-			this._panel?.webview.postMessage({
-				type: 'setProcessing',
-				data: true
-			});
+			debugLog('ClaudeChatProvider', '开始压缩对话');
 
-			// 获取当前对话内容
+			// 获取当前对话内容（在任何操作之前获取）
 			const conversationData = this._conversationManager.getConversationForSummary();
-			
+
 			if (!conversationData || (conversationData.userMessages.length === 0 && conversationData.assistantMessages.length === 0)) {
-				// 恢复处理状态
-				this._panel?.webview.postMessage({
-					type: 'setProcessing',
-					data: false
-				});
-				
-				// 显示错误消息
 				this._panel?.webview.postMessage({
 					type: 'error',
 					data: 'No conversation to compact'
@@ -2867,10 +2884,17 @@ export class ClaudeChatProvider {
 				return;
 			}
 
+			// 第一步：通知前端开始压缩（显示压缩中消息，设置 Processing 状态）
+			// 使用单一消息避免竞争条件
+			debugLog('ClaudeChatProvider', '发送 compactStart 消息');
+			this._panel?.webview.postMessage({
+				type: 'compactStart'
+			});
+
 			// 格式化对话内容
 			let conversationText = '';
 			const maxMessages = Math.max(conversationData.userMessages.length, conversationData.assistantMessages.length);
-			
+
 			for (let i = 0; i < maxMessages; i++) {
 				if (i < conversationData.userMessages.length) {
 					conversationText += `User: ${conversationData.userMessages[i]}\n\n`;
@@ -2902,33 +2926,38 @@ Please provide a well-structured summary.`;
 				this._totalTokensOutput
 			);
 
-			// 创建新会话
-			this._newSession();
-			
-			// 在新会话中显示"正在总结中"提示
-			this._panel?.webview.postMessage({
-				type: 'output',
-				data: '⏳ Generating conversation summary...'
-			});
+			// 重置后端状态（但不发送 sessionCleared 消息到前端）
+			this._currentSessionId = undefined;
+			this._conversationId = undefined;
+			this._conversationManager.clearCurrentConversation();
+			this._totalCost = 0;
+			this._totalTokensInput = 0;
+			this._totalTokensOutput = 0;
+			this._requestCount = 0;
+			this._messageProcessor.reset();
+			this._operationTracker.setCurrentSession('');
 
 			// 后台生成总结（不显示提示词）
+			debugLog('ClaudeChatProvider', '开始生成压缩总结');
 			await this._generateCompactSummary(compactPrompt, conversationData, languageMode, selectedLanguage);
+			debugLog('ClaudeChatProvider', '压缩总结生成完成');
 
-			// 恢复处理状态
-			this._panel?.webview.postMessage({
-				type: 'setProcessing',
-				data: false
-			});
+			// 注意：compactingEnd 和 setProcessing: false 会在 onClose 回调中发送
 
 		} catch (error: any) {
 			debugError('ClaudeChatProvider', 'Failed to compact conversation', error);
-			
+
+			// 通知前端压缩结束（即使出错也要通知）
+			this._panel?.webview.postMessage({
+				type: 'compactingEnd'
+			});
+
 			// 恢复处理状态
 			this._panel?.webview.postMessage({
 				type: 'setProcessing',
 				data: false
 			});
-			
+
 			// 显示错误消息
 			this._panel?.webview.postMessage({
 				type: 'error',
@@ -2941,16 +2970,21 @@ Please provide a well-structured summary.`;
 	private async _generateCompactSummary(prompt: string, conversationData: any, languageMode?: boolean, selectedLanguage?: string): Promise<void> {
 		// 如果没有指定语言模式，默认使用英文
 		let actualPrompt = prompt;
-		
+
 		// 使用特殊的压缩模式发送消息
+		// 注意：_isCompactMode 标志在 onClose 回调中重置（第688行左右）
+		// 不能在这里重置，因为 _sendMessageToClaude 是异步的，立即返回
+		// 而 onAssistantMessage 回调会在进程运行时被调用
 		this._isCompactMode = true;
-		
+
 		// 发送压缩提示（不会在 UI 显示）
 		// 传递语言设置以支持 Language Mode
 		await this._sendMessageToClaude(actualPrompt, false, false, languageMode || false, selectedLanguage);
-		
-		// 重置压缩模式标志
-		this._isCompactMode = false;
+
+		// 注意：不在这里重置 _isCompactMode，因为：
+		// 1. _sendMessageToClaude 只是启动进程后立即返回
+		// 2. onAssistantMessage 回调会在进程运行过程中被调用
+		// 3. _isCompactMode 会在 onClose 回调中被正确重置
 	}
 
 	public dispose() {
