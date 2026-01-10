@@ -60,3 +60,6 @@ log.txt
 
 # 截图和PDF文件夹（如果很大的话）
 CCimages/**
+
+# Reference files (development only)
+reference/**
