@@ -22,7 +22,7 @@ export const uiScript = `
 		let thinkingModeEnabled = false;
 		let languageModeEnabled = false;
 		let selectedLanguage = null;
-		let currentMode = 'auto'; // 当前算力模式
+		let currentMode = 'auto'; // Current compute mode
 
 		// Undo/Redo history management
 		let inputHistory = [''];
@@ -33,7 +33,7 @@ export const uiScript = `
 		let isUserHoldingScrollbar = false;  // Whether user is holding the scrollbar
 		let autoScrollEnabled = true;        // Whether auto-scroll is enabled
 
-		// Compact 状态标志：用于在 sessionCleared 时判断是否显示压缩中消息
+		// Compact state flag: used to determine whether to show compacting message when sessionCleared
 		let isCompacting = false;
 
 		/**
@@ -78,13 +78,13 @@ export const uiScript = `
 			});
 		}
 		
-		// 存储图片路径到webview URI的映射
+		// Store image path to webview URI mapping
 		const imagePathMap = new Map();
 
-		// 显示压缩中消息（带黄色进度条动画）
+		// Show compacting message (with yellow progress bar animation)
 		function showCompactingMessage(text) {
 			console.log('[Compact] showCompactingMessage called with:', text);
-			// 如果已存在压缩消息，先移除
+			// If compacting message already exists, remove it first
 			hideCompactingMessage();
 
 			const compactingDiv = document.createElement('div');
@@ -92,7 +92,7 @@ export const uiScript = `
 			compactingDiv.className = 'message system compacting-message';
 			compactingDiv.innerHTML = \`
 				<div class="compacting-content">
-					<span class="compacting-icon">🗜️</span>
+					<span class="compacting-icon">⚡</span>
 					<span class="compacting-text">\${text}</span>
 				</div>
 				<div class="compacting-progress-bar"></div>
@@ -102,7 +102,7 @@ export const uiScript = `
 			scrollToBottom();
 		}
 
-		// 隐藏压缩中消息
+		// Hide compacting message
 		function hideCompactingMessage() {
 			console.log('[Compact] hideCompactingMessage called');
 			const compactingDiv = document.getElementById('compacting-message');
@@ -646,8 +646,8 @@ export const uiScript = `
 			return div.innerHTML;
 		}
 
-		// 规范化文件路径，将反斜杠替换为正斜杠
-		// 这样可以避免在HTML onclick属性中反斜杠被解释为转义字符的问题
+		// Normalize file path, replace backslashes with forward slashes
+		// This avoids backslashes being interpreted as escape characters in HTML onclick attributes
 		function normalizePathForHtml(filePath) {
 			return filePath.replace(/\\\\/g, '/');
 		}
@@ -890,24 +890,24 @@ export const uiScript = `
 			}
 		}
 
-		// 更新token使用指示器
+		// Update token usage indicator
 		function updateTokenUsageIndicator(usage) {
-			// 查找或创建token指示器容器
+			// Find or create token indicator container
 			let indicatorContainer = document.getElementById('tokenUsageIndicator');
 			if (!indicatorContainer) {
-				// 如果不存在，创建并添加到输入模式区域
+				// If not exists, create and add to input modes area
 				const inputModes = document.querySelector('.input-modes');
 				if (inputModes) {
 					indicatorContainer = document.createElement('div');
 					indicatorContainer.id = 'tokenUsageIndicator';
 					indicatorContainer.className = 'token-usage-indicator';
-					indicatorContainer.style.marginLeft = 'auto'; // 推到最右侧
+					indicatorContainer.style.marginLeft = 'auto'; // Push to far right
 					inputModes.appendChild(indicatorContainer);
 				} else {
-					return; // 如果找不到输入模式区域，退出
+					return; // If input modes area not found, exit
 				}
 			}
-			// 根据剩余百分比确定颜色
+			// Determine color based on remaining percentage
 			let barColor = '#66BB6A'; // Green
 			if (usage.percentage < 20) {
 				barColor = '#EF5350'; // Red
@@ -915,7 +915,7 @@ export const uiScript = `
 				barColor = '#FFCA28'; // Yellow
 			}
 			
-			// 更新指示器内容
+			// Update indicator content
 			indicatorContainer.innerHTML = \`
 				<div class="usage-display" style="display: inline-flex; align-items: center; gap: 12px;">
 					<div style="display: flex; align-items: center; gap: 6px;">
@@ -948,7 +948,7 @@ export const uiScript = `
 				</div>
 			\`;
 			
-			// 添加工具提示
+			// Add tooltip
 			const usageDisplay = indicatorContainer.querySelector('.usage-display');
 			if (usageDisplay) {
 				const usedK = Math.round(usage.used / 1000);
@@ -1057,7 +1057,7 @@ export const uiScript = `
 		
 		function getToolStatusIcon(toolName) {
 			const iconMap = {
-				// 核心工具
+				// Core tools
 				'Task': '🎯',            // Target icon for tasks/goals
 				'Bash': '💻',            // Keep
 				'Read': '📖',            // Keep
@@ -1073,13 +1073,13 @@ export const uiScript = `
 				'MultiEdit': '📑',       // Multi-page document icon
 				'NotebookRead': '📓',    // Keep
 				'NotebookEdit': '📔',    // Slightly different notebook icon
-				// Claude Code 2.1.2 新增工具
-				'TaskOutput': '📤',      // 获取任务输出
-				'KillShell': '🛑',       // 停止后台任务
-				'AskUserQuestion': '❓', // 等待用户输入
-				'Skill': '⚡',           // 执行技能
-				'EnterPlanMode': '📋',   // 进入计划模式
-				'ExitPlanMode': '🚪',    // 退出计划模式
+				// Claude Code 2.1.2 new tools
+				'TaskOutput': '📤',      // Get task output
+				'KillShell': '🛑',       // Stop background task
+				'AskUserQuestion': '❓', // Wait for user input
+				'Skill': '⚡',           // Execute skill
+				'EnterPlanMode': '📋',   // Enter plan mode
+				'ExitPlanMode': '🚪',    // Exit plan mode
 				// MCP tools
 				'mcp__sequential-thinking__sequentialthinking': '🧠'  // Brain icon for thinking tool
 			};
@@ -1489,29 +1489,29 @@ export const uiScript = `
 		// ========== Plugins Modal Functions ==========
 
 	/**
-	 * 显示插件模态框
-	 * 向后端请求插件列表
+	 * Show plugins modal
+	 * Request plugin list from backend
 	 */
 	function showPluginsModal() {
 		console.log('[Plugins] showPluginsModal called');
-		// 显示模态框
+		// Show modal
 		document.getElementById('pluginsModal').style.display = 'flex';
-		// 向后端请求插件列表
+		// Request plugin list from backend
 		console.log('[Plugins] Requesting plugin list from backend');
 		vscode.postMessage({ type: 'getInstalledPlugins' });
 	}
 
 	/**
-	 * 隐藏插件模态框
+	 * Hide plugins modal
 	 */
 	function hidePluginsModal() {
 		document.getElementById('pluginsModal').style.display = 'none';
 	}
 
 	/**
-	 * 更新插件列表内容
-	 * @param {Array} plugins - 插件列表
-	 * @param {boolean} isRefresh - 是否是刷新操作
+	 * Update plugins list content
+	 * @param {Array} plugins - Plugin list
+	 * @param {boolean} isRefresh - Whether this is a refresh operation
 	 */
 	function updatePluginsList(plugins, isRefresh) {
 		console.log('[Plugins] updatePluginsList called with', plugins?.length, 'plugins');
@@ -1519,17 +1519,17 @@ export const uiScript = `
 		const listContainer = document.getElementById('pluginsList');
 		const infoContainer = document.getElementById('plugins-info');
 
-		// 更新插件列表
+		// Update plugin list
 		if (listContainer) {
 			listContainer.innerHTML = renderPluginsList(plugins);
 		}
 
-		// 更新信息栏
+		// Update info bar
 		if (infoContainer) {
 			infoContainer.textContent = plugins.length + ' plugin(s) installed';
 		}
 
-		// 如果是刷新操作，恢复刷新按钮状态
+		// If refresh operation, restore refresh button state
 		if (isRefresh) {
 			const refreshBtn = document.getElementById('refresh-plugins-btn');
 			if (refreshBtn) {
@@ -1540,9 +1540,9 @@ export const uiScript = `
 	}
 
 	/**
-	 * 渲染插件列表
-	 * @param {Array} plugins - 插件列表
-	 * @returns {string} HTML 字符串
+	 * Render plugins list
+	 * @param {Array} plugins - Plugin list
+	 * @returns {string} HTML string
 	 */
 	function renderPluginsList(plugins) {
 		if (!plugins || plugins.length === 0) {
@@ -1563,22 +1563,22 @@ export const uiScript = `
 	}
 
 	/**
-	 * 处理刷新按钮点击
+	 * Handle refresh button click
 	 */
 	function handleRefreshPlugins() {
 		console.log('[Plugins] Refresh button clicked');
 		const refreshBtn = document.getElementById('refresh-plugins-btn');
 		if (refreshBtn) {
-			// 显示加载状态
+			// Show loading state
 			refreshBtn.classList.add('loading');
 			refreshBtn.disabled = true;
 		}
 
-		// 向后端发送刷新请求
+		// Send refresh request to backend
 		vscode.postMessage({ type: 'refreshPlugins' });
 	}
 
-	// 关闭插件模态框（点击背景）
+	// Close plugins modal (click on background)
 	document.getElementById('pluginsModal').addEventListener('click', function(e) {
 		if (e.target === document.getElementById('pluginsModal')) {
 			hidePluginsModal();
@@ -1602,62 +1602,62 @@ export const uiScript = `
 			document.getElementById('modelModal').style.display = 'none';
 		}
 
-		// 显示算力模式选择modal
+		// Show compute mode selection modal
 		function showModeSelector() {
 			document.getElementById('modeModal').style.display = 'flex';
-			// 更新radio按钮选中状态
+			// Update radio button checked state
 			const radioButton = document.getElementById('mode-' + currentMode);
 			if (radioButton) {
 				radioButton.checked = true;
 			}
 		}
 
-		// 隐藏算力模式选择modal
+		// Hide compute mode selection modal
 		function hideModeModal() {
 			document.getElementById('modeModal').style.display = 'none';
 		}
 
-		// 选择算力模式
+		// Select compute mode
 		function selectMode(mode) {
 			currentMode = mode;
 
-			// 更新显示文本
+			// Update display text
 			const displayNames = {
 				'auto': 'Auto',
 				'max': 'Max'
 			};
 			document.getElementById('selectedMode').textContent = displayNames[mode];
 
-			// 更新radio按钮
+			// Update radio button
 			const radioButton = document.getElementById('mode-' + mode);
 			if (radioButton) {
 				radioButton.checked = true;
 			}
 
-			// 保存到localStorage
+			// Save to localStorage
 			localStorage.setItem('selectedMode', mode);
 
-			// 通知后端（后端会显示通知）
+			// Notify backend (backend will show notification)
 			vscode.postMessage({
 				type: 'selectMode',
 				mode: mode
 			});
 
-			// 隐藏modal
+			// Hide modal
 			hideModeModal();
 		}
 
-		// 处理子代理增强开关（独立逻辑）
+		// Handle subagent enhancement toggle (independent logic)
 		function toggleEnhanceSubagents() {
 			const checkbox = document.getElementById('enhance-subagents');
 			if (!checkbox) return;
 
 			const isChecked = checkbox.checked;
 
-			// 保存到localStorage
+			// Save to localStorage
 			localStorage.setItem('enhanceSubagents', isChecked.toString());
 
-			// 通知后端（独立消息）
+			// Notify backend (independent message)
 			vscode.postMessage({
 				type: 'updateSubagentMode',
 				enabled: isChecked
@@ -2008,12 +2008,12 @@ export const uiScript = `
 		function selectModel(model, fromBackend = false) {
 			currentModel = model;
 
-			// 更新显示文本
+			// Update display text
 			const displayNames = {
 				'opus': 'Opus',
 				'claude-opus-4-1-20250805': 'Opus 4.1',
-				'claude-opus-4-5-20251101': 'Opus 4.5',       // 新增 Opus 4.5
-				'opusplan': 'Opus Plan',                       // 新增 Opus Plan 混合模式
+				'claude-opus-4-5-20251101': 'Opus 4.5',       // Added Opus 4.5
+				'opusplan': 'Opus Plan',                       // Added Opus Plan hybrid mode
 				'sonnet': 'Sonnet',
 				'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
 				'claude-haiku-4-5-20251001': 'Haiku 4.5',
@@ -2021,19 +2021,19 @@ export const uiScript = `
 			};
 			document.getElementById('selectedModel').textContent = displayNames[model] || model;
 
-			// 仅在非后端触发时发送模型选择到 VS Code 扩展
+			// Only send model selection to VS Code extension when not triggered from backend
 			if (!fromBackend) {
 				vscode.postMessage({
 					type: 'selectModel',
 					model: model
 				});
 
-				// 保存用户偏好
+				// Save user preference
 				localStorage.setItem('selectedModel', model);
 			}
 
-			// 如果模态框打开，更新 radio 按钮状态
-			// 为长模型名称提供特殊处理
+			// If modal is open, update radio button state
+			// Handle long model names with special processing
 			let radioId = 'model-' + model;
 			if (model === 'claude-opus-4-1-20250805') {
 				radioId = 'model-opus-4-1';
@@ -2052,13 +2052,13 @@ export const uiScript = `
 			hideModelModal();
 		}
 
-		// 初始化模型显示（不发送消息）
-		currentModel = 'claude-sonnet-4-5-20250929';  // 默认为 Sonnet 4.5
+		// Initialize model display (without sending message)
+		currentModel = 'claude-sonnet-4-5-20250929';  // Default to Sonnet 4.5
 		const displayNames = {
 			'opus': 'Opus',
 			'claude-opus-4-1-20250805': 'Opus 4.1',
-			'claude-opus-4-5-20251101': 'Opus 4.5',       // 新增 Opus 4.5
-			'opusplan': 'Opus Plan',                       // 新增 Opus Plan 混合模式
+			'claude-opus-4-5-20251101': 'Opus 4.5',       // Added Opus 4.5
+			'opusplan': 'Opus Plan',                       // Added Opus Plan hybrid mode
 			'sonnet': 'Sonnet',
 			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
 			'claude-haiku-4-5-20251001': 'Haiku 4.5',
@@ -2129,8 +2129,8 @@ export const uiScript = `
 		window.addEventListener('message', event => {
 			const message = event.data;
 
-			// 追踪所有消息类型（调试用）
-			if (message.type !== 'updateTokens') {  // 排除频繁的 token 更新消息
+			// Track all message types (for debugging)
+			if (message.type !== 'updateTokens') {  // Exclude frequent token update messages
 				console.log('[MessageTrace] Received:', message.type, 'messagesDiv children:', messagesDiv.children.length);
 			}
 
@@ -2160,53 +2160,53 @@ export const uiScript = `
 					break;
 
 				case 'compactStart':
-					// 新的压缩开始消息：设置 Processing 状态并显示压缩中提示
-					// 不清空消息列表，只是在后面追加压缩中消息
+					// New compact start message: set Processing state and show compacting prompt
+					// Don't clear message list, just append compacting message after existing messages
 					console.log('[Compact] compactStart received');
 
-					// 设置 Processing 状态
+					// Set Processing state
 					isProcessing = true;
 					startRequestTimer();
 					showStopButton();
 					disableButtons();
 					updateStatusWithTotals();
 
-					// 显示压缩中消息（追加到现有消息后面）
+					// Show compacting message (append after existing messages)
 					showCompactingMessage('Compacting conversation...');
 					break;
 
 				case 'compactingStart':
-					// 已废弃：保留以防向后兼容
+					// Deprecated: kept for backward compatibility
 					console.log('[Deprecated] compactingStart received');
 					break;
 
 				case 'compactingEnd':
-					// 压缩完成，移除压缩中消息
+					// Compacting finished, remove compacting message
 					console.log('[Compact] compactingEnd received');
 					hideCompactingMessage();
 					break;
 
 				case 'compactComplete':
-					// 压缩完全完成：清空消息列表，显示总结
-					// 这个消息在总结生成后发送
+					// Compacting fully complete: clear message list, show summary
+					// This message is sent after summary is generated
 					console.log('[Compact] compactComplete received with summary');
 
-					// 首先停止 Processing 状态（避免延迟）
+					// First stop Processing state (avoid delay)
 					isProcessing = false;
 					stopRequestTimer();
 					hideStopButton();
 					enableButtons();
 
-					// 清空消息列表（包括压缩中消息）
+					// Clear message list (including compacting message)
 					messagesDiv.innerHTML = '';
 					hideSessionInfo();
 
-					// 显示压缩总结
+					// Show compact summary
 					if (message.summary) {
 						addMessage(parseSimpleMarkdown(message.summary, imagePathMap), 'claude');
 					}
 
-					// 重置统计数据
+					// Reset statistics
 					totalCost = 0;
 					totalTokensInput = 0;
 					totalTokensOutput = 0;
@@ -2302,8 +2302,8 @@ export const uiScript = `
 					totalTokensOutput = message.data.totalTokensOutput || 0;
 
 					// Calculate actual context window usage
-					// Context Window = input + cache_creation + cache_read (不含 output)
-					// output 是本轮输出，还未变成下一轮的输入
+					// Context Window = input + cache_creation + cache_read (excluding output)
+					// output is current turn output, not yet counted as next turn input
 					lastContextTokens = (message.data.currentInputTokens || 0) +
 					                   (message.data.cacheCreationTokens || 0) +
 					                   (message.data.cacheReadTokens || 0);
@@ -2380,13 +2380,13 @@ export const uiScript = `
 					break;
 					
 				case 'sessionCleared':
-					// 使用消息中的标志，避免消息竞争问题
+					// Use flag from message to avoid message race condition
 					const isCompactingNow = message.isCompacting || false;
 					const isProcessingNow = message.isProcessing || false;
 					console.log('[Compact] sessionCleared received, message:', JSON.stringify(message));
 					console.log('[Compact] isCompactingNow:', isCompactingNow, 'isProcessingNow:', isProcessingNow);
 
-					// 如果是压缩操作，先设置 Processing 状态（避免异步消息竞争）
+					// If compact operation, set Processing state first (avoid async message race)
 					if (isProcessingNow) {
 						console.log('[Compact] Setting isProcessing = true');
 						isProcessing = true;
@@ -2400,7 +2400,7 @@ export const uiScript = `
 					messagesDiv.innerHTML = '';
 					hideSessionInfo();
 
-					// 如果正在压缩，显示压缩消息；否则显示普通的新会话消息
+					// If compacting, show compacting message; otherwise show normal new session message
 					if (isCompactingNow) {
 						console.log('[Compact] About to call showCompactingMessage');
 						showCompactingMessage('Compacting conversation...');
@@ -2457,8 +2457,8 @@ export const uiScript = `
 					messageInput.value = currentText + pathIndicator;
 					messageInput.focus();
 					adjustTextareaHeight();
-					
-					// 存储路径到webview URI的映射
+
+					// Store path to webview URI mapping
 					if (message.webviewUri) {
 						imagePathMap.set(message.path, message.webviewUri);
 					}
@@ -2510,7 +2510,7 @@ export const uiScript = `
 					displayCustomCommands(message.data);
 					break;
 				case 'pluginsList':
-					// 接收插件列表并显示模态框
+					// Receive plugin list and show modal
 					updatePluginsList(message.data.plugins || [], message.data.refreshed);
 					break;
 				case 'operationHistory':
@@ -2626,7 +2626,7 @@ export const uiScript = `
 					mcpOptionsDiv.style.display = message.data['mcp.enabled'] ? 'block' : 'none';
 				}
 
-				// Load MCP config target (配置保存位置)
+				// Load MCP config target (configuration save location)
 				const mcpConfigTargetSelect = document.getElementById('mcpConfigTarget');
 				if (mcpConfigTargetSelect) {
 					mcpConfigTargetSelect.value = message.data['mcp.configTarget'] || 'workspace';
@@ -2645,15 +2645,15 @@ export const uiScript = `
 					mcpConfigSourceInfo.textContent = serversSource;
 				}
 
-				// Load MCP servers - 分栏加载全局和工作区配置
+				// Load MCP servers - load global and workspace config in separate panels
 				mcpServerCount = 0; // Reset counter
 				mcpServerExpandStates.clear(); // Clear expansion states
 
-				// 加载全局 MCP 服务器
+				// Load global MCP servers
 				const globalServers = message.data['mcp.globalServers'] || [];
 				loadMcpServersToSection(globalServers, 'global');
 
-				// 加载工作区 MCP 服务器
+				// Load workspace MCP servers
 				const workspaceServers = message.data['mcp.workspaceServers'] || [];
 				loadMcpServersToSection(workspaceServers, 'workspace');
 
@@ -2699,10 +2699,10 @@ export const uiScript = `
 			});
 		}
 
-		// 压缩对话功能
+		// Compact conversation feature
 		function compactConversation() {
-			// 发送压缩请求到后端，包含语言设置
-			// 注意：不再使用固定 2 秒动画，UI 状态由 setProcessing 消息控制
+			// Send compact request to backend, including language settings
+			// Note: No longer using fixed 2 second animation, UI state controlled by setProcessing message
 			const languageModeSwitch = document.getElementById('languageModeSwitch');
 			const isLanguageModeOn = languageModeSwitch ? languageModeSwitch.checked : false;
 
@@ -3257,7 +3257,7 @@ export const uiScript = `
 										const modelName = modelParts[2];
 										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3';
 									} else if (modelParts[1] === 'opus' && modelParts[2] === '4') {
-										// 检查是否是opus-4-1
+										// Check if opus-4-1
 										if (modelParts[3] === '1') {
 											return 'Opus 4.1'; // claude-opus-4-1-20250805 -> Opus 4.1
 										}
@@ -3306,7 +3306,7 @@ export const uiScript = `
 										const modelName = modelParts[2];
 										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3';
 									} else if (modelParts[1] === 'opus' && modelParts[2] === '4') {
-										// 检查是否是opus-4-1
+										// Check if opus-4-1
 										if (modelParts[3] === '1') {
 											return 'Opus 4.1'; // claude-opus-4-1-20250805 -> Opus 4.1
 										}
@@ -3323,12 +3323,12 @@ export const uiScript = `
 						} else {
 							html += '<td>inactive</td>';
 						}
-						// 新列顺序：缓存读取、输入、缓存创建、输出、总输入、总输出、总tokens、成本、最后活动
+						// New column order: cache read, input, cache creation, output, total input, total output, total tokens, cost, last activity
 						html += '<td>' + (row.cacheReadTokens || 0).toLocaleString() + '</td>';
 						html += '<td>' + (row.inputTokens || 0).toLocaleString() + '</td>';
 						html += '<td>' + (row.cacheCreationTokens || 0).toLocaleString() + '</td>';
 						html += '<td>' + (row.outputTokens || 0).toLocaleString() + '</td>';
-						// 计算总输入和总输出
+						// Calculate total input and total output
 						const totalInput = (row.inputTokens || 0) + (row.cacheReadTokens || 0);
 						const totalOutput = (row.outputTokens || 0) + (row.cacheCreationTokens || 0);
 						html += '<td><span class="stats-table-input-value">' + totalInput.toLocaleString() + '</span></td>';
@@ -3347,12 +3347,12 @@ export const uiScript = `
 					
 					if (currentStatsTab === 'daily' || currentStatsTab === 'monthly') {
 						html += '<td><strong>-</strong></td>'; // Models column
-						// 新列顺序：缓存读取、输入、缓存创建、输出、总输入、总输出、总tokens、成本
+						// New column order: cache read, input, cache creation, output, total input, total output, total tokens, cost
 						html += '<td><strong>' + (data.totals.cacheReadTokens || 0).toLocaleString() + '</strong></td>';
 						html += '<td><strong>' + (data.totals.inputTokens || 0).toLocaleString() + '</strong></td>';
 						html += '<td><strong>' + (data.totals.cacheCreationTokens || 0).toLocaleString() + '</strong></td>';
 						html += '<td><strong>' + (data.totals.outputTokens || 0).toLocaleString() + '</strong></td>';
-						// 计算总输入和总输出
+						// Calculate total input and total output
 						const totalInputSum = (data.totals.inputTokens || 0) + (data.totals.cacheReadTokens || 0);
 						const totalOutputSum = (data.totals.outputTokens || 0) + (data.totals.cacheCreationTokens || 0);
 						html += '<td><strong><span class="stats-table-input-value">' + totalInputSum.toLocaleString() + '</span></strong></td>';
@@ -3361,12 +3361,12 @@ export const uiScript = `
 						html += '<td><strong><span class="stats-table-cost-value">$' + (data.totals.cost || 0).toFixed(4) + '</span></strong></td>';
 					} else if (currentStatsTab === 'session') {
 						html += '<td><strong>-</strong></td>'; // Models column
-						// Session视图的新列顺序
+						// Session view new column order
 						html += '<td><strong>' + (data.totals.cacheReadTokens || 0).toLocaleString() + '</strong></td>';
 						html += '<td><strong>' + (data.totals.inputTokens || 0).toLocaleString() + '</strong></td>';
 						html += '<td><strong>' + (data.totals.cacheCreationTokens || 0).toLocaleString() + '</strong></td>';
 						html += '<td><strong>' + (data.totals.outputTokens || 0).toLocaleString() + '</strong></td>';
-						// 计算总输入和总输出
+						// Calculate total input and total output
 						const totalInputSum = (data.totals.inputTokens || 0) + (data.totals.cacheReadTokens || 0);
 						const totalOutputSum = (data.totals.outputTokens || 0) + (data.totals.cacheCreationTokens || 0);
 						html += '<td><strong><span class="stats-table-input-value">' + totalInputSum.toLocaleString() + '</span></strong></td>';
@@ -3503,12 +3503,12 @@ export const uiScript = `
 		const mcpServerExpandStates = new Map();
 		
 		function addMcpServer(serverConfigOrScope = null, scopeParam = null) {
-			// 处理参数：支持 addMcpServer('global') 或 addMcpServer(config, 'global')
+			// Handle parameters: support addMcpServer('global') or addMcpServer(config, 'global')
 			let serverConfig = null;
 			let scope = 'global';
 
 			if (typeof serverConfigOrScope === 'string') {
-				// addMcpServer('global') 或 addMcpServer('workspace')
+				// addMcpServer('global') or addMcpServer('workspace')
 				scope = serverConfigOrScope;
 			} else if (serverConfigOrScope && typeof serverConfigOrScope === 'object') {
 				// addMcpServer(config, 'global')
@@ -3519,16 +3519,16 @@ export const uiScript = `
 			mcpServerCount++;
 			const serverId = 'mcp-server-' + mcpServerCount;
 
-			// 根据 scope 选择目标列表
+			// Select target list based on scope
 			const listId = scope === 'workspace' ? 'mcpWorkspaceServersList' : 'mcpGlobalServersList';
 			const serversList = document.getElementById(listId);
 
-			// 隐藏空状态提示
+			// Hide empty state hint
 			const emptyId = scope === 'workspace' ? 'mcpWorkspaceEmpty' : 'mcpGlobalEmpty';
 			const emptyHint = document.getElementById(emptyId);
 			if (emptyHint) emptyHint.style.display = 'none';
-			
-			// 初始化为折叠状态
+
+			// Initialize as collapsed state
 			mcpServerExpandStates.set(serverId, false);
 			
 			const serverDiv = document.createElement('div');
@@ -3536,39 +3536,39 @@ export const uiScript = `
 			serverDiv.id = serverId;
 			serverDiv.style.cssText = 'border: 1px solid var(--vscode-panel-border); border-radius: 4px; margin-bottom: 12px; overflow: hidden; transition: box-shadow 0.2s;';
 			
-			// 创建始终显示的header部分
+			// Create always visible header section
 			const headerDiv = document.createElement('div');
 			headerDiv.className = 'mcp-server-header';
 			headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; cursor: pointer; user-select: none; transition: background-color 0.2s;';
-			
-			// 添加鼠标悬停效果
+
+			// Add mouse hover effect
 			headerDiv.onmouseenter = () => {
 				headerDiv.style.backgroundColor = 'var(--vscode-list-hoverBackground)';
 			};
 			headerDiv.onmouseleave = () => {
 				headerDiv.style.backgroundColor = 'transparent';
 			};
-			
-			// 左侧：展开图标 + 服务器名称
+
+			// Left side: expand icon + server name
 			const titleSection = document.createElement('div');
 			titleSection.style.cssText = 'display: flex; align-items: center; gap: 8px;';
-			
-			// 展开/折叠图标 - 使用绿色高亮
+
+			// Expand/collapse icon - using green highlight
 			const expandIcon = document.createElement('span');
 			expandIcon.className = 'mcp-expand-icon';
 			expandIcon.style.cssText = 'display: inline-block; width: 12px; transition: transform 0.2s; font-size: 10px; color: var(--vscode-charts-green);';
 			expandIcon.textContent = '▶';
-			
-			// 服务器名称（动态更新）
+
+			// Server name (dynamically updated)
 			const serverNameDisplay = document.createElement('span');
 			serverNameDisplay.className = 'mcp-server-name-display';
 			serverNameDisplay.style.cssText = 'font-size: 13px; font-weight: 500;';
 			serverNameDisplay.textContent = serverConfig?.name || 'MCP Server';
-			
+
 			titleSection.appendChild(expandIcon);
 			titleSection.appendChild(serverNameDisplay);
-			
-			// 右侧：操作按钮
+
+			// Right side: action buttons
 			const buttonsDiv = document.createElement('div');
 			buttonsDiv.style.cssText = 'display: flex; gap: 4px;';
 			
@@ -3577,16 +3577,16 @@ export const uiScript = `
 			viewToolsBtn.style.cssText = 'font-size: 11px; padding: 3px 8px; min-height: 22px;';
 			viewToolsBtn.textContent = 'View Tools';
 			viewToolsBtn.onclick = (e) => {
-				e.stopPropagation(); // 防止触发header的点击事件
+				e.stopPropagation(); // Prevent triggering header click event
 				toggleMcpTools(serverId);
 			};
-			
+
 			const removeBtn = document.createElement('button');
 			removeBtn.className = 'btn outlined';
 			removeBtn.style.cssText = 'font-size: 11px; padding: 3px 8px; min-height: 22px;';
 			removeBtn.textContent = 'Remove';
 			removeBtn.onclick = (e) => {
-				e.stopPropagation(); // 防止触发header的点击事件
+				e.stopPropagation(); // Prevent triggering header click event
 				removeMcpServer(serverId, scope);
 			};
 			
@@ -3596,7 +3596,7 @@ export const uiScript = `
 			headerDiv.appendChild(titleSection);
 			headerDiv.appendChild(buttonsDiv);
 			
-			// 创建可折叠的详情部分
+			// Create collapsible details section
 			const detailsDiv = document.createElement('div');
 			detailsDiv.className = 'mcp-server-details';
 			detailsDiv.style.cssText = 'max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out;';
@@ -3609,7 +3609,7 @@ export const uiScript = `
 			
 			// Name field
 			const nameDiv = createField('Name', 'mcp-server-name', 'my-server', serverConfig?.name || '');
-			// 监听名称变化，更新header显示
+			// Listen to name changes, update header display
 			const nameInput = nameDiv.querySelector('input');
 			nameInput.oninput = () => {
 				serverNameDisplay.textContent = nameInput.value || 'MCP Server';
@@ -3618,7 +3618,7 @@ export const uiScript = `
 			// Command field
 			const commandDiv = createField('Command', 'mcp-server-command', 'npx -y @modelcontextprotocol/server-sqlite', serverConfig?.command || '');
 
-			// Args field - 处理数组或字符串格式
+			// Args field - handle array or string format
 			let argsDisplayValue = '';
 			if (serverConfig?.args) {
 				if (Array.isArray(serverConfig.args)) {
@@ -3629,7 +3629,7 @@ export const uiScript = `
 			}
 			const argsDiv = createField('Arguments (optional)', 'mcp-server-args', '--db path/to/database.db', argsDisplayValue);
 
-			// Env field - 处理对象或字符串格式
+			// Env field - handle object or string format
 			let envDisplayValue = '';
 			if (serverConfig?.env) {
 				if (typeof serverConfig.env === 'object') {
@@ -3647,7 +3647,7 @@ export const uiScript = `
 			
 			detailsContent.appendChild(fieldsDiv);
 			
-			// Tools section (作为details的一部分)
+			// Tools section (as part of details)
 			const toolsSection = document.createElement('div');
 			toolsSection.id = \`tools-\${serverId}\`;
 			toolsSection.style.cssText = 'display: none; margin-top: 12px; padding: 12px; background: var(--vscode-editor-background); border-radius: 4px;';
@@ -3656,33 +3656,33 @@ export const uiScript = `
 			detailsContent.appendChild(toolsSection);
 			detailsDiv.appendChild(detailsContent);
 			
-			// 点击header切换展开/折叠
+			// Click header to toggle expand/collapse
 			headerDiv.onclick = (e) => {
-				// 如果点击的是按钮，不处理
+				// If clicked on button, don't handle
 				if (e.target instanceof HTMLButtonElement) return;
-				
+
 				const isExpanded = mcpServerExpandStates.get(serverId);
 				mcpServerExpandStates.set(serverId, !isExpanded);
-				
+
 				if (!isExpanded) {
-					// 展开
+					// Expand
 					expandIcon.style.transform = 'rotate(90deg)';
 					detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
 					serverDiv.style.boxShadow = '0 0 0 1px var(--vscode-focusBorder)';
 				} else {
-					// 折叠
+					// Collapse
 					expandIcon.style.transform = 'rotate(0deg)';
 					detailsDiv.style.maxHeight = '0';
 					serverDiv.style.boxShadow = 'none';
-					// 如果工具列表是展开的，也要隐藏
+					// If tools list is expanded, hide it too
 					if (toolsSection.style.display !== 'none') {
 						toolsSection.style.display = 'none';
 						viewToolsBtn.textContent = 'View Tools';
 					}
 				}
 			};
-			
-			// 支持键盘操作
+
+			// Support keyboard navigation
 			headerDiv.setAttribute('tabindex', '0');
 			headerDiv.onkeydown = (e) => {
 				if (e.key === 'Enter' || e.key === ' ') {
@@ -3708,7 +3708,7 @@ export const uiScript = `
 				input.style.cssText = 'width: 100%; box-sizing: border-box;';
 				input.placeholder = placeholder;
 				input.value = value;
-				// 使用闭包捕获 scope，确保更新到正确的配置级别
+				// Use closure to capture scope, ensuring update to correct config level
 				input.onchange = () => updateMcpSettingsForScope(scope);
 
 				div.appendChild(labelEl);
@@ -3720,7 +3720,7 @@ export const uiScript = `
 
 		// ===== HTTP/SSE MCP Server Functions =====
 		function addHttpMcpServer(serverConfigOrScope = null, scopeParam = null) {
-			// 处理参数：支持 addHttpMcpServer('global') 或 addHttpMcpServer(config, 'global')
+			// Handle parameters: support addHttpMcpServer('global') or addHttpMcpServer(config, 'global')
 			let serverConfig = null;
 			let scope = 'global';
 
@@ -3734,11 +3734,11 @@ export const uiScript = `
 			mcpServerCount++;
 			const serverId = 'mcp-server-' + mcpServerCount;
 
-			// 根据 scope 选择目标列表
+			// Select target list based on scope
 			const listId = scope === 'workspace' ? 'mcpWorkspaceServersList' : 'mcpGlobalServersList';
 			const serversList = document.getElementById(listId);
 
-			// 隐藏空状态提示
+			// Hide empty state hint
 			const emptyId = scope === 'workspace' ? 'mcpWorkspaceEmpty' : 'mcpGlobalEmpty';
 			const emptyHint = document.getElementById(emptyId);
 			if (emptyHint) emptyHint.style.display = 'none';
@@ -3784,7 +3784,7 @@ export const uiScript = `
 			titleSection.appendChild(expandIcon);
 			titleSection.appendChild(serverNameDisplay);
 
-			// 右侧：操作按钮
+			// Right side: action buttons
 			const buttonsDiv = document.createElement('div');
 			buttonsDiv.style.cssText = 'display: flex; gap: 4px;';
 
@@ -3812,7 +3812,7 @@ export const uiScript = `
 			headerDiv.appendChild(titleSection);
 			headerDiv.appendChild(buttonsDiv);
 
-			// 创建可折叠的详情部分
+			// Create collapsible details section
 			const detailsDiv = document.createElement('div');
 			detailsDiv.className = 'mcp-server-details';
 			detailsDiv.style.cssText = 'max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out;';
@@ -3938,7 +3938,7 @@ export const uiScript = `
 				input.style.cssText = 'width: 100%; box-sizing: border-box;';
 				input.placeholder = placeholder;
 				input.value = value;
-				// 使用闭包捕获 scope，确保更新到正确的配置级别
+				// Use closure to capture scope, ensuring update to correct config level
 				input.onchange = () => updateMcpSettingsForScope(scope);
 
 				div.appendChild(labelEl);
@@ -3969,7 +3969,7 @@ export const uiScript = `
 					radio.checked = type === selectedType;
 					radio.onchange = () => {
 						serverDiv.setAttribute('data-server-type', type);
-						// 使用闭包捕获 scope，确保更新到正确的配置级别
+						// Use closure to capture scope, ensuring update to correct config level
 						updateMcpSettingsForScope(scope);
 					};
 
@@ -3997,7 +3997,7 @@ export const uiScript = `
 				keyInput.style.cssText = 'flex: 1;';
 				keyInput.placeholder = 'Header name (e.g., Authorization)';
 				keyInput.value = key;
-				// 使用闭包捕获 scope，确保更新到正确的配置级别
+				// Use closure to capture scope, ensuring update to correct config level
 				keyInput.onchange = () => updateMcpSettingsForScope(scope);
 
 				const valueInput = document.createElement('input');
@@ -4006,7 +4006,7 @@ export const uiScript = `
 				valueInput.style.cssText = 'flex: 2;';
 				valueInput.placeholder = 'Header value (e.g., Bearer token...)';
 				valueInput.value = value;
-				// 使用闭包捕获 scope，确保更新到正确的配置级别
+				// Use closure to capture scope, ensuring update to correct config level
 				valueInput.onchange = () => updateMcpSettingsForScope(scope);
 
 				const removeBtn = document.createElement('button');
@@ -4015,9 +4015,9 @@ export const uiScript = `
 				removeBtn.textContent = '×';
 				removeBtn.onclick = () => {
 					rowDiv.remove();
-					// 使用闭包捕获 scope，确保更新到正确的配置级别
+					// Use closure to capture scope, ensuring update to correct config level
 					updateMcpSettingsForScope(scope);
-					// 重新计算展开区域高度
+					// Recalculate expanded area height
 					updateDetailsHeight();
 				};
 
@@ -4047,14 +4047,14 @@ export const uiScript = `
 			const serverEl = document.getElementById(serverId);
 			if (serverEl) {
 				serverEl.remove();
-				// 根据 scope 更新对应级别的设置
+				// Update settings for corresponding scope level
 				updateMcpSettingsForScope(scope || 'global');
 			}
 		}
 
 		/**
-		 * 加载 MCP 服务器到指定的分栏
-		 * @param servers 服务器列表
+		 * Load MCP servers to specified section
+		 * @param servers Server list
 		 * @param scope 'global' | 'workspace'
 		 */
 		function loadMcpServersToSection(servers, scope) {
@@ -4084,7 +4084,7 @@ export const uiScript = `
 		}
 
 		/**
-		 * 更新指定 scope 的 MCP 设置
+		 * Update MCP settings for specified scope
 		 * @param scope 'global' | 'workspace'
 		 */
 		function updateMcpSettingsForScope(scope) {
@@ -4104,7 +4104,7 @@ export const uiScript = `
 				}
 
 				if (serverType === 'http' || serverType === 'sse') {
-					// Http/SSE 类型服务器
+					// Http/SSE type server
 					const urlInput = serverEl.querySelector('input.mcp-server-url');
 					const server = {
 						name: nameInput.value,
@@ -4113,29 +4113,29 @@ export const uiScript = `
 					};
 					servers.push(server);
 				} else {
-					// stdio 类型服务器
+					// stdio type server
 					const commandInput = serverEl.querySelector('input.mcp-server-command');
 					const argsInput = serverEl.querySelector('input.mcp-server-args');
 					const envInput = serverEl.querySelector('input.mcp-server-env');
 
-					// 解析 args：将空格分隔的字符串转换为数组
+					// Parse args: convert space-separated string to array
 					const argsStr = argsInput?.value || '';
 					let argsArray = [];
 					if (argsStr.trim()) {
-						// 简单的空格分隔解析
-						// 注意：在模板字符串中必须使用 \\s 而不是 \s，否则会被解释为字母 s
+						// Simple space-separated parsing
+						// Note: in template strings must use \\s instead of \s, otherwise interpreted as letter s
 						argsArray = argsStr.split(/\\s+/).filter(arg => arg.length > 0);
 					}
 
-					// 解析 env：尝试解析 JSON 或 KEY=VALUE 格式
+					// Parse env: try JSON or KEY=VALUE format
 					const envStr = envInput?.value || '';
 					let envObj = {};
 					if (envStr.trim()) {
 						try {
-							// 尝试 JSON 解析
+							// Try JSON parsing
 							envObj = JSON.parse(envStr);
 						} catch {
-							// 尝试 KEY=VALUE,KEY2=VALUE2 格式
+							// Try KEY=VALUE,KEY2=VALUE2 format
 							envStr.split(',').forEach(pair => {
 								const [key, ...valueParts] = pair.split('=');
 								if (key && valueParts.length > 0) {
@@ -4155,22 +4155,22 @@ export const uiScript = `
 				}
 			});
 
-			// 发送更新请求，指定 scope
+			// Send update request, specifying scope
 			vscode.postMessage({
 				type: 'updateMcpServers',
 				scope: scope,
 				servers: servers
 			});
 		}
-		
+
 		function toggleMcpTools(serverId) {
 			const serverEl = document.getElementById(serverId);
 			if (!serverEl) return;
-			
-			// 首先确保详情部分是展开的
+
+			// First ensure details section is expanded
 			const isExpanded = mcpServerExpandStates.get(serverId);
 			if (!isExpanded) {
-				// 如果服务器配置是折叠的，先展开它
+				// If server config is collapsed, expand it first
 				const headerDiv = serverEl.querySelector('.mcp-server-header');
 				headerDiv.click();
 			}
@@ -4186,7 +4186,7 @@ export const uiScript = `
 				toolsSection.style.display = 'block';
 				viewToolsBtn.textContent = 'Hide Tools';
 				
-				// 重新计算details的高度
+				// Recalculate details height
 				const detailsDiv = serverEl.querySelector('.mcp-server-details');
 				const detailsContent = detailsDiv.querySelector('div');
 				detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
@@ -4207,7 +4207,7 @@ export const uiScript = `
 				toolsSection.style.display = 'none';
 				viewToolsBtn.textContent = 'View Tools';
 				
-				// 重新计算details的高度
+				// Recalculate details height
 				const detailsDiv = serverEl.querySelector('.mcp-server-details');
 				const detailsContent = detailsDiv.querySelector('div');
 				detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
@@ -4278,11 +4278,11 @@ export const uiScript = `
 				</div>
 			\`;
 			
-			// 更新详情容器的高度
+			// Update details container height
 			updateDetailsHeight(targetServerId);
 		}
 		
-		// 辅助函数：更新详情容器高度
+		// Helper function: update details container height
 		function updateDetailsHeight(serverId) {
 			const serverEl = document.getElementById(serverId);
 			if (!serverEl) return;
@@ -4290,7 +4290,7 @@ export const uiScript = `
 			const detailsDiv = serverEl.querySelector('.mcp-server-details');
 			const detailsContent = detailsDiv.querySelector('div');
 			if (detailsDiv && detailsContent) {
-				// 使用setTimeout确保DOM已更新
+				// Use setTimeout to ensure DOM is updated
 				setTimeout(() => {
 					detailsDiv.style.maxHeight = detailsContent.scrollHeight + 'px';
 				}, 10);
@@ -4298,7 +4298,7 @@ export const uiScript = `
 		}
 		
 		function addMcpFromTemplate(scope = 'global') {
-			// 根据 scope 选择对应的模板选择器
+			// Select corresponding template selector based on scope
 			const selectorId = scope === 'workspace' ? 'mcpWorkspaceTemplateSelector' : 'mcpGlobalTemplateSelector';
 			const templateSelector = document.getElementById(selectorId);
 			if (!templateSelector) return;
@@ -4340,13 +4340,13 @@ export const uiScript = `
 					command: 'npx',
 					args: ['n8n-mcp'],
 					env: {
-						// 必需的基础配置
+						// Required base configuration
 						'MCP_MODE': 'stdio',
 						'LOG_LEVEL': 'error',
 						'DISABLE_CONSOLE_OUTPUT': 'true',
-						// 可选：用户可以配置这两个环境变量来连接他们的n8n实例
-						'N8N_API_URL': '', // 例如: https://your-n8n-instance.com 或 http://localhost:5678
-						'N8N_API_KEY': ''  // 你的n8n API密钥
+						// Optional: users can configure these two environment variables to connect to their n8n instance
+						'N8N_API_URL': '', // e.g.: https://your-n8n-instance.com or http://localhost:5678
+						'N8N_API_KEY': ''  // your n8n API key
 					}
 				},
 				'shadcn': {
@@ -4355,14 +4355,14 @@ export const uiScript = `
 					args: ['shadcn@latest', 'mcp'],
 					env: {}
 				},
-				// Gemini AI 助手 - 提供 UI 生成、多模态分析等 AI 能力
+				// Gemini AI assistant - provides UI generation, multimodal analysis and other AI capabilities
 				'gemini-assistant': {
 					name: 'gemini-assistant',
 					command: 'npx',
 					args: ['-y', 'github:LKbaba/Gemini-mcp'],
 					env: {
-						// 占位符，提示用户需要配置真实的 API Key
-						// 可以在 Gemini Integration 区域安全地设置真实密钥
+						// Placeholder, prompting user to configure actual API Key
+						// Can securely set real key in Gemini Integration section
 						'GEMINI_API_KEY': 'xxxxxxx'
 					}
 				}
@@ -4392,10 +4392,10 @@ export const uiScript = `
 			}
 		}
 
-		// ==================== Gemini Integration 相关函数 ====================
+		// ==================== Gemini Integration related functions ====================
 
 		/**
-		 * 切换 Gemini Integration 选项的显示/隐藏
+		 * Toggle Gemini Integration options show/hide
 		 */
 		function toggleGeminiOptions() {
 			const geminiEnabled = document.getElementById('gemini-enabled').checked;
@@ -4458,7 +4458,7 @@ export const uiScript = `
 			console.log('[Gemini] Integration initialization complete:', config);
 		}
 
-		// ==================== API Configuration 相关函数 ====================
+		// ==================== API Configuration related functions ====================
 
 		function toggleApiOptions() {
 			const useCustomAPI = document.getElementById('api-useCustomAPI').checked;
@@ -4700,7 +4700,7 @@ export const uiScript = `
 					mcpOptionsDiv.style.display = message.data['mcp.enabled'] ? 'block' : 'none';
 				}
 
-				// Load MCP config target (配置保存位置)
+				// Load MCP config target (configuration save location)
 				const mcpConfigTargetSelect = document.getElementById('mcpConfigTarget');
 				if (mcpConfigTargetSelect) {
 					mcpConfigTargetSelect.value = message.data['mcp.configTarget'] || 'workspace';
@@ -4719,15 +4719,15 @@ export const uiScript = `
 					mcpConfigSourceInfo.textContent = serversSource;
 				}
 
-				// Load MCP servers - 分栏加载全局和工作区配置
+				// Load MCP servers - load global and workspace config in separate panels
 				mcpServerCount = 0; // Reset counter
 				mcpServerExpandStates.clear(); // Clear expansion states
 
-				// 加载全局 MCP 服务器
+				// Load global MCP servers
 				const globalServers = message.data['mcp.globalServers'] || [];
 				loadMcpServersToSection(globalServers, 'global');
 
-				// 加载工作区 MCP 服务器
+				// Load workspace MCP servers
 				const workspaceServers = message.data['mcp.workspaceServers'] || [];
 				loadMcpServersToSection(workspaceServers, 'workspace');
 
@@ -4804,7 +4804,7 @@ export const uiScript = `
 		window.toggleStats = toggleStats;
 		window.toggleConversationHistory = toggleConversationHistory;
 		window.toggleApiOptions = toggleApiOptions;
-		// Gemini Integration 函数挂载
+		// Gemini Integration function mounting
 		window.toggleGeminiOptions = toggleGeminiOptions;
 		window.updateGeminiApiKey = updateGeminiApiKey;
 		window.initGeminiIntegration = initGeminiIntegration;
@@ -4921,7 +4921,7 @@ export const uiScript = `
 			const timeStr = date.toLocaleTimeString();
 			const timestamp = dateStr + ' ' + timeStr;
 			
-			// 获取操作状态
+			// Get operation status
 			const status = op.status || (isUndone ? 'undone' : 'active');
 			const statusIcon = getStatusIcon(status);
 			const statusColor = getStatusColor(status);
@@ -4968,7 +4968,7 @@ export const uiScript = `
 			\`;
 		}
 
-		// 状态图标和颜色函数
+		// Status icon and color functions
 		function getStatusIcon(status) {
 			const iconMap = {
 				'active': '✅',
@@ -4993,13 +4993,13 @@ export const uiScript = `
 		
 		function getStatusLabel(status) {
 			const labelMap = {
-				'active': '活跃',
-				'undone': '已撤销',
-				'failed': '失败',
-				'partial': '部分成功',
-				'pending': '等待中'
+				'active': 'Active',
+				'undone': 'Undone',
+				'failed': 'Failed',
+				'partial': 'Partial',
+				'pending': 'Pending'
 			};
-			return labelMap[status] || '未知';
+			return labelMap[status] || 'Unknown';
 		}
 
 		function getOperationIcon(type) {
@@ -5303,7 +5303,7 @@ export const uiScript = `
 		window.toggleLanguageMode = toggleLanguageMode;
 		window.handleLanguageLabelClick = handleLanguageLabelClick;
 		window.confirmThinkingIntensity = confirmThinkingIntensity;
-		// 操作历史功能已移除 (v3.0.1)
+		// Operation history feature removed (v3.0.1)
 		// window.toggleOperationHistory = toggleOperationHistory;
 		// window.undoOperation = undoOperation;
 		// window.redoOperation = redoOperation;
@@ -5355,14 +5355,14 @@ export const uiScript = `
 			}
 		});
 
-		// 关闭modal当点击外部时
+		// Close modal when clicking outside
 		document.getElementById('modeModal').addEventListener('click', (e) => {
 			if (e.target === document.getElementById('modeModal')) {
 				hideModeModal();
 			}
 		});
 
-		// 恢复保存的算力模式
+		// Restore saved compute mode
 		const savedMode = localStorage.getItem('selectedMode') || 'auto';
 		currentMode = savedMode;
 		const modeDisplayNames = {
@@ -5371,14 +5371,14 @@ export const uiScript = `
 		};
 		document.getElementById('selectedMode').textContent = modeDisplayNames[savedMode];
 
-		// 恢复Enhance Subagents设置（独立于模式）
+		// Restore Enhance Subagents setting (independent of mode)
 		const enhanceSubagents = localStorage.getItem('enhanceSubagents') === 'true';
 		const enhanceCheckbox = document.getElementById('enhance-subagents');
 		if (enhanceCheckbox) {
 			enhanceCheckbox.checked = enhanceSubagents;
 		}
 
-		// 如果是Max模式，通知后端恢复环境变量设置（固定使用Sonnet 4.5）
+		// If Max mode, notify backend to restore environment variable settings (uses Sonnet 4.5)
 		if (savedMode === 'max') {
 			vscode.postMessage({
 				type: 'selectMode',
@@ -5386,7 +5386,7 @@ export const uiScript = `
 			});
 		}
 
-		// 如果子代理增强已启用，通知后端恢复（独立设置）
+		// If subagent enhancement is enabled, notify backend to restore (independent setting)
 		if (enhanceSubagents) {
 			vscode.postMessage({
 				type: 'updateSubagentMode',
