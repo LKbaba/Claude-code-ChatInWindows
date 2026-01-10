@@ -10,6 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { expandVariables } from '../../utils/configUtils';
 import { secretService } from '../../services/SecretService';
+import { debugLog, debugWarn, debugError } from '../../services/DebugLogger';
 
 export interface McpStatus {
     status: 'disabled' | 'configured' | 'testing' | 'connected' | 'error';
@@ -92,7 +93,7 @@ export class McpConfigManager {
         const mergedServers = Array.from(serverMap.values())
             .filter(server => !server.disabled);
 
-        console.log('[McpConfigManager] MCP servers merged:', {
+        debugLog('McpConfigManager', 'MCP servers merged', {
             userCount: userServers.length,
             workspaceCount: workspaceServers.length,
             folderCount: folderServers.length,
@@ -160,7 +161,7 @@ export class McpConfigManager {
         mcpServers.forEach((server) => {
             // Validate server name
             if (!server.name) {
-                console.warn('[MCP] Server missing name, skipping');
+                debugWarn('McpConfigManager', 'Server missing name, skipping');
                 return;
             }
 
@@ -170,7 +171,7 @@ export class McpConfigManager {
             if (serverType === 'http' || serverType === 'sse') {
                 // ===== HTTP/SSE mode =====
                 if (!server.url) {
-                    console.warn(`[MCP] Server ${server.name} is ${serverType} type but missing url`);
+                    debugWarn('McpConfigManager', `Server ${server.name} is ${serverType} type but missing url`);
                     return;
                 }
 
@@ -185,7 +186,7 @@ export class McpConfigManager {
             } else {
                 // ===== stdio mode (original logic) =====
                 if (!server.command) {
-                    console.warn(`[MCP] Server ${server.name} is stdio type but missing command`);
+                    debugWarn('McpConfigManager', `Server ${server.name} is stdio type but missing command`);
                     return;
                 }
 
@@ -278,7 +279,7 @@ export class McpConfigManager {
 
                 // Log Windows config conversion
                 if (process.platform === 'win32' && originalCommand !== serverConfig.command) {
-                    console.log(`[McpConfigManager] Windows cmd wrapper applied for server '${server.name}':`, {
+                    debugLog('McpConfigManager', `Windows cmd wrapper applied for server '${server.name}'`, {
                         originalCommand: originalCommand,
                         convertedCommand: serverConfig.command,
                         args: serverConfig.args
@@ -312,16 +313,16 @@ export class McpConfigManager {
                 mcpConfigPath = path.join(tempDir, 'mcp-config.json');
                 
                 // Log configuration before writing
-                console.log('[buildMcpConfig] Generated MCP configuration:', JSON.stringify(mcpConfig, null, 2));
-                
+                debugLog('buildMcpConfig', 'Generated MCP configuration', mcpConfig);
+
                 fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
-                
+
                 // Verify the file was written correctly
                 const writtenContent = fs.readFileSync(mcpConfigPath, 'utf8');
-                console.log('[buildMcpConfig] Written MCP config file:', mcpConfigPath);
-                console.log('[buildMcpConfig] File content:', writtenContent);
+                debugLog('buildMcpConfig', `Written MCP config file: ${mcpConfigPath}`);
+                debugLog('buildMcpConfig', 'File content', JSON.parse(writtenContent));
             } catch (error) {
-                console.error('Failed to write MCP config file:', error);
+                debugError('buildMcpConfig', 'Failed to write MCP config file', error);
                 throw new Error(`Failed to write MCP configuration: ${error}`);
             }
         }
@@ -458,14 +459,14 @@ export class McpConfigManager {
             const shouldInject = await secretService.shouldInjectGeminiApiKey();
 
             if (!shouldInject) {
-                console.log('[McpConfigManager] Gemini Integration not enabled or API Key not set, skipping injection');
+                debugLog('McpConfigManager', 'Gemini Integration not enabled or API Key not set, skipping injection');
                 return;
             }
 
             // 获取安全存储的 API Key
             const apiKey = await secretService.getGeminiApiKey();
             if (!apiKey) {
-                console.log('[McpConfigManager] Unable to get Gemini API Key, skipping injection');
+                debugLog('McpConfigManager', 'Unable to get Gemini API Key, skipping injection');
                 return;
             }
 
@@ -483,7 +484,7 @@ export class McpConfigManager {
                     serverConfig.env.GEMINI_API_KEY = apiKey;
                     injectedCount++;
 
-                    console.log(`[McpConfigManager] Injected Gemini API Key into server '${serverName}'`, {
+                    debugLog('McpConfigManager', `Injected Gemini API Key into server '${serverName}'`, {
                         hadOriginalKey: !!originalKey,
                         originalKeyMasked: originalKey ? `${originalKey.substring(0, 4)}...` : 'none'
                     });
@@ -491,13 +492,13 @@ export class McpConfigManager {
             }
 
             if (injectedCount > 0) {
-                console.log(`[McpConfigManager] Gemini API Key injection complete, injected into ${injectedCount} server(s)`);
+                debugLog('McpConfigManager', `Gemini API Key injection complete, injected into ${injectedCount} server(s)`);
             } else {
-                console.log('[McpConfigManager] No Gemini server found, no API Key injection needed');
+                debugLog('McpConfigManager', 'No Gemini server found, no API Key injection needed');
             }
 
         } catch (error) {
-            console.error('[McpConfigManager] Gemini API Key injection failed:', error);
+            debugError('McpConfigManager', 'Gemini API Key injection failed', error);
             // 注入失败不应阻止 MCP 配置继续，只记录错误
         }
     }
@@ -521,14 +522,14 @@ export class McpConfigManager {
                     const fullPath = path.join(claudeDir, entry);
                     try {
                         fs.rmSync(fullPath, { recursive: true, force: true });
-                        console.log('[cleanupOldMcpConfigs] Removed old MCP config:', fullPath);
+                        debugLog('cleanupOldMcpConfigs', `Removed old MCP config: ${fullPath}`);
                     } catch (error) {
-                        console.error('[cleanupOldMcpConfigs] Failed to remove:', fullPath, error);
+                        debugError('cleanupOldMcpConfigs', `Failed to remove: ${fullPath}`, error);
                     }
                 }
             }
         } catch (error) {
-            console.log('[cleanupOldMcpConfigs] Error cleaning up old MCP configs:', error);
+            debugLog('cleanupOldMcpConfigs', 'Error cleaning up old MCP configs', error);
         }
     }
 }

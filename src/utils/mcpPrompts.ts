@@ -4,6 +4,8 @@
  * See CLAUDE.md for detailed documentation
  */
 
+import { debugLog } from '../services/DebugLogger';
+
 export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
     'sequential-thinking': `
 ## Sequential Thinking
@@ -99,16 +101,16 @@ export function getMcpSystemPrompts(mcpServers: Array<{ name: string }>): string
 The following MCP servers are enabled. Use their tools as needed:`;
     
     prompts.push(header);
-    
-    console.log('[getMcpSystemPrompts] Processing servers:', mcpServers.map(s => s.name));
-    
+
+    debugLog('getMcpSystemPrompts', `Processing servers: ${mcpServers.map(s => s.name).join(', ')}`);
+
     for (const server of mcpServers) {
         const prompt = MCP_SYSTEM_PROMPTS[server.name];
         if (prompt) {
-            console.log(`[getMcpSystemPrompts] Found prompt for ${server.name}, length: ${prompt.trim().length}`);
+            debugLog('getMcpSystemPrompts', `Found prompt for ${server.name}, length: ${prompt.trim().length}`);
             prompts.push(prompt.trim());
         } else {
-            console.log(`[getMcpSystemPrompts] No prompt found for ${server.name}`);
+            debugLog('getMcpSystemPrompts', `No prompt found for ${server.name}`);
         }
     }
     
@@ -118,11 +120,11 @@ The following MCP servers are enabled. Use their tools as needed:`;
     }
     
     const result = prompts.join('\n');
-    console.log('[getMcpSystemPrompts] Final result:', {
+    debugLog('getMcpSystemPrompts', 'Final result', {
         promptCount: prompts.length,
         totalLength: result.length,
         servers: mcpServers.map(s => s.name)
     });
-    
+
     return result;
 }

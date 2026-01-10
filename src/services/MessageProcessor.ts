@@ -9,6 +9,7 @@ import { getToolStatusText, optimizeToolInput } from '../utils/utils';
 import { ConversationManager } from '../managers/ConversationManager';
 import { OperationTracker } from '../managers/OperationTracker';
 import { Operation, OperationType, OperationData } from '../types/Operation';
+import { debugLog, debugError } from './DebugLogger';
 
 export interface MessageCallbacks {
     onSystemMessage: (data: any) => void;
@@ -97,11 +98,11 @@ export class MessageProcessor {
     public processJsonLine(line: string, callbacks: MessageCallbacks): void {
         try {
             const jsonData = JSON.parse(line);
-            console.log('[MessageProcessor] Received JSON:', jsonData.type, jsonData);
+            debugLog('MessageProcessor', `Received JSON: ${jsonData.type}`, jsonData);
             this._processJsonData(jsonData, callbacks);
         } catch (error) {
             // Not JSON, might be plain text
-            console.log('[MessageProcessor] Non-JSON line:', line);
+            debugLog('MessageProcessor', 'Non-JSON line', line);
             callbacks.sendToWebview({ type: 'text', data: line });
         }
     }
@@ -169,7 +170,7 @@ export class MessageProcessor {
      * Process assistant messages
      */
     private _processAssistantMessage(message: any, callbacks: MessageCallbacks): void {
-        console.log('[MessageProcessor] Processing assistant message:', message);
+        debugLog('MessageProcessor', 'Processing assistant message', message);
         if (!message.content || !Array.isArray(message.content)) return;
 
         // Generate or use existing message ID
@@ -177,7 +178,7 @@ export class MessageProcessor {
 
         message.content.forEach((content: any) => {
             if (content.type === 'text' && content.text) {
-                console.log('[MessageProcessor] Assistant text:', content.text);
+                debugLog('MessageProcessor', 'Assistant text', content.text);
                 // Regular text response - handled by onAssistantMessage callback
                 callbacks.onAssistantMessage(content.text);
             } else if (content.type === 'thinking' && content.text) {
@@ -236,8 +237,8 @@ export class MessageProcessor {
      * Track operation based on tool usage
      */
     private _trackOperation(content: any, callbacks: MessageCallbacks): void {
-        console.log('[MessageProcessor] _trackOperation called with:', content);
-        
+        debugLog('MessageProcessor', '_trackOperation called', content);
+
         let operationType: OperationType | null = null;
         let operationData: OperationData = {};
 
@@ -287,10 +288,8 @@ export class MessageProcessor {
         }
 
         // Track the operation if we identified one
-        console.log('[MessageProcessor] Operation type:', operationType);
-        console.log('[MessageProcessor] Operation data:', operationData);
-        console.log('[MessageProcessor] Has operation tracker:', !!this._operationTracker);
-        
+        debugLog('MessageProcessor', 'Tracking operation', { operationType, operationData, hasTracker: !!this._operationTracker });
+
         if (operationType && this._operationTracker) {
             const operation = this._operationTracker.trackOperation(
                 operationType,
@@ -298,14 +297,14 @@ export class MessageProcessor {
                 this._currentMessageId,
                 content.id
             );
-            console.log('[MessageProcessor] Created operation:', operation);
+            debugLog('MessageProcessor', 'Created operation', operation);
 
             // Notify callback if available
             if (callbacks.onOperationTracked) {
-                console.log('[MessageProcessor] Calling onOperationTracked callback');
+                debugLog('MessageProcessor', 'Calling onOperationTracked callback');
                 callbacks.onOperationTracked(operation);
             } else {
-                console.log('[MessageProcessor] No onOperationTracked callback available');
+                debugLog('MessageProcessor', 'No onOperationTracked callback available');
             }
         }
     }
@@ -481,6 +480,31 @@ export class MessageProcessor {
                     }
                 }
                 break;
+            // Claude Code 2.1.2 新增工具
+            case 'TaskOutput':
+                if (content.input?.task_id) {
+                    details = ` • task: ${content.input.task_id}`;
+                }
+                break;
+            case 'KillShell':
+                if (content.input?.shell_id) {
+                    details = ` • shell: ${content.input.shell_id}`;
+                }
+                break;
+            case 'AskUserQuestion':
+                if (content.input?.questions?.length) {
+                    details = ` • ${content.input.questions.length} question(s)`;
+                }
+                break;
+            case 'Skill':
+                if (content.input?.skill) {
+                    details = ` • /${content.input.skill}`;
+                }
+                break;
+            case 'EnterPlanMode':
+            case 'ExitPlanMode':
+                // 这些工具没有特别需要显示的参数
+                break;
         }
 
         return details;
@@ -518,26 +542,23 @@ export class MessageProcessor {
         const isError = content.is_error === true;
         const toolName = this._lastToolName;
         let resultContent = content.content || '';
-        
-        console.log('[MessageProcessor] Processing tool result for tool:', toolName);
-        console.log('[MessageProcessor] Tool result content type:', typeof resultContent);
-        console.log('[MessageProcessor] Tool result content:', resultContent);
-        
-        // Track operation when we get successful tool results
-        // This handles cases where tool_use info isn't in assistant messages
-        console.log('[MessageProcessor] Checking if should track operation:', {
-            isError,
+
+        debugLog('MessageProcessor', 'Processing tool result', {
             toolName,
+            contentType: typeof resultContent,
+            isError,
             lastOperationTracked: this._lastOperationTracked
         });
-        
+
+        // Track operation when we get successful tool results
+        // This handles cases where tool_use info isn't in assistant messages
         if (!isError && toolName && !this._lastOperationTracked) {
-            console.log('[MessageProcessor] Tracking operation from tool result for:', toolName);
-            
+            debugLog('MessageProcessor', 'Tracking operation from tool result', toolName);
+
             // Parse operation data from result content
             const operationInput = this._parseOperationFromResult(toolName, resultContent);
-            console.log('[MessageProcessor] Parsed operation input:', operationInput);
-            
+            debugLog('MessageProcessor', 'Parsed operation input', operationInput);
+
             if (operationInput) {
                 this._trackOperation({
                     name: toolName,
@@ -545,19 +566,19 @@ export class MessageProcessor {
                     id: content.tool_use_id || this._lastToolUseId
                 }, callbacks);
             } else {
-                console.log('[MessageProcessor] Failed to parse operation input from result');
+                debugLog('MessageProcessor', 'Failed to parse operation input from result');
             }
         }
-        
+
         // Reset the tracking flag for next operation
         this._lastOperationTracked = false;
-        
+
         // Handle object content (e.g., from MCP tools)
         if (typeof resultContent === 'object' && resultContent !== null) {
             // Check if this is an MCP tool result with special formatting
             if (toolName && toolName.startsWith('mcp__')) {
                 resultContent = this._formatMcpToolResult(resultContent, toolName);
-                console.log('[MessageProcessor] Formatted MCP result:', resultContent);
+                debugLog('MessageProcessor', 'Formatted MCP result', resultContent);
             } else {
                 resultContent = JSON.stringify(resultContent, null, 2);
             }
@@ -614,21 +635,20 @@ export class MessageProcessor {
      * Format MCP tool results for better display
      */
     private _formatMcpToolResult(resultContent: any, toolName: string): string {
-        console.log('[MessageProcessor] _formatMcpToolResult called with:', {
+        debugLog('MessageProcessor', '_formatMcpToolResult called', {
             toolName,
             resultContentType: typeof resultContent,
-            isArray: Array.isArray(resultContent),
-            resultContent: resultContent
+            isArray: Array.isArray(resultContent)
         });
 
         // MCP tools typically return an array of content objects
         if (Array.isArray(resultContent)) {
             const textParts: string[] = [];
             let thoughtCount = 0;
-            
+
             resultContent.forEach((item: any, index: number) => {
-                console.log(`[MessageProcessor] Processing item ${index}:`, item);
-                
+                debugLog('MessageProcessor', `Processing MCP item ${index}`, item);
+
                 // Handle different item structures
                 if (item && typeof item === 'object') {
                     // Check for text property
@@ -637,15 +657,11 @@ export class MessageProcessor {
                         if (toolName.includes('thinking')) {
                             try {
                                 const thoughtData = JSON.parse(item.text);
-                                console.log('[MessageProcessor] Parsed thought data:', thoughtData);
-                                
-                                // Format each thinking step nicely
-                                console.log('[MessageProcessor] Checking thoughtData.thought:', thoughtData.thought);
-                                console.log('[MessageProcessor] thoughtData keys:', Object.keys(thoughtData));
-                                
+                                debugLog('MessageProcessor', 'Parsed thought data', { keys: Object.keys(thoughtData) });
+
                                 if (thoughtData.thought) {
                                     thoughtCount++;
-                                    
+
                                     // Format thinking step compactly
                                     const stepNum = thoughtData.thoughtNumber ? `${thoughtData.thoughtNumber}/${thoughtData.totalThoughts || '?'}` : `${thoughtCount}`;
                                     let statusText = '⏳ Continue thinking';
@@ -656,13 +672,13 @@ export class MessageProcessor {
                                     }
                                     textParts.push(`🧠 Step ${stepNum} • ${statusText}\n${thoughtData.thought}`);
                                 } else {
-                                    console.log('[MessageProcessor] No thought property found in thoughtData');
+                                    debugLog('MessageProcessor', 'No thought property found in thoughtData');
                                     // For sequential thinking without thought content, show progress
                                     if (thoughtData.thoughtNumber && thoughtData.totalThoughts) {
                                         // Compact format
                                         let status = thoughtData.nextThoughtNeeded === false ? '✅' : '⏳';
                                         textParts.push(`🧠 Thinking Step ${thoughtData.thoughtNumber}/${thoughtData.totalThoughts} ${status}`);
-                                        
+
                                         // Show the input thought if available
                                         if (this._lastToolInput && this._lastToolInput.thought) {
                                             textParts.push(`Current thought: ${this._lastToolInput.thought}`);
@@ -673,7 +689,7 @@ export class MessageProcessor {
                                     }
                                 }
                             } catch (e) {
-                                console.log('[MessageProcessor] Failed to parse as JSON:', e);
+                                debugLog('MessageProcessor', 'Failed to parse as JSON', e);
                                 // If it's not valid JSON, just use the text as is
                                 textParts.push(item.text);
                             }
@@ -684,14 +700,14 @@ export class MessageProcessor {
                     }
                     // Check if item has a direct text property (different structure)
                     else if (item.text && typeof item.text === 'string') {
-                        console.log('[MessageProcessor] Found direct text property');
+                        debugLog('MessageProcessor', 'Found direct text property');
                         textParts.push(item.text);
                     }
                     // Check if item itself is the content (e.g., {thought: ..., thoughtNumber: ...})
                     else if (toolName.includes('thinking') && item.thought) {
-                        console.log('[MessageProcessor] Found direct thought object');
+                        debugLog('MessageProcessor', 'Found direct thought object');
                         thoughtCount++;
-                        
+
                         // Format thinking step compactly
                         const stepNum = item.thoughtNumber ? `${item.thoughtNumber}/${item.totalThoughts || '?'}` : `${thoughtCount}`;
                         let statusText = '⏳ Continue';
@@ -704,15 +720,15 @@ export class MessageProcessor {
                     }
                 }
             });
-            
+
             // Join with single line break for compact display
             const result = textParts.join('\n');
-            console.log('[MessageProcessor] Final formatted result:', result);
+            debugLog('MessageProcessor', 'Final formatted result length', result.length);
             return result;
         }
-        
+
         // Fallback to JSON stringification if not an array
-        console.log('[MessageProcessor] Not an array, using JSON stringification');
+        debugLog('MessageProcessor', 'Not an array, using JSON stringification');
         return JSON.stringify(resultContent, null, 2);
     }
 

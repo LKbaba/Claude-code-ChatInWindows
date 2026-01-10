@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v2.1.3</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.0.1</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -17,7 +17,6 @@ export function getBodyContent(): string {
 			<div id="sessionStatus" class="session-status" style="display: none;">No session</div>
 			<button class="btn outlined" id="settingsBtn" onclick="toggleSettings()" title="Settings">⚙️</button>
 			<button class="btn outlined" id="statsBtn" onclick="toggleStats()" title="Usage Statistics">📈</button>
-			<button class="btn outlined" id="operationHistoryBtn" onclick="toggleOperationHistory()" title="Operation Undo">🔄</button>
 			<button class="btn outlined" id="historyBtn" onclick="toggleConversationHistory()" style="display: none;">📜 History</button>
 			<button class="btn primary" id="newSessionBtn" onclick="newSession()" style="display: none;">New Chat</button>
 		</div>
@@ -149,27 +148,6 @@ export function getBodyContent(): string {
 			</svg>
 			Stop
 		</button>
-	</div>
-
-	<!-- Operation History Panel -->
-	<div id="operationHistoryPanel" class="stats-panel" style="display: none;">
-		<div class="stats-header">
-			<h3>Operation History</h3>
-			<button class="btn" onclick="toggleOperationHistory()">✕ Close</button>
-		</div>
-		<div class="operation-history-stats">
-			<div class="operation-stat-item">
-				<span class="stat-label">Active Operations:</span>
-				<span id="activeOperationsCount" class="stat-value">0</span>
-			</div>
-			<div class="operation-stat-item">
-				<span class="stat-label">Undone Operations:</span>
-				<span id="undoneOperationsCount" class="stat-value">0</span>
-			</div>
-		</div>
-		<div id="operationHistoryContent" class="stats-content">
-			<div class="stats-loading">Loading operation history...</div>
-		</div>
 	</div>
 
 	<div class="beta-warning">

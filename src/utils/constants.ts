@@ -21,6 +21,7 @@ export type ValidModel = typeof VALID_MODELS[number];
  * Tool status mapping for displaying human-readable status messages
  */
 export const TOOL_STATUS_MAP: Record<string, string> = {
+    // 核心工具
     'Task': 'Exploring project structure',
     'Bash': 'Executing command',
     'Read': 'Reading file',
@@ -36,8 +37,14 @@ export const TOOL_STATUS_MAP: Record<string, string> = {
     'MultiEdit': 'Editing multiple files',
     'NotebookRead': 'Reading notebook',
     'NotebookEdit': 'Editing notebook',
-    'exit_plan_mode': 'Exiting plan mode',
-    // MCP tools
+    // Claude Code 2.1.2 新增工具
+    'TaskOutput': 'Getting task output',
+    'KillShell': 'Stopping background task',
+    'AskUserQuestion': 'Waiting for user input',
+    'Skill': 'Executing skill',
+    'EnterPlanMode': 'Entering plan mode',
+    'ExitPlanMode': 'Exiting plan mode',
+    // MCP 工具
     'mcp__sequential-thinking__sequentialthinking': 'Analyzing with sequential thinking',
     'mcp__context7__search': 'Searching documentation via Context7',
     'mcp__context7__get_context': 'Fetching context via Context7'

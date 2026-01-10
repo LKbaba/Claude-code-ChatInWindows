@@ -1021,6 +1021,7 @@ export const uiScript = `
 		
 		function getToolStatusIcon(toolName) {
 			const iconMap = {
+				// 核心工具
 				'Task': '🎯',            // Target icon for tasks/goals
 				'Bash': '💻',            // Keep
 				'Read': '📖',            // Keep
@@ -1036,7 +1037,13 @@ export const uiScript = `
 				'MultiEdit': '📑',       // Multi-page document icon
 				'NotebookRead': '📓',    // Keep
 				'NotebookEdit': '📔',    // Slightly different notebook icon
-				'exit_plan_mode': '🚪',  // Keep
+				// Claude Code 2.1.2 新增工具
+				'TaskOutput': '📤',      // 获取任务输出
+				'KillShell': '🛑',       // 停止后台任务
+				'AskUserQuestion': '❓', // 等待用户输入
+				'Skill': '⚡',           // 执行技能
+				'EnterPlanMode': '📋',   // 进入计划模式
+				'ExitPlanMode': '🚪',    // 退出计划模式
 				// MCP tools
 				'mcp__sequential-thinking__sequentialthinking': '🧠'  // Brain icon for thinking tool
 			};
@@ -5176,11 +5183,12 @@ export const uiScript = `
 		window.toggleLanguageMode = toggleLanguageMode;
 		window.handleLanguageLabelClick = handleLanguageLabelClick;
 		window.confirmThinkingIntensity = confirmThinkingIntensity;
-		window.toggleOperationHistory = toggleOperationHistory;
-		window.undoOperation = undoOperation;
-		window.redoOperation = redoOperation;
-		window.previewOperation = previewOperation;
-		window.executePreviewAction = executePreviewAction;
+		// 操作历史功能已移除 (v3.0.1)
+		// window.toggleOperationHistory = toggleOperationHistory;
+		// window.undoOperation = undoOperation;
+		// window.redoOperation = redoOperation;
+		// window.previewOperation = previewOperation;
+		// window.executePreviewAction = executePreviewAction;
 		window.updateThinkingIntensityDisplay = updateThinkingIntensityDisplay;
 		window.openModelTerminal = openModelTerminal;
 		window.handleCustomCommandKeydown = handleCustomCommandKeydown;

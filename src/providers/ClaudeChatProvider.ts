@@ -21,6 +21,7 @@ import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
 import { secretService, SecretService } from '../services/SecretService';
+import { debugLog, debugWarn, debugError } from '../services/DebugLogger';
 
 // 计算模式设置接口
 interface ComputeModeSettings {
@@ -115,7 +116,7 @@ export class ClaudeChatProvider {
 		// Initialize backup repository asynchronously
 		// We don't await here to avoid blocking constructor, but we'll ensure it's ready in show()
 		this._backupManager.initializeBackupRepo().catch(error => {
-			console.error('[ClaudeChatProvider] Failed to initialize backup repo:', error);
+			debugError('ClaudeChatProvider', 'Failed to initialize backup repo', error);
 		});
 
 		// Load saved model preference (default to Sonnet 4.5)
@@ -143,7 +144,7 @@ export class ClaudeChatProvider {
 				this._sendOperationHistory();
 			})
 			.catch(error => {
-				console.error('[ClaudeChatProvider] Failed to load operations:', error);
+				debugError('ClaudeChatProvider', 'Failed to load operations', error);
 			});
 		
 		// Set current session in operation tracker using conversationId
@@ -454,7 +455,7 @@ export class ClaudeChatProvider {
 		// Ensure conversationId is set before processing
 		if (!this._conversationId && this._currentSessionId) {
 			this._conversationId = this._currentSessionId;
-			console.log('[ClaudeChatProvider] Set conversationId from currentSessionId:', this._conversationId);
+			debugLog('ClaudeChatProvider', `Set conversationId from currentSessionId: ${this._conversationId}`);
 			this._operationTracker.setCurrentSession(this._conversationId);
 		}
 
@@ -519,19 +520,19 @@ export class ClaudeChatProvider {
 		// 在压缩模式下不创建备份提交
 		if (!this._isCompactMode) {
 			// Create backup commit
-			console.log('[ClaudeChatProvider] Creating backup commit for message:', message.substring(0, 50));
+			debugLog('ClaudeChatProvider', `Creating backup commit for message: ${message.substring(0, 50)}`);
 			const commitInfo = await this._backupManager.createBackupCommit(message);
-			console.log('[ClaudeChatProvider] Backup commit result:', commitInfo);
-			
+			debugLog('ClaudeChatProvider', 'Backup commit result', commitInfo);
+
 			if (commitInfo) {
 				// Show restore option in UI and save to conversation
-				console.log('[ClaudeChatProvider] Sending showRestoreOption message to UI');
+				debugLog('ClaudeChatProvider', 'Sending showRestoreOption message to UI');
 				this._sendAndSaveMessage({
 					type: 'showRestoreOption',
 					data: commitInfo
 				});
 			} else {
-				console.log('[ClaudeChatProvider] No backup commit created (no changes or error)');
+				debugLog('ClaudeChatProvider', 'No backup commit created (no changes or error)');
 			}
 		}
 
@@ -601,7 +602,7 @@ export class ClaudeChatProvider {
 							// Set conversationId on first session creation
 							if (!this._conversationId) {
 								this._conversationId = result.sessionId;
-								console.log('[ClaudeChatProvider] Set conversationId:', this._conversationId);
+								debugLog('ClaudeChatProvider', `Set conversationId: ${this._conversationId}`);
 							}
 							
 							// Update operation tracker with conversationId
@@ -647,10 +648,10 @@ export class ClaudeChatProvider {
 				});
 			},
 			onError: (error: string) => {
-				console.error('Claude stderr:', error);
+				debugError('ClaudeChatProvider', 'Claude stderr', { error });
 				// Check for specific MCP-related errors
 				if (error.includes('--mcp-server')) {
-					console.error('ERROR: Claude is complaining about --mcp-server');
+					debugError('ClaudeChatProvider', 'Claude is complaining about --mcp-server');
 				}
 			},
 			onClose: (code: number | null) => {
@@ -770,7 +771,7 @@ export class ClaudeChatProvider {
 
 				if (!found) {
 					vscode.window.showErrorMessage(`File does not exist: ${filePath}`);
-					console.error('[FileNav] File does not exist:', filePath);
+					debugError('FileNav', `File does not exist: ${filePath}`);
 					return;
 				}
 			}
@@ -802,7 +803,7 @@ export class ClaudeChatProvider {
 			const lineInfo = line ? `:${line}` : '';
 			vscode.window.setStatusBarMessage(`Opened: ${fileName}${lineInfo}`, 3000);
 
-			console.log('[FileNav] Successfully opened file:', {
+			debugLog('FileNav', 'Successfully opened file', {
 				filePath,
 				line,
 				endLine,
@@ -810,7 +811,7 @@ export class ClaudeChatProvider {
 			});
 
 		} catch (error: any) {
-			console.error('[FileNav] Failed to open file:', {
+			debugError('FileNav', 'Failed to open file', {
 				error: error.message,
 				stack: error.stack,
 				filePath,
@@ -968,7 +969,7 @@ export class ClaudeChatProvider {
 		const cacheKey = `${claudeDir}_${type}`;
 		const cachedResult = this._statisticsCache.getAggregatedCache(cacheKey, type);
 		if (cachedResult) {
-			console.log(`[Statistics] Using cached aggregated results: ${type}`);
+			debugLog('Statistics', `Using cached aggregated results: ${type}`);
 			return cachedResult;
 		}
 		
@@ -1007,7 +1008,7 @@ export class ClaudeChatProvider {
 					throw new Error('Unable to find available glob function');
 				}
 			} catch (globError) {
-				console.error('Glob loading failed, using fallback:', globError);
+				debugError('Statistics', 'Glob loading failed, using fallback', globError);
 				// 备用方案：使用 VS Code API
 				const vscodeFiles = await vscode.workspace.findFiles(
 					new vscode.RelativePattern(claudeDir, '**/*.jsonl'),
@@ -1049,12 +1050,12 @@ export class ClaudeChatProvider {
 						const cachedEntries = this._statisticsCache.getCachedEntries(file);
 						if (cachedEntries) {
 							allEntries.push(...cachedEntries);
-							console.log(`[Statistics] Using cached data: ${file} (${cachedEntries.length} entries)`);
+							debugLog('Statistics', `Using cached data: ${file} (${cachedEntries.length} entries)`);
 							return;
 						}
 					}
 					
-					console.log(`[Statistics] Reading file: ${file}`);
+					debugLog('Statistics', `Reading file: ${file}`);
 					const fileEntries: StatisticsEntry[] = [];
 					const fileSize = stats.size;
 					
@@ -1209,18 +1210,18 @@ export class ClaudeChatProvider {
 					}
 					
 				} catch (e) {
-					console.warn(`Skipping unreadable file: ${file}`, e);
+					debugWarn('Statistics', `Skipping unreadable file: ${file}`, e);
 				}
 			}));
 			
 			// 输出缓存统计信息
 			const cacheStats = this._statisticsCache.getCacheStats();
-			console.log(`[Statistics] Cache stats - files: ${cacheStats.fileCacheSize}, hashes: ${cacheStats.processedHashesSize}`);
+			debugLog('Statistics', `Cache stats - files: ${cacheStats.fileCacheSize}, hashes: ${cacheStats.processedHashesSize}`);
 			
 			// 聚合数据
-			console.log(`[Statistics] Aggregating ${allEntries.length} entries, type: ${type}`);
+			debugLog('Statistics', `Aggregating ${allEntries.length} entries, type: ${type}`);
 			const result = this._aggregateStatistics(allEntries, type);
-			console.log(`[Statistics] Aggregation complete, result contains ${result.rows.length} rows`);
+			debugLog('Statistics', `Aggregation complete, result contains ${result.rows.length} rows`);
 			
 			// 缓存聚合结果
 			this._statisticsCache.updateAggregatedCache(cacheKey, type, result);
@@ -1228,7 +1229,7 @@ export class ClaudeChatProvider {
 			return result;
 			
 		} catch (error) {
-			console.error('Error loading statistics:', error);
+			debugError('Statistics', 'Error loading statistics', error);
 			throw error;
 		}
 	}
@@ -1481,7 +1482,7 @@ export class ClaudeChatProvider {
 			const stats = aggregated.get(key);
 			// TypeScript 类型保护：确保 stats 不是 undefined
 			if (!stats) {
-				console.error(`Statistics data not found, key: ${key}`);
+				debugError('Statistics', `Statistics data not found, key: ${key}`);
 				return;
 			}
 			
@@ -1543,8 +1544,8 @@ export class ClaudeChatProvider {
 		});
 		
 		// 输出调试信息
-		console.log(`[Statistics] ${type} statistics found unique keys: ${debugKeys.size}`);
-		console.log(`[Statistics] ${type} key list:`, Array.from(debugKeys).sort());
+		debugLog('Statistics', `${type} statistics found unique keys: ${debugKeys.size}`);
+		debugLog('Statistics', `${type} key list: ${Array.from(debugKeys).sort().join(', ')}`);
 		
 		// Convert to array and sort
 		const rows = Array.from(aggregated.entries())
@@ -1691,7 +1692,7 @@ export class ClaudeChatProvider {
 			// Show info message
 			vscode.window.showInformationMessage(`Image saved: ${relativePath}`);
 		} catch (error: any) {
-			console.error('Error handling pasted image:', error);
+			debugError('ClaudeChatProvider', 'Error handling pasted image', error);
 			vscode.window.showErrorMessage(`Failed to save pasted image: ${error.message}`);
 		}
 	}
@@ -1724,7 +1725,7 @@ export class ClaudeChatProvider {
 				
 				// DEBUG: console.log('Claude process termination completed');
 			} catch (error) {
-				console.error('Error stopping Claude process:', error);
+				debugError('ClaudeChatProvider', 'Error stopping Claude process', error);
 			}
 		} else {
 			// DEBUG: console.log('No Claude process running to stop');
@@ -1808,7 +1809,7 @@ export class ClaudeChatProvider {
 				this._sendMcpStatus();
 			}
 		} catch (error) {
-			console.error('Failed to update settings:', error);
+			debugError('ClaudeChatProvider', 'Failed to update settings', error);
 			vscode.window.showErrorMessage('Failed to update settings');
 		}
 	}
@@ -1825,7 +1826,7 @@ export class ClaudeChatProvider {
 			// Strict workspace validation - do not silently save workspace config to global
 			if (scope === 'workspace') {
 				if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-					console.warn('[ClaudeChatProvider] Cannot save workspace config: no folder is open');
+					debugWarn('ClaudeChatProvider', 'Cannot save workspace config: no folder is open');
 					vscode.window.showWarningMessage('Cannot save workspace config: no folder is open. Please open a folder first.');
 					return;
 				}
@@ -1842,7 +1843,7 @@ export class ClaudeChatProvider {
 			const scopeName = scope === 'workspace' ? 'Workspace' : 'Global';
 			vscode.window.setStatusBarMessage(`MCP servers updated (${scopeName})`, 3000);
 		} catch (error) {
-			console.error(`[ClaudeChatProvider] Failed to update ${scope} MCP config:`, error);
+			debugError('ClaudeChatProvider', `Failed to update ${scope} MCP config`, error);
 			vscode.window.showErrorMessage(`Failed to save config: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
@@ -1855,13 +1856,13 @@ export class ClaudeChatProvider {
 	private async _updateGeminiIntegration(enabled: boolean): Promise<void> {
 		try {
 			await secretService.setGeminiIntegrationEnabled(enabled);
-			console.log('[Gemini] Integration status updated:', enabled);
+			debugLog('Gemini', `Integration status updated: ${enabled}`);
 
 			if (enabled) {
 				vscode.window.showInformationMessage('Gemini Integration enabled. API key will be automatically injected.');
 			}
 		} catch (error) {
-			console.error('[Gemini] Failed to update Integration status:', error);
+			debugError('Gemini', 'Failed to update Integration status', error);
 			vscode.window.showErrorMessage('Failed to update Gemini Integration settings');
 		}
 	}
@@ -1877,13 +1878,13 @@ export class ClaudeChatProvider {
 			}
 
 			await secretService.setGeminiApiKey(apiKey);
-			console.log('[Gemini] API Key stored securely');
+			debugLog('Gemini', 'API Key stored securely');
 			vscode.window.showInformationMessage('Gemini API key saved securely');
 
 			// 发送更新后的配置到 webview
 			this._sendGeminiIntegrationConfig();
 		} catch (error) {
-			console.error('[Gemini] Failed to save API Key:', error);
+			debugError('Gemini', 'Failed to save API Key', error);
 			vscode.window.showErrorMessage('Failed to save Gemini API key');
 		}
 	}
@@ -1904,9 +1905,9 @@ export class ClaudeChatProvider {
 				}
 			});
 
-			console.log('[Gemini] Config sent to webview');
+			debugLog('Gemini', 'Config sent to webview');
 		} catch (error) {
-			console.error('[Gemini] Failed to get config:', error);
+			debugError('Gemini', 'Failed to get config', error);
 		}
 	}
 
@@ -1958,12 +1959,12 @@ export class ClaudeChatProvider {
 			}
 			
 			// 尝试动态查询MCP服务器的工具
-			console.log(`[MCP] Attempting to dynamically query tools for ${serverName}`);
+			debugLog('MCP', `Attempting to dynamically query tools for ${serverName}`);
 			const dynamicTools = await this._queryMcpServerTools(server);
 			
 			if (dynamicTools && dynamicTools.length > 0) {
 				// 成功获取工具列表
-				console.log(`[MCP] Successfully got ${dynamicTools.length} tools from ${serverName} via dynamic query`);
+				debugLog('MCP', `Successfully got ${dynamicTools.length} tools from ${serverName} via dynamic query`);
 				this._panel?.webview.postMessage({
 					type: 'mcpToolsData',
 					data: {
@@ -1973,7 +1974,7 @@ export class ClaudeChatProvider {
 				});
 			} else {
 				// 动态查询失败，显示错误信息
-				console.log(`[MCP] Dynamic query failed or returned no tools for ${serverName}`);
+				debugLog('MCP', `Dynamic query failed or returned no tools for ${serverName}`);
 
 				// 根据服务器类型生成不同的错误信息
 				let errorDetails = '';
@@ -2021,9 +2022,9 @@ export class ClaudeChatProvider {
 				}
 			});
 
-			console.log(`[PluginManager] Sent ${plugins.length} plugin(s) to webview (from cache)`);
+			debugLog('PluginManager', `Sent ${plugins.length} plugin(s) to webview (from cache)`);
 		} catch (error: any) {
-			console.error('[PluginManager] Failed to get plugins:', error);
+			debugError('PluginManager', 'Failed to get plugins', error);
 			this._panel?.webview.postMessage({
 				type: 'pluginsList',
 				data: {
@@ -2045,7 +2046,7 @@ export class ClaudeChatProvider {
 			// Force reload (forceReload = true)
 			const plugins = await pluginManager.loadInstalledPlugins(true);
 
-			console.log(`[PluginManager] Plugins refreshed: ${plugins.length} plugin(s) loaded`);
+			debugLog('PluginManager', `Plugins refreshed: ${plugins.length} plugin(s) loaded`);
 
 			// Send refreshed plugin list to webview and mark as refresh operation
 			this._panel?.webview.postMessage({
@@ -2056,7 +2057,7 @@ export class ClaudeChatProvider {
 				}
 			});
 		} catch (error: any) {
-			console.error('[PluginManager] Failed to refresh plugins:', error);
+			debugError('PluginManager', 'Failed to refresh plugins', error);
 			this._panel?.webview.postMessage({
 				type: 'pluginsList',
 				data: {
@@ -2075,7 +2076,7 @@ export class ClaudeChatProvider {
 	 */
 	private async _queryMcpServerTools(server: any): Promise<any[] | null> {
 		try {
-			console.log(`[MCP] Querying tools for server: ${server.name}`);
+			debugLog('MCP', `Querying tools for server: ${server.name}`);
 
 			// ===== HTTP/SSE mode =====
 			if (server.type === 'http' || server.type === 'sse') {
@@ -2130,12 +2131,12 @@ export class ClaudeChatProvider {
 				}
 			};
 			
-			console.log(`[MCP] Spawning process - command: ${command}, args:`, args);
+			debugLog('MCP', `Spawning process - command: ${command}`, { args });
 			const startTime = Date.now();
 			const mcpProcess = cp.spawn(command, args, spawnOptions);
 
 			if (!mcpProcess.stdout || !mcpProcess.stderr || !mcpProcess.stdin) {
-				console.error(`[MCP] Failed to get stdio streams for ${server.name}`);
+				debugError('MCP', `Failed to get stdio streams for ${server.name}`);
 				return null;
 			}
 			
@@ -2154,7 +2155,7 @@ export class ClaudeChatProvider {
 					if (!mcpProcess.killed) {
 						mcpProcess.kill();
 					}
-					console.log(`[MCP] Timeout waiting for response from ${server.name} (waited ${timeoutDuration/1000}s)`);
+					debugLog('MCP', `Timeout waiting for response from ${server.name} (waited ${timeoutDuration/1000}s)`);
 					resolve(null);
 				}, timeoutDuration);
 
@@ -2177,8 +2178,8 @@ export class ClaudeChatProvider {
 
 								if (response.id === 1 && response.result) { // 初始化响应
 									const elapsedTime = Date.now() - startTime;
-									console.log(`[MCP] Initialized with ${server.name} (took ${elapsedTime}ms).`);
-									console.log(`[MCP] Server capabilities:`, JSON.stringify(response.result.capabilities));
+									debugLog('MCP', `Initialized with ${server.name} (took ${elapsedTime}ms)`);
+									debugLog('MCP', 'Server capabilities', response.result.capabilities);
 									
 									// 发送 initialized 通知
 									const initializedNotification = {
@@ -2196,11 +2197,11 @@ export class ClaudeChatProvider {
 												method: 'tools/list'
 												// 不发送 params 字段
 											};
-											console.log(`[MCP] Sending tools/list request`);
+											debugLog('MCP', 'Sending tools/list request');
 											mcpStdin.write(JSON.stringify(toolListRequest) + '\n');
 										}, 500);
 									} else {
-										console.log(`[MCP] ${server.name} does not support tools.`);
+										debugLog('MCP', `${server.name} does not support tools`);
 										cleanup();
 										resolve([]);
 									}
@@ -2211,16 +2212,16 @@ export class ClaudeChatProvider {
 										name: tool.name || 'Unknown Tool',
 										description: tool.description || 'No description available.'
 									}));
-									console.log(`[MCP] Retrieved ${toolList.length} tools from ${server.name} (total time: ${elapsedTime}ms).`);
+									debugLog('MCP', `Retrieved ${toolList.length} tools from ${server.name} (total time: ${elapsedTime}ms)`);
 									// 输出前几个工具名称用于调试
 									if (toolList.length > 0) {
-										console.log(`[MCP] First few tools:`, toolList.slice(0, 3).map((t: any) => t.name).join(', '));
+										debugLog('MCP', 'First few tools', toolList.slice(0, 3).map((t: any) => t.name));
 									}
 									cleanup();
 									resolve(toolList);
 								} else if (response.id === 2 && response.error) { // tools/list 错误响应
-									console.error(`[MCP] Error getting tools from ${server.name}:`, response.error);
-									console.error(`[MCP] Error details:`, JSON.stringify(response.error));
+									debugError('MCP', `Error getting tools from ${server.name}`, response.error);
+									debugError('MCP', 'Error details', response.error);
 									cleanup();
 									resolve(null);
 								}
@@ -2229,21 +2230,20 @@ export class ClaudeChatProvider {
 								const trimmedLine = line.trim();
 								
 								// 添加调试信息
-								console.log(`[MCP DEBUG] Received non-JSON line from ${server.name}: "${trimmedLine}"`);
-								console.log(`[MCP DEBUG] Line length: ${trimmedLine.length}, Original line: "${line}"`);
+								debugLog('MCP', `Received non-JSON line from ${server.name}`, { trimmedLine, lineLength: trimmedLine.length, originalLine: line });
 								
-								if (trimmedLine === 'Shutdown signal received' || 
+								if (trimmedLine === 'Shutdown signal received' ||
 								    trimmedLine.toLowerCase().includes('shutdown signal') ||
 								    trimmedLine.toLowerCase().includes('shutting down')) {
 									// 这是 MCP 关闭时的正常消息，不需要记录错误
-									console.log(`[MCP] ${server.name} shutting down (handled gracefully)`);
+									debugLog('MCP', `${server.name} shutting down (handled gracefully)`);
 								} else if (trimmedLine === '') {
 									// 忽略空行
-									console.log(`[MCP] Ignoring empty line from ${server.name}`);
+									debugLog('MCP', `Ignoring empty line from ${server.name}`);
 								} else {
 									// 其他未知的 JSON 解析错误才记录为普通日志
-									console.log(`[MCP] Non-JSON message from ${server.name}: "${line}"`);
-									console.log(`[MCP] Parse attempt failed:`, (e as Error).message || e);
+									debugLog('MCP', `Non-JSON message from ${server.name}`, { line });
+									debugLog('MCP', 'Parse attempt failed', (e as Error).message || e);
 								}
 								// continue to next line
 							}
@@ -2255,17 +2255,17 @@ export class ClaudeChatProvider {
 					const stderr = data.toString();
 					errorData += stderr;
 					// 输出stderr以便调试（过滤掉INFO日志和已知的关闭消息）
-					if (!stderr.includes('INFO') && 
-					    !stderr.includes('Starting MCP server') && 
+					if (!stderr.includes('INFO') &&
+					    !stderr.includes('Starting MCP server') &&
 					    !stderr.includes('Shutdown signal received')) {
-						console.log(`[MCP] stderr from ${server.name}:`, stderr.trim());
+						debugLog('MCP', `stderr from ${server.name}`, stderr.trim());
 					} else if (stderr.includes('Shutdown signal received')) {
-						console.log(`[MCP] ${server.name} shutting down (from stderr)`);
+						debugLog('MCP', `${server.name} shutting down (from stderr)`);
 					}
 				});
 
 				mcpProcess.on('error', (error: any) => {
-					console.error(`[MCP] Failed to spawn ${server.name}:`, error);
+					debugError('MCP', `Failed to spawn ${server.name}`, error);
 					cleanup();
 					resolve(null);
 				});
@@ -2273,9 +2273,9 @@ export class ClaudeChatProvider {
 				mcpProcess.on('close', (code: number) => {
 					cleanup();
 					if (code !== 0 && code !== null) {
-						console.error(`[MCP] ${server.name} exited with code: ${code}`);
+						debugError('MCP', `${server.name} exited with code: ${code}`);
 						if(errorData) {
-							console.error(`[MCP] stderr:`, errorData);
+							debugError('MCP', 'stderr', errorData);
 						}
 						resolve([]); // Resolve with empty array on error
 					}
@@ -2298,7 +2298,7 @@ export class ClaudeChatProvider {
 				mcpStdin.write(JSON.stringify(initRequest) + '\n');
 			});
 		} catch (error) {
-			console.error(`[MCP] Error querying server tools for ${server.name}:`, error);
+			debugError('MCP', `Error querying server tools for ${server.name}`, error);
 			return null;
 		}
 	}
@@ -2314,7 +2314,7 @@ export class ClaudeChatProvider {
 			const http = require('http');
 			const url = require('url');
 
-			console.log(`[MCP] Querying HTTP/SSE server: ${server.name}`);
+			debugLog('MCP', `Querying HTTP/SSE server: ${server.name}`);
 
 			// Parse URL
 			const parsedUrl = url.parse(server.url);
@@ -2350,23 +2350,23 @@ export class ClaudeChatProvider {
 			const initResponseHeaders = initResult.headers;
 
 			if (!initResponse || !initResponse.result) {
-				console.error(`[MCP] Failed to initialize ${server.name}`);
+				debugError('MCP', `Failed to initialize ${server.name}`);
 				return null;
 			}
 
-			console.log(`[MCP] ✓ ${server.name} initialized successfully`);
+			debugLog('MCP', `${server.name} initialized successfully`);
 
 			// Extract session ID if server returned one
 			let sessionId = initResponseHeaders['mcp-session-id'] || initResponseHeaders['MCP-Session-ID'];
 			if (sessionId) {
-				console.log(`[MCP] Session ID received: ${sessionId.substring(0, 8)}...`);
+				debugLog('MCP', `Session ID received: ${sessionId.substring(0, 8)}...`);
 				// Add session ID to subsequent requests
 				headers['mcp-session-id'] = sessionId;
 			}
 
 			// Check if server supports tools
 			if (!initResponse.result.capabilities?.tools) {
-				console.log(`[MCP] Server ${server.name} does not support tools`);
+				debugLog('MCP', `Server ${server.name} does not support tools`);
 				return [];
 			}
 
@@ -2391,7 +2391,7 @@ export class ClaudeChatProvider {
 			const toolsResponse = toolsResult.body;
 
 			if (!toolsResponse || !toolsResponse.result) {
-				console.error(`[MCP] Failed to get tools from ${server.name}`);
+				debugError('MCP', `Failed to get tools from ${server.name}`);
 				return null;
 			}
 
@@ -2401,12 +2401,12 @@ export class ClaudeChatProvider {
 				description: tool.description || 'No description available.'
 			}));
 
-			console.log(`[MCP] ✓ Retrieved ${toolList.length} tool(s) from ${server.name}`);
+			debugLog('MCP', `Retrieved ${toolList.length} tool(s) from ${server.name}`);
 
 			return toolList;
 
 		} catch (error: any) {
-			console.error(`[MCP] Error querying HTTP/SSE server ${server.name}:`, error.message);
+			debugError('MCP', `Error querying HTTP/SSE server ${server.name}`, error.message);
 			return null;
 		}
 	}
@@ -2448,7 +2448,7 @@ export class ClaudeChatProvider {
 						const isSuccess = res.statusCode >= 200 && res.statusCode < 300;
 
 						if (!isSuccess) {
-							console.error(`[MCP] HTTP ${res.statusCode} error`);
+							debugError('MCP', `HTTP ${res.statusCode} error`);
 							reject(new Error(`HTTP ${res.statusCode}: ${data}`));
 							return;
 						}
@@ -2489,7 +2489,7 @@ export class ClaudeChatProvider {
 							}
 
 							if (!jsonData) {
-								console.error(`[MCP] SSE response missing data field`);
+								debugError('MCP', 'SSE response missing data field');
 								reject(new Error('Invalid SSE response: no data field'));
 								return;
 							}
@@ -2503,14 +2503,14 @@ export class ClaudeChatProvider {
 						// Return response body and headers
 						resolve({ body: response, headers: res.headers });
 					} catch (error: any) {
-						console.error(`[MCP] Failed to parse response:`, error.message);
+						debugError('MCP', 'Failed to parse response', error.message);
 						reject(error);
 					}
 				});
 			});
 
 			req.on('error', (error: any) => {
-				console.error(`[MCP] HTTP request error:`, error.message);
+				debugError('MCP', 'HTTP request error', error.message);
 				reject(error);
 			});
 
@@ -2561,7 +2561,7 @@ export class ClaudeChatProvider {
 			// 显示确认消息
 			vscode.window.showInformationMessage(message);
 		} else {
-			console.error('Invalid model selected:', model);
+			debugError('ClaudeChatProvider', 'Invalid model selected', model);
 			vscode.window.showErrorMessage(`Invalid model: ${model}. Please select one of: ${VALID_MODELS.join(', ')}.`);
 		}
 	}
@@ -2576,12 +2576,12 @@ export class ClaudeChatProvider {
 		if (mode === 'max') {
 			// Max模式：设置ANTHROPIC_DEFAULT_HAIKU_MODEL
 			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
-			console.log('[Compute Mode] Max mode enabled - Using Sonnet 4.5 for background tasks');
+			debugLog('ComputeMode', 'Max mode enabled - Using Sonnet 4.5 for background tasks');
 			vscode.window.showInformationMessage('Max mode enabled - Maximum performance, higher cost');
 		} else {
 			// Auto模式：清除ANTHROPIC_DEFAULT_HAIKU_MODEL
 			delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
-			console.log('[Compute Mode] Auto mode enabled - Smart allocation for cost efficiency');
+			debugLog('ComputeMode', 'Auto mode enabled - Smart allocation for cost efficiency');
 			vscode.window.showInformationMessage('Auto mode enabled - Smart allocation');
 		}
 
@@ -2607,12 +2607,12 @@ export class ClaudeChatProvider {
 		if (enabled) {
 			// 启用增强：设置CLAUDE_CODE_SUBAGENT_MODEL
 			process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_5;
-			console.log('[Compute Mode] Enhanced subagents enabled - Using Sonnet 4.5 for all subagent operations');
+			debugLog('ComputeMode', 'Enhanced subagents enabled - Using Sonnet 4.5 for all subagent operations');
 			vscode.window.showInformationMessage('Enhanced subagents enabled - Higher performance, increased cost');
 		} else {
 			// 禁用增强：清除CLAUDE_CODE_SUBAGENT_MODEL
 			delete process.env.CLAUDE_CODE_SUBAGENT_MODEL;
-			console.log('[Compute Mode] Standard subagents enabled - Using default model allocation');
+			debugLog('ComputeMode', 'Standard subagents enabled - Using default model allocation');
 		}
 
 		// 保存子代理设置
@@ -2641,23 +2641,23 @@ export class ClaudeChatProvider {
 			// 恢复模式设置
 			if (settings.mode === 'max') {
 				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
-				console.log('[Compute Mode] Restored Max mode');
+				debugLog('ComputeMode', 'Restored Max mode');
 			}
 
 			// 恢复子代理设置（独立）
 			if (settings.enhanceSubagents) {
 				process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_5;
-				console.log('[Compute Mode] Restored enhanced subagents');
+				debugLog('ComputeMode', 'Restored enhanced subagents');
 			}
 
-			console.log('[Compute Mode] Settings restored:', settings);
+			debugLog('ComputeMode', 'Settings restored', settings);
 		} else {
 			// 向后兼容：检查旧的maxModeEnabled配置
 			const maxModeEnabled = this._context.workspaceState.get('maxModeEnabled', false);
 			if (maxModeEnabled) {
 				const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
 				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
-				console.log('[Compute Mode] Migrated from old Max mode setting');
+				debugLog('ComputeMode', 'Migrated from old Max mode setting');
 
 				// 迁移到新格式
 				this._context.workspaceState.update('computeModeSettings', {
@@ -2682,7 +2682,7 @@ export class ClaudeChatProvider {
 
 	private async _executeSlashCommand(command: string): Promise<void> {
 		try {
-			console.log(`[ClaudeChatProvider] Executing slash command: /${command}`);
+			debugLog('ClaudeChatProvider', `Executing slash command: /${command}`);
 
 			// Show prompt message in chat window (using output type for bordered style)
 			this._sendAndSaveMessage({
@@ -2695,10 +2695,10 @@ export class ClaudeChatProvider {
 			terminal.sendText(`claude /${command}`);
 			terminal.show();
 
-			console.log(`[ClaudeChatProvider] Command sent to terminal: claude /${command}`);
+			debugLog('ClaudeChatProvider', `Command sent to terminal: claude /${command}`);
 
 		} catch (error: any) {
-			console.error(`[ClaudeChatProvider] Failed to execute slash command:`, error);
+			debugError('ClaudeChatProvider', 'Failed to execute slash command', error);
 			this._sendAndSaveMessage({
 				type: 'error',
 				data: `❌ Failed to execute command: ${error.message}\n\nPlease ensure Claude CLI is properly installed and available in PATH.`
@@ -2734,7 +2734,7 @@ export class ClaudeChatProvider {
 				});
 			}
 		} catch (error: any) {
-			console.error('Failed to preview operation:', error);
+			debugError('ClaudeChatProvider', 'Failed to preview operation', error);
 			this._panel?.webview.postMessage({
 				type: 'error',
 				data: `Failed to preview operation: ${error.message}`
@@ -2770,7 +2770,7 @@ export class ClaudeChatProvider {
 			// Refresh operation history
 			this._sendOperationHistory();
 		} catch (error: any) {
-			console.error('Failed to undo operation:', error);
+			debugError('ClaudeChatProvider', 'Failed to undo operation', error);
 			this._panel?.webview.postMessage({
 				type: 'error',
 				data: `Failed to undo operation: ${error.message}`
@@ -2806,7 +2806,7 @@ export class ClaudeChatProvider {
 			// Refresh operation history
 			this._sendOperationHistory();
 		} catch (error: any) {
-			console.error('Failed to redo operation:', error);
+			debugError('ClaudeChatProvider', 'Failed to redo operation', error);
 			this._panel?.webview.postMessage({
 				type: 'error',
 				data: `Failed to redo operation: ${error.message}`
@@ -2921,7 +2921,7 @@ Please provide a well-structured summary.`;
 			});
 
 		} catch (error: any) {
-			console.error('Failed to compact conversation:', error);
+			debugError('ClaudeChatProvider', 'Failed to compact conversation', error);
 			
 			// 恢复处理状态
 			this._panel?.webview.postMessage({
