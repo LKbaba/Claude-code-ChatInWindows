@@ -2191,7 +2191,13 @@ export const uiScript = `
 					// 这个消息在总结生成后发送
 					console.log('[Compact] compactComplete received with summary');
 
-					// 清空消息列表
+					// 首先停止 Processing 状态（避免延迟）
+					isProcessing = false;
+					stopRequestTimer();
+					hideStopButton();
+					enableButtons();
+
+					// 清空消息列表（包括压缩中消息）
 					messagesDiv.innerHTML = '';
 					hideSessionInfo();
 

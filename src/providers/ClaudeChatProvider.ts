@@ -631,7 +631,24 @@ export class ClaudeChatProvider {
 						// Error messages are now handled by saveMessage to avoid duplication
 					},
 					sendToWebview: (message: any) => {
-						this._panel?.webview.postMessage(message);
+						// 在压缩模式下，过滤掉 updateTotals 消息中的 current* 字段
+						// 避免在聊天区域显示费用统计（那个黄色的消息）
+						if (this._isCompactMode && message.type === 'updateTotals' && message.data) {
+							// 只发送累计统计，不发送当前请求的统计
+							const filteredMessage = {
+								type: 'updateTotals',
+								data: {
+									totalCost: message.data.totalCost,
+									totalTokensInput: message.data.totalTokensInput,
+									totalTokensOutput: message.data.totalTokensOutput,
+									requestCount: message.data.requestCount
+									// 不包含 currentCost, currentDuration, currentTokensInput, currentTokensOutput
+								}
+							};
+							this._panel?.webview.postMessage(filteredMessage);
+						} else {
+							this._panel?.webview.postMessage(message);
+						}
 					},
 					saveMessage: (message: any) => {
 						this._sendAndSaveMessage(message);
