@@ -23,10 +23,10 @@ import { PluginManager } from '../services/PluginManager';
 import { secretService, SecretService } from '../services/SecretService';
 import { debugLog, debugWarn, debugError } from '../services/DebugLogger';
 
-// 计算模式设置接口
+// Compute mode settings interface
 interface ComputeModeSettings {
-	mode: 'auto' | 'max';           // 计算模式选择
-	enhanceSubagents: boolean;       // 是否增强子代理（独立设置）
+	mode: 'auto' | 'max';           // Compute mode selection
+	enhanceSubagents: boolean;       // Whether to enhance subagents (independent setting)
 }
 
 export class ClaudeChatProvider {
@@ -39,7 +39,7 @@ export class ClaudeChatProvider {
 	private _currentSessionId: string | undefined;
 	private _conversationId: string | undefined;  // Main conversation ID that persists across sessions
 	private _treeProvider: ClaudeChatViewProvider | undefined;
-	private _selectedModel: string = 'claude-sonnet-4-5-20250929'; // 默认使用 Sonnet 4.5
+	private _selectedModel: string = 'claude-sonnet-4-5-20250929'; // Default to Sonnet 4.5
 	private _npmPrefixPromise: Promise<string | undefined>;
 	private _fileOperationsManager: FileOperationsManager;
 	private _configurationManager: ConfigurationManagerFacade;
@@ -58,19 +58,19 @@ export class ClaudeChatProvider {
 
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
-		// Opus 系列模型定价
-		['claude-opus-4-5-20251101', { input: 5.00, output: 25.00 }],    // Opus 4.5 最新旗舰模型（降价66%）
-		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }],   // Opus 4.1 旗舰模型
+		// Opus model series pricing
+		['claude-opus-4-5-20251101', { input: 5.00, output: 25.00 }],    // Opus 4.5 latest flagship model (66% price cut)
+		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }],   // Opus 4.1 flagship model
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
 		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],     // Claude 3 Opus
-		// Sonnet 系列模型定价
-		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 最新智能模型
+		// Sonnet model series pricing
+		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 latest intelligent model
 		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }],    // Sonnet 4
 		['claude-3-5-sonnet-20241022', { input: 3.00, output: 15.00 }],  // Claude 3.5 Sonnet
 		['claude-3-5-sonnet-20240620', { input: 3.00, output: 15.00 }],
 		['claude-3-sonnet-20240229', { input: 3.00, output: 15.00 }],    // Claude 3 Sonnet
-		// Haiku 系列模型定价
-		['claude-haiku-4-5-20251001', { input: 1.00, output: 5.00 }],    // Haiku 4.5 高性价比模型
+		// Haiku model series pricing
+		['claude-haiku-4-5-20251001', { input: 1.00, output: 5.00 }],    // Haiku 4.5 cost-effective model
 		['claude-3-haiku-20240307', { input: 0.25, output: 1.25 }],      // Claude 3 Haiku
 	]);
 
@@ -122,7 +122,7 @@ export class ClaudeChatProvider {
 		// Load saved model preference (default to Sonnet 4.5)
 		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'claude-sonnet-4-5-20250929');
 
-		// 恢复计算模式状态
+		// Restore compute mode state
 		this._restoreComputeModeState();
 
 		// Custom commands are now loaded by CustomCommandsManager
@@ -164,10 +164,10 @@ export class ClaudeChatProvider {
 		// Ensure backup repository is initialized
 		await this._backupManager.initializeBackupRepo();
 		
-		// 更新 CLAUDE.md 文件（添加 Windows 环境信息和 MCP 使用指南）
+		// Update CLAUDE.md file (add Windows environment info and MCP usage guide)
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 		if (workspaceFolder) {
-			// 获取当前启用的 MCP 服务器
+			// Get currently enabled MCP servers
 			const mcpStatus = this._configurationManager.getMcpStatus();
 			await updateClaudeMdWithWindowsInfo(workspaceFolder, mcpStatus.servers);
 		}
@@ -216,7 +216,7 @@ export class ClaudeChatProvider {
 					case 'selectImageFile':
 						const imagePaths = await this._fileOperationsManager.selectImageFiles();
 						imagePaths.forEach((filePath: string) => {
-							// 获取webview可访问的URI
+							// Get webview-accessible URI
 							const fileUri = vscode.Uri.file(filePath);
 							const webviewUri = this._panel?.webview.asWebviewUri(fileUri);
 							
@@ -240,14 +240,14 @@ export class ClaudeChatProvider {
 						this._updateSettings(message.settings);
 						return;
 					case 'updateMcpServers':
-						// 更新指定 scope 的 MCP 服务器配置
+						// Update MCP server configuration for the specified scope
 						this._updateMcpServersForScope(message.scope, message.servers);
 						return;
 					case 'testMcpConnection':
 						this._testMcpConnection();
 						return;
 					case 'setMcpConfigTarget':
-						// 设置 MCP 配置保存目标（'user' 或 'workspace'）
+						// Set MCP configuration save target ('user' or 'workspace')
 						this._configurationManager.setMcpConfigTarget(message.target);
 						return;
 					case 'getMcpTools':
@@ -287,12 +287,12 @@ export class ClaudeChatProvider {
 						this._executeSlashCommand(message.command);
 						return;
 					case 'openFile':
-						// 处理文件路径点击事件
+						// Handle file path click event
 						if (message.file) {
-							// 新的消息格式，包含file、line、endLine
+							// New message format with file, line, endLine
 							this._openFileAtLine(message.file, message.line, message.endLine);
 						} else if (message.filePath) {
-							// 兼容旧的消息格式
+							// Compatible with old message format
 							this._fileOperationsManager.openFileInEditor(message.filePath);
 						}
 						return;
@@ -325,7 +325,7 @@ export class ClaudeChatProvider {
 					case 'compactConversation':
 						this._compactConversation(message.languageMode, message.selectedLanguage);
 						return;
-					// Gemini Integration 相关消息处理
+					// Gemini Integration related message handling
 					case 'updateGeminiIntegration':
 						this._updateGeminiIntegration(message.enabled);
 						return;
@@ -375,7 +375,7 @@ export class ClaudeChatProvider {
 			// Send operation history after ready
 			this._sendOperationHistory();
 			
-			// 发送初始token使用情况
+			// Send initial token usage
 			this._sendTokenUsage();
 
 			// Send current model to webview
@@ -392,7 +392,7 @@ export class ClaudeChatProvider {
 				version: version
 			});
 
-			// 发送 Gemini Integration 配置到 webview
+			// Send Gemini Integration config to webview
 			this._sendGeminiIntegrationConfig();
 
 		}, 100);
@@ -447,7 +447,7 @@ export class ClaudeChatProvider {
 			windowsEnvironmentInfo = this._windowsCompatibility.getWindowsEnvironmentInfo();
 			
 			// Also update or create CLAUDE.md in the project root if it doesn't have Windows info
-			// 获取当前启用的 MCP 服务器
+			// Get currently enabled MCP servers
 			const mcpStatus = this._configurationManager.getMcpStatus();
 			await updateClaudeMdWithWindowsInfo(workspaceFolder, mcpStatus.servers);
 		}
@@ -484,7 +484,7 @@ export class ClaudeChatProvider {
 					thinkingPrompt = 'ULTRATHINK';
 					break;
 				case 'sequential-thinking':
-					// 使用 MCP Sequential Thinking 工具进行结构化思考
+					// Use MCP Sequential Thinking tool for structured reasoning
 					thinkingPrompt = 'USE THE MCP SEQUENTIAL THINKING TOOL (mcp__sequential-thinking__sequentialthinking) TO';
 					break;
 				default:
@@ -511,13 +511,13 @@ export class ClaudeChatProvider {
 			}
 		}
 
-		// 在压缩模式下不显示用户输入
+		// Don't display user input in compact mode
 		if (!this._isCompactMode) {
 			this._sendAndSaveMessage({ type: 'userInput', data: message });
 		}
 		this._panel?.webview.postMessage({ type: 'setProcessing', data: true });
 
-		// 在压缩模式下不创建备份提交
+		// Don't create backup commit in compact mode
 		if (!this._isCompactMode) {
 			// Create backup commit
 			debugLog('ClaudeChatProvider', `Creating backup commit for message: ${message.substring(0, 50)}`);
@@ -562,10 +562,10 @@ export class ClaudeChatProvider {
 					},
 					onAssistantMessage: (text: string) => {
 						if (this._isCompactMode) {
-							// 在压缩模式下，收集总结而不是立即显示
+							// In compact mode, collect summary instead of displaying immediately
 							this._compactSummaryBuffer += text;
 						} else {
-							// 正常模式下，显示 Claude 的响应
+							// In normal mode, display Claude's response
 							this._sendAndSaveMessage({
 								type: 'output',
 								data: text
@@ -592,7 +592,7 @@ export class ClaudeChatProvider {
 							type: 'updateTokens',
 							data: tokens
 						});
-						// 发送token使用情况到UI
+						// Send token usage to UI
 						this._sendTokenUsage();
 					},
 					onFinalResult: (result: any) => {
@@ -631,10 +631,10 @@ export class ClaudeChatProvider {
 						// Error messages are now handled by saveMessage to avoid duplication
 					},
 					sendToWebview: (message: any) => {
-						// 在压缩模式下，过滤掉 updateTotals 消息中的 current* 字段
-						// 避免在聊天区域显示费用统计（那个黄色的消息）
+						// In compact mode, filter out current* fields from updateTotals messages
+						// Prevents displaying cost statistics (the yellow message) in chat area
 						if (this._isCompactMode && message.type === 'updateTotals' && message.data) {
-							// 只发送累计统计，不发送当前请求的统计
+							// Only send cumulative statistics, not current request statistics
 							const filteredMessage = {
 								type: 'updateTotals',
 								data: {
@@ -642,7 +642,7 @@ export class ClaudeChatProvider {
 									totalTokensInput: message.data.totalTokensInput,
 									totalTokensOutput: message.data.totalTokensOutput,
 									requestCount: message.data.requestCount
-									// 不包含 currentCost, currentDuration, currentTokensInput, currentTokensOutput
+									// Excludes currentCost, currentDuration, currentTokensInput, currentTokensOutput
 								}
 							};
 							this._panel?.webview.postMessage(filteredMessage);
@@ -672,20 +672,20 @@ export class ClaudeChatProvider {
 				}
 			},
 			onClose: (code: number | null) => {
-				// 在压缩模式下，发送 compactComplete 消息
-				// 这会清空前端消息列表并显示总结
+				// In compact mode, send compactComplete message
+				// This clears the frontend message list and displays the summary
 				if (this._isCompactMode && this._compactSummaryBuffer.trim()) {
-					const summaryMessage = `## ⚓️ 对话总结\n\n${this._compactSummaryBuffer}\n\n---\n*以上是之前对话的总结。现在开始新的对话。*`;
+					const summaryMessage = `## ⚡ Conversation Summary\n\n${this._compactSummaryBuffer}\n\n---\n*This is a summary of the previous conversation. Starting a new conversation now.*`;
 
-					debugLog('ClaudeChatProvider', '发送 compactComplete 消息');
+					debugLog('ClaudeChatProvider', 'Sending compactComplete message');
 
-					// 发送 compactComplete 消息，前端会清空消息列表并显示总结
+					// Send compactComplete message, frontend will clear message list and display summary
 					this._panel?.webview.postMessage({
 						type: 'compactComplete',
 						summary: summaryMessage
 					});
 
-					// 同时保存到对话历史
+					// Also save to conversation history
 					this._conversationManager.addMessage({
 						timestamp: new Date().toISOString(),
 						messageType: 'output',
@@ -698,10 +698,10 @@ export class ClaudeChatProvider {
 						this._totalTokensOutput
 					);
 
-					// 清空缓冲区
+					// Clear buffer
 					this._compactSummaryBuffer = '';
 
-					// 重置压缩模式标志
+					// Reset compact mode flag
 					this._isCompactMode = false;
 				}
 
@@ -743,7 +743,7 @@ export class ClaudeChatProvider {
 		this._totalTokensOutput = 0;
 		this._requestCount = 0;
 
-		// 发送token使用情况到UI
+		// Send token usage to UI
 		this._sendTokenUsage();
 
 		// Reset message processor
@@ -753,12 +753,12 @@ export class ClaudeChatProvider {
 		this._operationTracker.setCurrentSession('');
 
 		// Notify webview to clear all messages and reset session
-		// isCompacting 标志用于告诉前端是否正在压缩，避免消息竞争问题
+		// isCompacting flag tells frontend whether compacting is in progress, avoids message race condition
 		debugLog('ClaudeChatProvider', `Sending sessionCleared message with isCompacting: ${isCompacting}, isProcessing: ${isCompacting}`);
 		this._panel?.webview.postMessage({
 			type: 'sessionCleared',
 			isCompacting: isCompacting,
-			isProcessing: isCompacting  // 如果是压缩，也要设置 Processing 状态
+			isProcessing: isCompacting  // If compacting, also set Processing state
 		});
 		debugLog('ClaudeChatProvider', 'sessionCleared message sent');
 	}
@@ -997,52 +997,52 @@ export class ClaudeChatProvider {
 	}
 
 	private async _loadStatistics(type: string): Promise<any> {
-		// 使用增量更新机制，提高性能
-		
+		// Use incremental update mechanism to improve performance
+
 		const os = require('os');
 		const path = require('path');
 		const fs = require('fs').promises;
 		const readline = require('readline');
 		const { createReadStream } = require('fs');
-		
-		// 确定 Claude 配置目录
+
+		// Determine Claude config directory
 		const homeDir = os.homedir();
 		const claudeDir = path.join(homeDir, '.claude', 'projects');
-		
-		// 首先检查是否有缓存的聚合结果
+
+		// First check if there's a cached aggregated result
 		const cacheKey = `${claudeDir}_${type}`;
 		const cachedResult = this._statisticsCache.getAggregatedCache(cacheKey, type);
 		if (cachedResult) {
 			debugLog('Statistics', `Using cached aggregated results: ${type}`);
 			return cachedResult;
 		}
-		
+
 		try {
-			// 定期清理过期缓存
+			// Periodically clean expired cache
 			this._statisticsCache.cleanExpiredCache();
-			
-			// 清理当前类型的去重集合，确保不同统计类型之间不会相互影响
-			// 这样每个统计类型都会有独立的去重逻辑
+
+			// Clear deduplication set for current type, ensures different stat types don't interfere
+			// Each stat type has independent deduplication logic
 			this._statisticsCache.clearProcessedHashes();
-			
-			// 使用 glob pattern 直接查找所有 JSONL 文件
+
+			// Use glob pattern to find all JSONL files
 			const globPattern = path.join(claudeDir, '**/*.jsonl').replace(/\\/g, '/');
-			
-			// 在 VS Code 扩展环境中使用不同的导入方式
+
+			// Use different import method in VS Code extension environment
 			let files: string[] = [];
 			try {
-				// 尝试使用 glob 的默认导出
+				// Try using glob's default export
 				const globModule = require('glob');
 				if (typeof globModule.glob === 'function') {
-					// glob v10+ 使用 glob.glob
+					// glob v10+ uses glob.glob
 					files = await globModule.glob(globPattern, {
-						windowsPathsNoEscape: true  // Windows 路径兼容性
+						windowsPathsNoEscape: true  // Windows path compatibility
 					});
 				} else if (typeof globModule === 'function') {
-					// glob v7-9 使用回调方式
+					// glob v7-9 uses callback style
 					files = await new Promise((resolve, reject) => {
-						globModule(globPattern, { 
-							windowsPathsNoEscape: true 
+						globModule(globPattern, {
+							windowsPathsNoEscape: true
 						}, (err: any, matches: string[]) => {
 							if (err) reject(err);
 							else resolve(matches);
@@ -1053,15 +1053,15 @@ export class ClaudeChatProvider {
 				}
 			} catch (globError) {
 				debugError('Statistics', 'Glob loading failed, using fallback', globError);
-				// 备用方案：使用 VS Code API
+				// Fallback: use VS Code API
 				const vscodeFiles = await vscode.workspace.findFiles(
 					new vscode.RelativePattern(claudeDir, '**/*.jsonl'),
 					null,
-					10000 // 最多 10000 个文件
+					10000 // Maximum 10000 files
 				);
 				files = vscodeFiles.map(uri => uri.fsPath);
 			}
-			
+
 			if (files.length === 0) {
 				return {
 					rows: [],
@@ -1073,23 +1073,23 @@ export class ClaudeChatProvider {
 					}
 				};
 			}
-			
-			// 累积所有条目（缓存的 + 新的）
+
+			// Accumulate all entries (cached + new)
 			const allEntries: StatisticsEntry[] = [];
-			
-			// 10MB 阈值（以字节为单位）
+
+			// 10MB threshold (in bytes)
 			const FILE_SIZE_THRESHOLD = 10 * 1024 * 1024;
-			
-			// 并行处理文件，但只处理需要更新的文件
+
+			// Process files in parallel, but only process files that need updates
 			await Promise.all(files.map(async (file) => {
 				try {
 					const stats = await fs.stat(file);
 					const fileTimestamp = stats.mtimeMs;
-					
-					// 检查是否需要更新此文件
+
+					// Check if this file needs to be updated
 					const needsUpdate = await this._statisticsCache.needsUpdate(file);
-					
-					// 如果有缓存且不需要更新，使用缓存数据
+
+					// If cached and no update needed, use cached data
 					if (!needsUpdate) {
 						const cachedEntries = this._statisticsCache.getCachedEntries(file);
 						if (cachedEntries) {
@@ -1098,17 +1098,17 @@ export class ClaudeChatProvider {
 							return;
 						}
 					}
-					
+
 					debugLog('Statistics', `Reading file: ${file}`);
 					const fileEntries: StatisticsEntry[] = [];
 					const fileSize = stats.size;
-					
+
 					if (fileSize < FILE_SIZE_THRESHOLD) {
-						// 小文件：直接读取整个文件，使用预索引策略过滤 Warmup 消息
+						// Small file: read entire file, use pre-indexing strategy to filter Warmup messages
 						const content = await fs.readFile(file, 'utf-8');
 						const lines = content.split('\n').filter((line: string) => line.trim());
 
-						// 第一遍：解析所有条目并收集 Warmup 相关的 UUID（支持链式过滤）
+						// First pass: parse all entries and collect Warmup-related UUIDs (supports chain filtering)
 						const entries: any[] = [];
 						const warmupUuids = new Set<string>();
 
@@ -1117,35 +1117,35 @@ export class ClaudeChatProvider {
 								const entry = JSON.parse(line);
 								entries.push(entry);
 
-								// 收集 Warmup 用户消息的 UUID
+								// Collect Warmup user message UUIDs
 								if (entry.type === 'user' && entry.message?.content === 'Warmup' && entry.uuid) {
 									warmupUuids.add(entry.uuid);
 								}
 							} catch {
-								// 跳过无效的 JSON 行
+								// Skip invalid JSON lines
 							}
 						}
 
-						// 第二遍：过滤并处理统计数据，支持链式过滤（多轮 Warmup 对话）
+						// Second pass: filter and process statistics, supports chain filtering (multi-round Warmup dialogs)
 						for (const entry of entries) {
-							// 跳过 Warmup 用户消息本身
+							// Skip Warmup user message itself
 							if (entry.type === 'user' && entry.message?.content === 'Warmup') {
 								continue;
 							}
 
-							// 跳过 Warmup 的响应消息（父消息是 Warmup 或其链式响应）
+							// Skip Warmup response messages (parent is Warmup or its chain response)
 							if (entry.parentUuid && warmupUuids.has(entry.parentUuid)) {
-								// 链式过滤：将当前响应的 UUID 也加入黑名单，处理多轮对话
+								// Chain filtering: add current response UUID to blacklist, handle multi-round dialogs
 								if (entry.uuid) {
 									warmupUuids.add(entry.uuid);
 								}
 								continue;
 							}
 
-							// 生成唯一哈希用于去重
+							// Generate unique hash for deduplication
 							const messageHash = this._generateMessageHash(entry);
 							if (this._statisticsCache.isProcessed(messageHash)) {
-								continue; // 跳过已处理的消息
+								continue; // Skip already processed messages
 							}
 							this._statisticsCache.markAsProcessed(messageHash);
 
@@ -1163,10 +1163,10 @@ export class ClaudeChatProvider {
 							}
 						}
 					} else {
-						// 大文件：使用流式读取，减少内存占用
-						// 两遍扫描：第一遍收集 Warmup 消息的 UUID，第二遍过滤
+						// Large file: use streaming read to reduce memory usage
+						// Two-pass scan: first pass collects Warmup message UUIDs, second pass filters
 
-						// 第一遍：收集 Warmup 消息的 UUID
+						// First pass: collect Warmup message UUIDs
 						const warmupUuids = new Set<string>();
 						await new Promise<void>((resolve, reject) => {
 							const rl = readline.createInterface({
@@ -1178,12 +1178,12 @@ export class ClaudeChatProvider {
 								if (!line.trim()) return;
 								try {
 									const entry = JSON.parse(line);
-									// 如果是 Warmup 用户消息，记录其 UUID
+									// If Warmup user message, record its UUID
 									if (entry.type === 'user' && entry.message?.content === 'Warmup' && entry.uuid) {
 										warmupUuids.add(entry.uuid);
 									}
 								} catch {
-									// 跳过无效行
+									// Skip invalid lines
 								}
 							});
 
@@ -1191,7 +1191,7 @@ export class ClaudeChatProvider {
 							rl.on('error', (err: Error) => reject(err));
 						});
 
-						// 第二遍：处理统计数据，跳过 Warmup 相关的消息（支持链式过滤）
+						// Second pass: process statistics, skip Warmup-related messages (supports chain filtering)
 						await new Promise<void>((resolve, reject) => {
 							const rl = readline.createInterface({
 								input: createReadStream(file),
@@ -1204,24 +1204,24 @@ export class ClaudeChatProvider {
 								try {
 									const entry = JSON.parse(line);
 
-									// 跳过 Warmup 用户消息
+									// Skip Warmup user messages
 									if (entry.type === 'user' && entry.message?.content === 'Warmup') {
 										return;
 									}
 
-									// 跳过 Warmup 的响应消息（父消息是 Warmup 或其链式响应）
+									// Skip Warmup response messages (parent is Warmup or its chain response)
 									if (entry.parentUuid && warmupUuids.has(entry.parentUuid)) {
-										// 链式过滤：将当前响应的 UUID 也加入黑名单，处理多轮对话
+										// Chain filtering: add current response UUID to blacklist, handle multi-round dialogs
 										if (entry.uuid) {
 											warmupUuids.add(entry.uuid);
 										}
 										return;
 									}
 
-									// 生成唯一哈希用于去重
+									// Generate unique hash for deduplication
 									const messageHash = this._generateMessageHash(entry);
 									if (this._statisticsCache.isProcessed(messageHash)) {
-										return; // 跳过已处理的消息
+										return; // Skip already processed messages
 									}
 									this._statisticsCache.markAsProcessed(messageHash);
 
@@ -1238,7 +1238,7 @@ export class ClaudeChatProvider {
 										fileEntries.push(statsEntry);
 									}
 								} catch (e) {
-									// 跳过无效的 JSON 行
+									// Skip invalid JSON lines
 								}
 							});
 
@@ -1246,46 +1246,46 @@ export class ClaudeChatProvider {
 							rl.on('error', (err: Error) => reject(err));
 						});
 					}
-					
-					// 更新此文件的缓存
+
+					// Update cache for this file
 					if (fileEntries.length > 0) {
 						this._statisticsCache.updateCache(file, fileEntries, fileTimestamp);
 						allEntries.push(...fileEntries);
 					}
-					
+
 				} catch (e) {
 					debugWarn('Statistics', `Skipping unreadable file: ${file}`, e);
 				}
 			}));
-			
-			// 输出缓存统计信息
+
+			// Output cache statistics
 			const cacheStats = this._statisticsCache.getCacheStats();
 			debugLog('Statistics', `Cache stats - files: ${cacheStats.fileCacheSize}, hashes: ${cacheStats.processedHashesSize}`);
-			
-			// 聚合数据
+
+			// Aggregate data
 			debugLog('Statistics', `Aggregating ${allEntries.length} entries, type: ${type}`);
 			const result = this._aggregateStatistics(allEntries, type);
 			debugLog('Statistics', `Aggregation complete, result contains ${result.rows.length} rows`);
 			
-			// 缓存聚合结果
+			// Cache aggregated result
 			this._statisticsCache.updateAggregatedCache(cacheKey, type, result);
-			
+
 			return result;
-			
+
 		} catch (error) {
 			debugError('Statistics', 'Error loading statistics', error);
 			throw error;
 		}
 	}
-	
-	// 新增：生成消息的唯一哈希值用于去重
+
+	// Generate unique hash for message deduplication
 	private _generateMessageHash(entry: any): string {
-		// 使用消息ID和请求ID的组合作为唯一标识
+		// Use combination of message ID and request ID as unique identifier
 		const messageId = entry.message?.id || '';
 		const requestId = entry.requestId || '';
 		const timestamp = entry.timestamp || '';
 
-		// 如果没有唯一ID，使用时间戳和内容的组合
+		// If no unique ID, use combination of timestamp and content
 		if (!messageId && !requestId) {
 			const usage = entry.message?.usage || {};
 			return `${timestamp}_${usage.input_tokens}_${usage.output_tokens}`;
@@ -1295,30 +1295,30 @@ export class ClaudeChatProvider {
 	}
 
 	/**
-	 * 格式化模型名称以便在UI中显示
-	 * 解决 Sonnet 4.5、Haiku 4.5、Opus 4.5 显示名称不正确的问题
+	 * Format model name for UI display
+	 * Fixes incorrect display names for Sonnet 4.5, Haiku 4.5, Opus 4.5
 	 */
 	private _formatModelName(modelId: string): string {
-		// 模型ID到显示名称的映射
+		// Model ID to display name mapping
 		const modelDisplayNames: { [key: string]: string } = {
-			// Opus 系列
+			// Opus series
 			'opus': 'Opus',
 			'claude-opus-4-5-20251101': 'Opus 4.5',
 			'claude-opus-4-1-20250805': 'Opus 4.1',
 			'claude-opus-4-20250514': 'Opus 4',
 			'claude-3-opus-20240229': 'Claude 3 Opus',
-			// Sonnet 系列
+			// Sonnet series
 			'sonnet': 'Sonnet',
 			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
 			'claude-sonnet-4-20250514': 'Sonnet 4',
 			'claude-3-5-sonnet-20241022': 'Sonnet 3.5',
 			'claude-3-5-sonnet-20240620': 'Sonnet 3.5',
 			'claude-3-sonnet-20240229': 'Claude 3 Sonnet',
-			// Haiku 系列
+			// Haiku series
 			'haiku': 'Haiku',
 			'claude-haiku-4-5-20251001': 'Haiku 4.5',
 			'claude-3-haiku-20240307': 'Claude 3 Haiku',
-			// 特殊模式
+			// Special modes
 			'opusplan': 'Opus Plan',
 			'default': 'Default'
 		};
@@ -1327,8 +1327,8 @@ export class ClaudeChatProvider {
 	}
 
 	private _aggregateStatistics(entries: any[], type: string): any {
-		// 使用静态 MODEL_PRICING Map 代替局部对象
-		// 提前退出：如果没有数据，直接返回
+		// Use static MODEL_PRICING Map instead of local object
+		// Early exit: if no data, return immediately
 		if (entries.length === 0) {
 			return {
 				rows: [],
@@ -1342,8 +1342,8 @@ export class ClaudeChatProvider {
 				}
 			};
 		}
-		
-		// 定义聚合数据的类型
+
+		// Define aggregated data type
 		interface AggregatedStats {
 			inputTokens: number;
 			outputTokens: number;
@@ -1353,15 +1353,15 @@ export class ClaudeChatProvider {
 			cost: number;
 			models: Set<string>;
 			lastTimestamp: Date;
-			// 用于5小时块的额外信息
+			// Extra info for 5-hour blocks
 			blockEntries?: Map<string, number>;
 			hourlyActivity?: number[];
 		}
-		
-		// 使用 Map 存储聚合数据，提高查找效率
+
+		// Use Map to store aggregated data for better lookup efficiency
 		const aggregated = new Map<string, AggregatedStats>();
-		
-		// 用于调试的键集合
+
+		// Key set for debugging
 		const debugKeys = new Set<string>();
 		
 		entries.forEach(entry => {
@@ -1502,9 +1502,9 @@ export class ClaudeChatProvider {
 					key = date.toISOString().split('T')[0];
 			}
 			
-			// 记录调试键
+			// Record debug key
 			debugKeys.add(key);
-			
+
 			if (!aggregated.has(key)) {
 				aggregated.set(key, {
 					inputTokens: 0,
@@ -1515,109 +1515,109 @@ export class ClaudeChatProvider {
 					cost: 0,
 					models: new Set(),
 					lastTimestamp: date, // Track last activity timestamp
-					// 5小时块的额外统计信息
-					...(type === 'blocks' ? { 
+					// Extra statistics for 5-hour blocks
+					...(type === 'blocks' ? {
 						blockEntries: new Map<string, number>(),
-						hourlyActivity: new Array(5).fill(0) // 每小时活动计数
+						hourlyActivity: new Array(5).fill(0) // Hourly activity count
 					} : {})
 				});
 			}
-			
+
 			const stats = aggregated.get(key);
-			// TypeScript 类型保护：确保 stats 不是 undefined
+			// TypeScript type guard: ensure stats is not undefined
 			if (!stats) {
 				debugError('Statistics', `Statistics data not found, key: ${key}`);
 				return;
 			}
-			
+
 			stats.inputTokens += entry.usage.input_tokens || 0;
 			stats.outputTokens += entry.usage.output_tokens || 0;
-			// 修正：从usage中获取缓存相关的token
+			// Fix: get cache-related tokens from usage
 			stats.cacheCreationTokens += entry.usage.cache_creation_input_tokens || 0;
 			stats.cacheReadTokens += entry.usage.cache_read_input_tokens || 0;
-			// 总token应该包含所有类型的token
-			stats.totalTokens += (entry.usage.input_tokens || 0) + 
-			                    (entry.usage.output_tokens || 0) + 
-			                    (entry.usage.cache_creation_input_tokens || 0) + 
+			// Total tokens should include all token types
+			stats.totalTokens += (entry.usage.input_tokens || 0) +
+			                    (entry.usage.output_tokens || 0) +
+			                    (entry.usage.cache_creation_input_tokens || 0) +
 			                    (entry.usage.cache_read_input_tokens || 0);
-			
-			// 使用 Map 计算成本，如果为 0 或缺失
+
+			// Use Map to calculate cost if 0 or missing
 			let cost = entry.costUSD || 0;
 			if (cost === 0 && entry.model) {
 				const pricing = ClaudeChatProvider.MODEL_PRICING.get(entry.model);
 				if (pricing) {
-					// 计算普通输入token的成本（不包括缓存读取）
+					// Calculate normal input token cost (excluding cache read)
 					const normalInputCost = ((entry.usage.input_tokens || 0) * pricing.input) / 1000000;
-					
-					// 计算缓存读取token的成本（输入价格的10%）
+
+					// Calculate cache read token cost (10% of input price)
 					const cacheReadCost = ((entry.usage.cache_read_input_tokens || 0) * pricing.input * 0.1) / 1000000;
-					
-					// 计算输出token的成本
+
+					// Calculate output token cost
 					const outputCost = ((entry.usage.output_tokens || 0) * pricing.output) / 1000000;
-					
-					// 计算缓存创建token的成本（输出价格的25%）
+
+					// Calculate cache creation token cost (25% of output price)
 					const cacheCreationCost = ((entry.usage.cache_creation_input_tokens || 0) * pricing.output * 0.25) / 1000000;
-					
+
 					cost = normalInputCost + cacheReadCost + outputCost + cacheCreationCost;
 				}
 			}
 			stats.cost += cost;
-			
+
 			if (entry.model) {
 				stats.models.add(entry.model);
 			}
-			
+
 			// Update last timestamp if this entry is newer
 			if (date > stats.lastTimestamp) {
 				stats.lastTimestamp = date;
 			}
-			
-			// 对于5小时块，记录每小时的活动
+
+			// For 5-hour blocks, record hourly activity
 			if (type === 'blocks' && stats.hourlyActivity) {
 				const hour = date.getHours();
 				const blockStartHour = Math.floor(hour / 5) * 5;
-				const hourIndex = hour - blockStartHour; // 0-4 的索引
+				const hourIndex = hour - blockStartHour; // Index 0-4
 				stats.hourlyActivity[hourIndex]++;
-				
-				// 记录每个文件的条目数
+
+				// Record entry count per file
 				if (stats.blockEntries) {
 					const fileKey = entry.file;
 					stats.blockEntries.set(fileKey, (stats.blockEntries.get(fileKey) || 0) + 1);
 				}
 			}
 		});
-		
-		// 输出调试信息
+
+		// Output debug info
 		debugLog('Statistics', `${type} statistics found unique keys: ${debugKeys.size}`);
 		debugLog('Statistics', `${type} key list: ${Array.from(debugKeys).sort().join(', ')}`);
-		
+
 		// Convert to array and sort
 		const rows = Array.from(aggregated.entries())
 			.map(([key, stats]) => {
 				const result: any = {
 					...stats,
-					// 格式化模型名称以正确显示 Sonnet 4.5、Haiku 4.5、Opus 4.5 等
+					// Format model names to correctly display Sonnet 4.5, Haiku 4.5, Opus 4.5, etc.
 					models: Array.from(stats.models).map(modelId => this._formatModelName(modelId))
 				};
-				
+
 				if (type === 'blocks') {
 					result.block = key;
-					// 判断块是否活跃（最近5小时内有活动）
+					// Determine if block is active (activity within last 5 hours)
 					const now = new Date();
 					const blockDate = new Date(key.split(' ')[0]);
 					const blockStartHour = parseInt(key.split(' ')[1].split('-')[0]);
 					blockDate.setHours(blockStartHour);
-					
+
 					const hoursSinceBlock = (now.getTime() - blockDate.getTime()) / (1000 * 60 * 60);
 					result.status = hoursSinceBlock < 5 ? 'active' : 'inactive';
-					
-					// 添加每小时活动统计
+
+					// Add hourly activity statistics
 					if (stats.hourlyActivity) {
 						result.hourlyActivity = stats.hourlyActivity;
 						result.peakHour = stats.hourlyActivity.indexOf(Math.max(...stats.hourlyActivity));
 					}
-					
-					// 添加文件分布信息
+
+					// Add file distribution info
 					if (stats.blockEntries) {
 						result.fileCount = stats.blockEntries.size;
 						result.topFiles = Array.from(stats.blockEntries.entries())
@@ -1630,7 +1630,7 @@ export class ClaudeChatProvider {
 					}
 				} else {
 					result[type === 'daily' ? 'date' : type === 'monthly' ? 'month' : 'session'] = key;
-					
+
 					// Add lastActivity for session view
 					if (type === 'session' && stats.lastTimestamp) {
 						const lastActivity = new Date(stats.lastTimestamp);
@@ -1643,7 +1643,7 @@ export class ClaudeChatProvider {
 						result.lastActivity = `${year}-${month}-${day} ${hours}:${minutes}`;
 					}
 				}
-				
+
 				return result;
 			})
 			.sort((a, b) => {
@@ -1656,8 +1656,8 @@ export class ClaudeChatProvider {
 				const keyB = b.date || b.month || b.session || b.block;
 				return keyB.localeCompare(keyA); // Descending order
 			});
-		
-		// 优化：提前退出计算总计
+
+		// Optimization: early exit for totals calculation
 		let totals = {
 			inputTokens: 0,
 			outputTokens: 0,
@@ -1666,13 +1666,13 @@ export class ClaudeChatProvider {
 			totalTokens: 0,
 			cost: 0
 		};
-		
-		// 如果没有数据，直接返回
+
+		// If no data, return immediately
 		if (rows.length === 0) {
 			return { rows, totals };
 		}
-		
-		// 使用 for 循环代替 reduce，可以更好地控制和优化
+
+		// Use for loop instead of reduce for better control and optimization
 		for (const row of rows) {
 			totals.inputTokens += row.inputTokens;
 			totals.outputTokens += row.outputTokens;
@@ -1724,7 +1724,7 @@ export class ClaudeChatProvider {
 			// Send back the file path to insert into the input
 			const relativePath = vscode.workspace.asRelativePath(imagePath);
 			
-			// 获取webview可访问的URI
+			// Get webview-accessible URI
 			const webviewUri = this._panel?.webview.asWebviewUri(imagePath);
 			
 			this._panel?.webview.postMessage({
@@ -1786,9 +1786,9 @@ export class ClaudeChatProvider {
 		this._totalTokensInput = conversationData.totalTokens?.input || 0;
 		this._totalTokensOutput = conversationData.totalTokens?.output || 0;
 		
-		// 发送token使用情况到UI
+		// Send token usage to UI
 		this._sendTokenUsage();
-		
+
 		// Reset message processor and update its state
 		this._messageProcessor.reset();
 		// Note: MessageProcessor state will be automatically updated when messages are processed
@@ -1845,7 +1845,7 @@ export class ClaudeChatProvider {
 		try {
 			await this._configurationManager.updateSettings(settings);
 
-			// 显示成功提示
+			// Show success notification
 			vscode.window.showInformationMessage('Settings updated successfully');
 
 			// Send updated MCP status
@@ -1859,9 +1859,9 @@ export class ClaudeChatProvider {
 	}
 
 	/**
-	 * 更新指定 scope（global 或 workspace）的 MCP 服务器配置
+	 * Update MCP server configuration for specified scope (global or workspace)
 	 * @param scope 'global' | 'workspace'
-	 * @param servers 服务器配置数组
+	 * @param servers Server configuration array
 	 */
 	private async _updateMcpServersForScope(scope: 'global' | 'workspace', servers: any[]): Promise<void> {
 		try {
@@ -1892,10 +1892,10 @@ export class ClaudeChatProvider {
 		}
 	}
 
-	// ==================== Gemini Integration 相关方法 ====================
+	// ==================== Gemini Integration Methods ====================
 
 	/**
-	 * 更新 Gemini Integration 启用状态
+	 * Update Gemini Integration enabled status
 	 */
 	private async _updateGeminiIntegration(enabled: boolean): Promise<void> {
 		try {
@@ -1912,11 +1912,11 @@ export class ClaudeChatProvider {
 	}
 
 	/**
-	 * 更新 Gemini API Key（安全存储）
+	 * Update Gemini API Key (secure storage)
 	 */
 	private async _updateGeminiApiKey(apiKey: string): Promise<void> {
 		try {
-			// 验证 API Key 格式
+			// Validate API Key format
 			if (!SecretService.isValidGeminiApiKeyFormat(apiKey)) {
 				vscode.window.showWarningMessage('Gemini API key format may be incorrect. Keys typically start with "AIza".');
 			}
@@ -1925,7 +1925,7 @@ export class ClaudeChatProvider {
 			debugLog('Gemini', 'API Key stored securely');
 			vscode.window.showInformationMessage('Gemini API key saved securely');
 
-			// 发送更新后的配置到 webview
+			// Send updated config to webview
 			this._sendGeminiIntegrationConfig();
 		} catch (error) {
 			debugError('Gemini', 'Failed to save API Key', error);
@@ -1934,7 +1934,7 @@ export class ClaudeChatProvider {
 	}
 
 	/**
-	 * 发送 Gemini Integration 配置到 webview
+	 * Send Gemini Integration config to webview
 	 */
 	private async _sendGeminiIntegrationConfig(): Promise<void> {
 		try {
@@ -1955,7 +1955,7 @@ export class ClaudeChatProvider {
 		}
 	}
 
-	// ==================== 其他方法 ====================
+	// ==================== Other Methods ====================
 
 	private async _testMcpConnection(): Promise<void> {
 		// Send testing status
@@ -2002,12 +2002,12 @@ export class ClaudeChatProvider {
 				return;
 			}
 			
-			// 尝试动态查询MCP服务器的工具
+			// Try to dynamically query MCP server tools
 			debugLog('MCP', `Attempting to dynamically query tools for ${serverName}`);
 			const dynamicTools = await this._queryMcpServerTools(server);
-			
+
 			if (dynamicTools && dynamicTools.length > 0) {
-				// 成功获取工具列表
+				// Successfully got tool list
 				debugLog('MCP', `Successfully got ${dynamicTools.length} tools from ${serverName} via dynamic query`);
 				this._panel?.webview.postMessage({
 					type: 'mcpToolsData',
@@ -2017,10 +2017,10 @@ export class ClaudeChatProvider {
 					}
 				});
 			} else {
-				// 动态查询失败，显示错误信息
+				// Dynamic query failed, show error message
 				debugLog('MCP', `Dynamic query failed or returned no tools for ${serverName}`);
 
-				// 根据服务器类型生成不同的错误信息
+				// Generate different error messages based on server type
 				let errorDetails = '';
 				if (server.type === 'http' || server.type === 'sse') {
 					errorDetails = `URL: ${server.url}`;
@@ -2192,7 +2192,7 @@ export class ClaudeChatProvider {
 				let responseData = '';
 				let errorData = '';
 
-				// Python MCP 服务器需要更长的启动时间
+				// Python MCP servers need longer startup time
 				const timeoutDuration = command === 'uvx' || command.includes('python') ? 15000 : 8000;
 				
 				const timeout = setTimeout(() => {
@@ -2220,26 +2220,26 @@ export class ClaudeChatProvider {
 							try {
 								const response = JSON.parse(line);
 
-								if (response.id === 1 && response.result) { // 初始化响应
+								if (response.id === 1 && response.result) { // Initialize response
 									const elapsedTime = Date.now() - startTime;
 									debugLog('MCP', `Initialized with ${server.name} (took ${elapsedTime}ms)`);
 									debugLog('MCP', 'Server capabilities', response.result.capabilities);
-									
-									// 发送 initialized 通知
+
+									// Send initialized notification
 									const initializedNotification = {
 										jsonrpc: '2.0',
 										method: 'notifications/initialized'
 									};
 									mcpStdin.write(JSON.stringify(initializedNotification) + '\n');
-									
+
 									if (response.result.capabilities?.tools) {
-										// 延迟一下确保初始化完成
+										// Delay to ensure initialization is complete
 										setTimeout(() => {
 											const toolListRequest = {
 												jsonrpc: '2.0',
 												id: 2,
 												method: 'tools/list'
-												// 不发送 params 字段
+												// Don't send params field
 											};
 											debugLog('MCP', 'Sending tools/list request');
 											mcpStdin.write(JSON.stringify(toolListRequest) + '\n');
@@ -2249,7 +2249,7 @@ export class ClaudeChatProvider {
 										cleanup();
 										resolve([]);
 									}
-								} else if (response.id === 2 && response.result) { // tools/list 响应
+								} else if (response.id === 2 && response.result) { // tools/list response
 									const elapsedTime = Date.now() - startTime;
 									const tools = response.result.tools || [];
 									const toolList = tools.map((tool: any) => ({
@@ -2257,35 +2257,35 @@ export class ClaudeChatProvider {
 										description: tool.description || 'No description available.'
 									}));
 									debugLog('MCP', `Retrieved ${toolList.length} tools from ${server.name} (total time: ${elapsedTime}ms)`);
-									// 输出前几个工具名称用于调试
+									// Output first few tool names for debugging
 									if (toolList.length > 0) {
 										debugLog('MCP', 'First few tools', toolList.slice(0, 3).map((t: any) => t.name));
 									}
 									cleanup();
 									resolve(toolList);
-								} else if (response.id === 2 && response.error) { // tools/list 错误响应
+								} else if (response.id === 2 && response.error) { // tools/list error response
 									debugError('MCP', `Error getting tools from ${server.name}`, response.error);
 									debugError('MCP', 'Error details', response.error);
 									cleanup();
 									resolve(null);
 								}
 							} catch (e) {
-								// 忽略已知的非 JSON 消息
+								// Ignore known non-JSON messages
 								const trimmedLine = line.trim();
-								
-								// 添加调试信息
+
+								// Add debug info
 								debugLog('MCP', `Received non-JSON line from ${server.name}`, { trimmedLine, lineLength: trimmedLine.length, originalLine: line });
-								
+
 								if (trimmedLine === 'Shutdown signal received' ||
 								    trimmedLine.toLowerCase().includes('shutdown signal') ||
 								    trimmedLine.toLowerCase().includes('shutting down')) {
-									// 这是 MCP 关闭时的正常消息，不需要记录错误
+									// This is a normal message when MCP shuts down, no need to log error
 									debugLog('MCP', `${server.name} shutting down (handled gracefully)`);
 								} else if (trimmedLine === '') {
-									// 忽略空行
+									// Ignore empty lines
 									debugLog('MCP', `Ignoring empty line from ${server.name}`);
 								} else {
-									// 其他未知的 JSON 解析错误才记录为普通日志
+									// Only log other unknown JSON parse errors as regular logs
 									debugLog('MCP', `Non-JSON message from ${server.name}`, { line });
 									debugLog('MCP', 'Parse attempt failed', (e as Error).message || e);
 								}
@@ -2298,7 +2298,7 @@ export class ClaudeChatProvider {
 				mcpStderr.on('data', (data: Buffer) => {
 					const stderr = data.toString();
 					errorData += stderr;
-					// 输出stderr以便调试（过滤掉INFO日志和已知的关闭消息）
+					// Output stderr for debugging (filter out INFO logs and known shutdown messages)
 					if (!stderr.includes('INFO') &&
 					    !stderr.includes('Starting MCP server') &&
 					    !stderr.includes('Shutdown signal received')) {
@@ -2564,15 +2564,15 @@ export class ClaudeChatProvider {
 	}
 
 	private _setSelectedModel(model: string): void {
-		// 验证模型名称以防止问题
+		// Validate model name to prevent issues
 		if (VALID_MODELS.includes(model as ValidModel)) {
 			this._selectedModel = model;
 			// DEBUG: console.log('Model selected:', model);
 
-			// 在工作区状态中存储模型偏好
+			// Store model preference in workspace state
 			this._context.workspaceState.update('claude.selectedModel', model);
 
-			// 获取显示名称
+			// Get display name
 			let displayName: string;
 			let message: string;
 
@@ -2602,7 +2602,7 @@ export class ClaudeChatProvider {
 					message = `Claude model switched to: ${displayName}`;
 			}
 
-			// 显示确认消息
+			// Show confirmation message
 			vscode.window.showInformationMessage(message);
 		} else {
 			debugError('ClaudeChatProvider', 'Invalid model selected', model);
@@ -2611,25 +2611,25 @@ export class ClaudeChatProvider {
 	}
 
 	/**
-	 * 处理计算模式选择（独立于子代理设置）
-	 * @param mode - 'auto' 或 'max'
+	 * Handle compute mode selection (independent of subagent settings)
+	 * @param mode - 'auto' or 'max'
 	 */
 	private _handleModeSelection(mode: 'auto' | 'max'): void {
 		const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
 
 		if (mode === 'max') {
-			// Max模式：设置ANTHROPIC_DEFAULT_HAIKU_MODEL
+			// Max mode: set ANTHROPIC_DEFAULT_HAIKU_MODEL
 			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
 			debugLog('ComputeMode', 'Max mode enabled - Using Sonnet 4.5 for background tasks');
 			vscode.window.showInformationMessage('Max mode enabled - Maximum performance, higher cost');
 		} else {
-			// Auto模式：清除ANTHROPIC_DEFAULT_HAIKU_MODEL
+			// Auto mode: clear ANTHROPIC_DEFAULT_HAIKU_MODEL
 			delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
 			debugLog('ComputeMode', 'Auto mode enabled - Smart allocation for cost efficiency');
 			vscode.window.showInformationMessage('Auto mode enabled - Smart allocation');
 		}
 
-		// 保存模式设置
+		// Save mode settings
 		const currentSettings = this._context.workspaceState.get<ComputeModeSettings>('computeModeSettings', {
 			mode: 'auto',
 			enhanceSubagents: false
@@ -2642,24 +2642,24 @@ export class ClaudeChatProvider {
 	}
 
 	/**
-	 * 处理子代理增强设置（独立于模式设置）
-	 * @param enabled - 是否启用子代理增强
+	 * Handle subagent enhancement settings (independent of mode settings)
+	 * @param enabled - Whether to enable subagent enhancement
 	 */
 	private _handleSubagentEnhancement(enabled: boolean): void {
 		const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
 
 		if (enabled) {
-			// 启用增强：设置CLAUDE_CODE_SUBAGENT_MODEL
+			// Enable enhancement: set CLAUDE_CODE_SUBAGENT_MODEL
 			process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_5;
 			debugLog('ComputeMode', 'Enhanced subagents enabled - Using Sonnet 4.5 for all subagent operations');
 			vscode.window.showInformationMessage('Enhanced subagents enabled - Higher performance, increased cost');
 		} else {
-			// 禁用增强：清除CLAUDE_CODE_SUBAGENT_MODEL
+			// Disable enhancement: clear CLAUDE_CODE_SUBAGENT_MODEL
 			delete process.env.CLAUDE_CODE_SUBAGENT_MODEL;
 			debugLog('ComputeMode', 'Standard subagents enabled - Using default model allocation');
 		}
 
-		// 保存子代理设置
+		// Save subagent settings
 		const currentSettings = this._context.workspaceState.get<ComputeModeSettings>('computeModeSettings', {
 			mode: 'auto',
 			enhanceSubagents: false
@@ -2672,23 +2672,23 @@ export class ClaudeChatProvider {
 	}
 
 	/**
-	 * 在初始化时恢复计算模式状态
+	 * Restore compute mode state on initialization
 	 */
 	private _restoreComputeModeState(): void {
-		// 尝试读取新的配置格式
+		// Try to read new config format
 		const settings = this._context.workspaceState.get<ComputeModeSettings>('computeModeSettings');
 
 		if (settings) {
-			// 使用新格式
+			// Use new format
 			const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
 
-			// 恢复模式设置
+			// Restore mode settings
 			if (settings.mode === 'max') {
 				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
 				debugLog('ComputeMode', 'Restored Max mode');
 			}
 
-			// 恢复子代理设置（独立）
+			// Restore subagent settings (independent)
 			if (settings.enhanceSubagents) {
 				process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_5;
 				debugLog('ComputeMode', 'Restored enhanced subagents');
@@ -2696,19 +2696,19 @@ export class ClaudeChatProvider {
 
 			debugLog('ComputeMode', 'Settings restored', settings);
 		} else {
-			// 向后兼容：检查旧的maxModeEnabled配置
+			// Backward compatibility: check old maxModeEnabled config
 			const maxModeEnabled = this._context.workspaceState.get('maxModeEnabled', false);
 			if (maxModeEnabled) {
 				const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
 				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
 				debugLog('ComputeMode', 'Migrated from old Max mode setting');
 
-				// 迁移到新格式
+				// Migrate to new format
 				this._context.workspaceState.update('computeModeSettings', {
 					mode: 'max',
 					enhanceSubagents: false
 				});
-				// 删除旧配置
+				// Delete old config
 				this._context.workspaceState.update('maxModeEnabled', undefined);
 			}
 		}
@@ -2871,26 +2871,26 @@ export class ClaudeChatProvider {
 		});
 	}
 
-	// 发送token使用情况到UI
+	// Send token usage to UI
 	private _sendTokenUsage(): void {
 		const usage = this._conversationManager.getCurrentTokenUsage(
 			this._totalTokensInput,
 			this._totalTokensOutput
 		);
-		
+
 		this._panel?.webview.postMessage({
 			type: 'tokenUsage',
 			data: usage
 		});
 	}
 
-	// 压缩对话功能
-	// 新设计：先显示压缩中状态，等总结生成后再清空并显示总结
+	// Compact conversation feature
+	// New design: show compacting status first, then clear and display summary after generation
 	private async _compactConversation(languageMode?: boolean, selectedLanguage?: string): Promise<void> {
 		try {
-			debugLog('ClaudeChatProvider', '开始压缩对话');
+			debugLog('ClaudeChatProvider', 'Starting conversation compaction');
 
-			// 获取当前对话内容（在任何操作之前获取）
+			// Get current conversation content (before any operations)
 			const conversationData = this._conversationManager.getConversationForSummary();
 
 			if (!conversationData || (conversationData.userMessages.length === 0 && conversationData.assistantMessages.length === 0)) {
@@ -2901,14 +2901,14 @@ export class ClaudeChatProvider {
 				return;
 			}
 
-			// 第一步：通知前端开始压缩（显示压缩中消息，设置 Processing 状态）
-			// 使用单一消息避免竞争条件
-			debugLog('ClaudeChatProvider', '发送 compactStart 消息');
+			// Step 1: Notify frontend to start compacting (show compacting message, set Processing state)
+			// Use single message to avoid race conditions
+			debugLog('ClaudeChatProvider', 'Sending compactStart message');
 			this._panel?.webview.postMessage({
 				type: 'compactStart'
 			});
 
-			// 格式化对话内容
+			// Format conversation content
 			let conversationText = '';
 			const maxMessages = Math.max(conversationData.userMessages.length, conversationData.assistantMessages.length);
 
@@ -2921,7 +2921,7 @@ export class ClaudeChatProvider {
 				}
 			}
 
-			// 构造压缩提示词（英文提示词）
+			// Construct compact prompt (English prompt)
 			const compactPrompt = `Please summarize the following conversation within 500 words. Focus on:
 1. The main topics discussed
 2. Key decisions made
@@ -2934,7 +2934,7 @@ ${conversationText}
 
 Please provide a well-structured summary.`;
 
-			// 保存当前对话历史（压缩前）
+			// Save current conversation history (before compaction)
 			const currentSessionId = Date.now().toString();
 			await this._conversationManager.saveCurrentConversation(
 				currentSessionId,
@@ -2943,7 +2943,7 @@ Please provide a well-structured summary.`;
 				this._totalTokensOutput
 			);
 
-			// 重置后端状态（但不发送 sessionCleared 消息到前端）
+			// Reset backend state (but don't send sessionCleared message to frontend)
 			this._currentSessionId = undefined;
 			this._conversationId = undefined;
 			this._conversationManager.clearCurrentConversation();
@@ -2954,28 +2954,28 @@ Please provide a well-structured summary.`;
 			this._messageProcessor.reset();
 			this._operationTracker.setCurrentSession('');
 
-			// 后台生成总结（不显示提示词）
-			debugLog('ClaudeChatProvider', '开始生成压缩总结');
+			// Generate summary in background (don't display prompt)
+			debugLog('ClaudeChatProvider', 'Starting compact summary generation');
 			await this._generateCompactSummary(compactPrompt, conversationData, languageMode, selectedLanguage);
-			debugLog('ClaudeChatProvider', '压缩总结生成完成');
+			debugLog('ClaudeChatProvider', 'Compact summary generation complete');
 
-			// 注意：compactingEnd 和 setProcessing: false 会在 onClose 回调中发送
+			// Note: compactingEnd and setProcessing: false will be sent in onClose callback
 
 		} catch (error: any) {
 			debugError('ClaudeChatProvider', 'Failed to compact conversation', error);
 
-			// 通知前端压缩结束（即使出错也要通知）
+			// Notify frontend compaction ended (even on error)
 			this._panel?.webview.postMessage({
 				type: 'compactingEnd'
 			});
 
-			// 恢复处理状态
+			// Restore processing state
 			this._panel?.webview.postMessage({
 				type: 'setProcessing',
 				data: false
 			});
 
-			// 显示错误消息
+			// Show error message
 			this._panel?.webview.postMessage({
 				type: 'error',
 				data: `Failed to compact conversation: ${error.message}`
@@ -2983,25 +2983,25 @@ Please provide a well-structured summary.`;
 		}
 	}
 
-	// 后台生成压缩总结
+	// Generate compact summary in background
 	private async _generateCompactSummary(prompt: string, conversationData: any, languageMode?: boolean, selectedLanguage?: string): Promise<void> {
-		// 如果没有指定语言模式，默认使用英文
+		// If language mode not specified, default to English
 		let actualPrompt = prompt;
 
-		// 使用特殊的压缩模式发送消息
-		// 注意：_isCompactMode 标志在 onClose 回调中重置（第688行左右）
-		// 不能在这里重置，因为 _sendMessageToClaude 是异步的，立即返回
-		// 而 onAssistantMessage 回调会在进程运行时被调用
+		// Use special compact mode to send message
+		// Note: _isCompactMode flag is reset in onClose callback (around line 688)
+		// Cannot reset here because _sendMessageToClaude is async and returns immediately
+		// while onAssistantMessage callback is called during process execution
 		this._isCompactMode = true;
 
-		// 发送压缩提示（不会在 UI 显示）
-		// 传递语言设置以支持 Language Mode
+		// Send compact prompt (won't display in UI)
+		// Pass language settings to support Language Mode
 		await this._sendMessageToClaude(actualPrompt, false, false, languageMode || false, selectedLanguage);
 
-		// 注意：不在这里重置 _isCompactMode，因为：
-		// 1. _sendMessageToClaude 只是启动进程后立即返回
-		// 2. onAssistantMessage 回调会在进程运行过程中被调用
-		// 3. _isCompactMode 会在 onClose 回调中被正确重置
+		// Note: Don't reset _isCompactMode here because:
+		// 1. _sendMessageToClaude just starts the process and returns immediately
+		// 2. onAssistantMessage callback is called during process execution
+		// 3. _isCompactMode will be correctly reset in onClose callback
 	}
 
 	public dispose() {

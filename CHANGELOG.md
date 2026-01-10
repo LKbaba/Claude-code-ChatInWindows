@@ -2,29 +2,49 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.0.3]
+
+### Fixed
+- **Compact button UX improvements**
+  - Fixed race condition causing "Compacting conversation..." message to disappear prematurely
+  - Fixed intermediate state showing cost statistics before summary appears
+  - Now transitions directly from loading state to summary display
+- **Compact mode processing state**
+  - Fixed `_isCompactMode` flag being reset too early (before process completion)
+  - Filtered out `current*` fields from `updateTotals` messages during compact mode
+
+### Changed
+- Changed Compact icon from 🗜️ to ⚡ for better visual representation
+- Changed Compact summary messages to English for international users:
+  - "⚡ Conversation Summary" instead of "⚓️ 对话总结"
+  - "This is a summary of the previous conversation. Starting a new conversation now."
+
+### Added
+- Added note in Usage Statistics that subagent usage is excluded from calculations
+
 ## [3.0.2]
 
 ### Fixed
-- 修复 Context Window 计算公式，添加遗漏的 `cacheCreationTokens`
-  - 原问题：计算只包含 `input + cache_read`，导致百分比显示不准确
-  - 修复后：正确公式为 `input + cache_creation + cache_read`（不含 output）
-  - 现在 Context Window 显示与官方 Claude Code CLI 一致
+- Fixed Context Window calculation formula by adding missing `cacheCreationTokens`
+  - Previous: Calculation only included `input + cache_read`, causing inaccurate percentage display
+  - Fixed: Correct formula is `input + cache_creation + cache_read` (excluding output)
+  - Context Window display now matches official Claude Code CLI
 
 ## [3.0.1]
 
 ### Added
-- 新增调试日志系统，支持日志滚动备份
-  - 日志文件：`debug_log.txt`，备份文件：`debug_log.bak`
-  - 可通过设置 `claude-code-chatui.debug.maxLines` 控制日志行数上限
-- 新增 Playwright MCP 模板
+- Added debug logging system with log rotation backup
+  - Log file: `debug_log.txt`, backup file: `debug_log.bak`
+  - Configurable via `claude-code-chatui.debug.maxLines` setting
+- Added Playwright MCP template
 
 ### Fixed
-- 修复多个 MCP 相关问题
-- 修复 Windows 路径兼容性问题
+- Fixed multiple MCP-related issues
+- Fixed Windows path compatibility issues
 
 ### Changed
-- 优化 Token 统计和价格计算的准确性
-- 改进状态栏显示
+- Optimized token statistics and price calculation accuracy
+- Improved status bar display
 
 ## [2.1.3]
 
