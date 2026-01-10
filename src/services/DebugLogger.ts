@@ -41,7 +41,9 @@ export class DebugLogger {
 
         if (workspacePath && enabled) {
             this.logFile = path.join(workspacePath, 'debug_log.txt');
-            this.log('DebugLogger', '调试日志已启用', { logFile: this.logFile, maxLines: this.maxLines });
+            // 执行滚动备份：将现有日志文件备份为 .bak
+            this.rotateLogFile(this.logFile);
+            this.log('DebugLogger', '调试日志已启用', { logFile: this.logFile, backupFile: this.logFile.replace('.txt', '.bak') });
         } else if (enabled) {
             // 没有工作区时使用全局存储位置
             const homeDir = process.env.HOME || process.env.USERPROFILE || '';
@@ -53,7 +55,29 @@ export class DebugLogger {
             }
 
             this.logFile = path.join(claudeDir, 'debug_log.txt');
-            this.log('DebugLogger', '调试日志已启用（全局位置）', { logFile: this.logFile });
+            // 执行滚动备份
+            this.rotateLogFile(this.logFile);
+            this.log('DebugLogger', '调试日志已启用（全局位置）', { logFile: this.logFile, backupFile: this.logFile.replace('.txt', '.bak') });
+        }
+    }
+
+    /**
+     * 滚动备份日志文件
+     * 将现有的 debug_log.txt 重命名为 debug_log.bak（覆盖旧的备份）
+     * 这样始终保持两个文件：当前会话 + 上一次会话
+     * @param logFilePath 日志文件路径
+     */
+    private rotateLogFile(logFilePath: string): void {
+        try {
+            if (fs.existsSync(logFilePath)) {
+                const backupPath = logFilePath.replace('.txt', '.bak');
+                // 将现有日志文件重命名为 .bak（会覆盖旧的 .bak 文件）
+                fs.renameSync(logFilePath, backupPath);
+                console.log(`[DebugLogger] 已备份上一次会话日志: ${backupPath}`);
+            }
+        } catch (error) {
+            // 备份失败不影响正常日志功能，只输出警告
+            console.warn('[DebugLogger] 备份日志文件失败:', error);
         }
     }
 
