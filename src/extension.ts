@@ -5,9 +5,38 @@ import { ClaudeChatViewProvider } from './providers/ClaudeChatViewProvider';
 import { ClaudeChatProvider } from './providers/ClaudeChatProvider';
 import { PluginManager } from './services/PluginManager';
 import { secretService } from './services/SecretService';
+import { DebugLogger } from './services/DebugLogger';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// DEBUG: console.log('Claude Code Chat extension is being activated!');
+
+	// 初始化 DebugLogger（调试日志系统）
+	const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
+	const debugEnabled = config.get<boolean>('debug.enabled', false);
+	const debugMaxLines = config.get<number>('debug.maxLines', 500);
+
+	const debugLogger = DebugLogger.getInstance();
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	debugLogger.initialize(workspacePath, debugEnabled);
+
+	if (debugEnabled) {
+		debugLogger.log('Extension', '插件激活中...', { workspacePath, debugMaxLines });
+	}
+
+	// 监听配置变化
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('claudeCodeChatUI.debug.enabled')) {
+				const newEnabled = vscode.workspace.getConfiguration('claudeCodeChatUI').get<boolean>('debug.enabled', false);
+				debugLogger.setEnabled(newEnabled);
+				if (newEnabled) {
+					// 重新初始化以设置日志文件路径
+					const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+					debugLogger.initialize(wsPath, true);
+				}
+			}
+		})
+	);
 
 	// 初始化 SecretService（用于安全存储 Gemini API Key 等敏感信息）
 	secretService.initialize(context);

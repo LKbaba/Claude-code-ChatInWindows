@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as util from 'util';
+import { debugLog, debugError } from '../services/DebugLogger';
 
 const exec = util.promisify(cp.exec);
 
@@ -29,57 +30,57 @@ export class BackupManager {
 
             const storagePath = this._context.storageUri?.fsPath;
             if (!storagePath) {
-                console.error('No workspace storage available');
+                debugError('BackupManager', 'No workspace storage available');
                 return;
             }
-            console.log('[BackupManager] Workspace storage path:', storagePath);
+            debugLog('BackupManager', `Workspace storage path: ${storagePath}`);
             this._backupRepoPath = path.join(storagePath, 'backups', '.git');
-            console.log('[BackupManager] Backup repo path:', this._backupRepoPath);
+            debugLog('BackupManager', `Backup repo path: ${this._backupRepoPath}`);
 
             // Create backup git directory if it doesn't exist
             try {
                 await vscode.workspace.fs.stat(vscode.Uri.file(this._backupRepoPath));
-                console.log('[BackupManager] Backup repository already exists');
+                debugLog('BackupManager', 'Backup repository already exists');
             } catch {
-                console.log('[BackupManager] Creating new backup repository...');
-                
+                debugLog('BackupManager', 'Creating new backup repository...');
+
                 // Ensure parent directory exists first
                 const backupsDir = path.dirname(this._backupRepoPath);
                 try {
                     await vscode.workspace.fs.createDirectory(vscode.Uri.file(backupsDir));
-                    console.log('[BackupManager] Created backups directory:', backupsDir);
+                    debugLog('BackupManager', `Created backups directory: ${backupsDir}`);
                 } catch (e) {
                     // Directory might already exist
                 }
-                
+
                 await vscode.workspace.fs.createDirectory(vscode.Uri.file(this._backupRepoPath));
-                console.log('[BackupManager] Created .git directory:', this._backupRepoPath);
+                debugLog('BackupManager', `Created .git directory: ${this._backupRepoPath}`);
 
                 const workspacePath = workspaceFolder.uri.fsPath;
-                console.log('[BackupManager] Workspace path:', workspacePath);
+                debugLog('BackupManager', `Workspace path: ${workspacePath}`);
 
                 // Initialize git repo with workspace as work-tree
                 const initCmd = `git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" init`;
-                console.log('[BackupManager] Running init command:', initCmd);
+                debugLog('BackupManager', `Running init command: ${initCmd}`);
                 await exec(initCmd);
-                
+
                 await exec(`git --git-dir="${this._backupRepoPath}" config user.name "Claude Code Chat"`);
                 await exec(`git --git-dir="${this._backupRepoPath}" config user.email "claude@anthropic.com"`);
 
-                console.log(`[BackupManager] Initialized backup repository at: ${this._backupRepoPath}`);
+                debugLog('BackupManager', `Initialized backup repository at: ${this._backupRepoPath}`);
             }
         } catch (error: any) {
-            console.error('Failed to initialize backup repository:', error.message);
+            debugError('BackupManager', `Failed to initialize backup repository: ${error.message}`);
         }
     }
 
     async createBackupCommit(userMessage: string): Promise<CommitInfo | undefined> {
         try {
-            console.log('[BackupManager] Creating backup commit for message:', userMessage.substring(0, 50));
-            
+            debugLog('BackupManager', `Creating backup commit for message: ${userMessage.substring(0, 50)}`);
+
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder || !this._backupRepoPath) {
-                console.log('[BackupManager] No workspace folder or backup repo path');
+                debugLog('BackupManager', 'No workspace folder or backup repo path');
                 return undefined;
             }
 
@@ -91,26 +92,26 @@ export class BackupManager {
 
             // Add all files using git-dir and work-tree (excludes .git automatically)
             const addCmd = `git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" add -A`;
-            console.log('[BackupManager] Running add command:', addCmd);
+            debugLog('BackupManager', `Running add command: ${addCmd}`);
             await exec(addCmd);
 
             // Check if this is the first commit (no HEAD exists yet)
             let isFirstCommit = false;
             try {
                 const headCmd = `git --git-dir="${this._backupRepoPath}" rev-parse HEAD`;
-                console.log('[BackupManager] Checking for HEAD:', headCmd);
+                debugLog('BackupManager', `Checking for HEAD: ${headCmd}`);
                 await exec(headCmd);
             } catch (e) {
-                console.log('[BackupManager] No HEAD found, this is the first commit');
+                debugLog('BackupManager', 'No HEAD found, this is the first commit');
                 isFirstCommit = true;
             }
 
             // Check if there are changes to commit
             const statusCmd = `git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" status --porcelain`;
-            console.log('[BackupManager] Running status command:', statusCmd);
+            debugLog('BackupManager', `Running status command: ${statusCmd}`);
             const { stdout: status } = await exec(statusCmd);
-            
-            console.log('[BackupManager] Git status check:', {
+
+            debugLog('BackupManager', 'Git status check', {
                 isFirstCommit,
                 hasChanges: !!status.trim(),
                 statusOutput: status,
@@ -130,11 +131,11 @@ export class BackupManager {
 
                 // Create commit
                 const commitCmd = `git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" commit -m "${actualMessage}"`;
-                console.log('[BackupManager] Running commit command:', commitCmd);
+                debugLog('BackupManager', `Running commit command: ${commitCmd}`);
                 await exec(commitCmd);
-                
+
                 const shaCmd = `git --git-dir="${this._backupRepoPath}" rev-parse HEAD`;
-                console.log('[BackupManager] Getting commit SHA:', shaCmd);
+                debugLog('BackupManager', `Getting commit SHA: ${shaCmd}`);
                 const { stdout: sha } = await exec(shaCmd);
 
                 // Store commit info
@@ -147,16 +148,15 @@ export class BackupManager {
 
                 this._commits.push(commitInfo);
 
-                console.log(`[BackupManager] Created backup commit:`, commitInfo);
-                console.log(`[BackupManager] Total commits stored:`, this._commits.length);
+                debugLog('BackupManager', 'Created backup commit', commitInfo);
+                debugLog('BackupManager', `Total commits stored: ${this._commits.length}`);
                 return commitInfo;
             } else {
-                console.log('[BackupManager] No changes detected, skipping backup commit.');
+                debugLog('BackupManager', 'No changes detected, skipping backup commit.');
                 return undefined;
             }
         } catch (error: any) {
-            console.error('[BackupManager] Failed to create backup commit:', error.message);
-            console.error('[BackupManager] Full error:', error);
+            debugError('BackupManager', `Failed to create backup commit: ${error.message}`, error);
             return undefined;
         }
     }
@@ -187,7 +187,7 @@ export class BackupManager {
             };
 
         } catch (error: any) {
-            console.error('Failed to restore commit:', error.message);
+            debugError('BackupManager', `Failed to restore commit: ${error.message}`, error);
             vscode.window.showErrorMessage(`Failed to restore commit: ${error.message}`);
             return {
                 success: false,

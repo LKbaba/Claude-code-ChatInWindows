@@ -8,6 +8,7 @@
  */
 
 import * as vscode from 'vscode';
+import { debugLog, debugError } from './DebugLogger';
 
 // 存储键常量
 const SECRET_KEYS = {
@@ -57,7 +58,7 @@ export class SecretService {
     public initialize(context: vscode.ExtensionContext): void {
         this.context = context;
         this.secrets = context.secrets;
-        console.log('[SecretService] Initialized successfully');
+        debugLog('SecretService', 'Initialized successfully');
     }
 
     /**
@@ -79,10 +80,10 @@ export class SecretService {
         this.ensureInitialized();
         try {
             const apiKey = await this.secrets!.get(SECRET_KEYS.GEMINI_API_KEY);
-            console.log('[SecretService] Get Gemini API Key:', apiKey ? 'configured' : 'not set');
+            debugLog('SecretService', `Get Gemini API Key: ${apiKey ? 'configured' : 'not set'}`);
             return apiKey;
         } catch (error) {
-            console.error('[SecretService] Failed to get Gemini API Key:', error);
+            debugError('SecretService', 'Failed to get Gemini API Key', error);
             return undefined;
         }
     }
@@ -95,9 +96,9 @@ export class SecretService {
         this.ensureInitialized();
         try {
             await this.secrets!.store(SECRET_KEYS.GEMINI_API_KEY, apiKey);
-            console.log('[SecretService] Gemini API Key stored securely');
+            debugLog('SecretService', 'Gemini API Key stored securely');
         } catch (error) {
-            console.error('[SecretService] Failed to store Gemini API Key:', error);
+            debugError('SecretService', 'Failed to store Gemini API Key', error);
             throw error;
         }
     }
@@ -109,9 +110,9 @@ export class SecretService {
         this.ensureInitialized();
         try {
             await this.secrets!.delete(SECRET_KEYS.GEMINI_API_KEY);
-            console.log('[SecretService] Gemini API Key deleted');
+            debugLog('SecretService', 'Gemini API Key deleted');
         } catch (error) {
-            console.error('[SecretService] Failed to delete Gemini API Key:', error);
+            debugError('SecretService', 'Failed to delete Gemini API Key', error);
             throw error;
         }
     }
@@ -134,7 +135,7 @@ export class SecretService {
     public async setGeminiIntegrationEnabled(enabled: boolean): Promise<void> {
         const config = vscode.workspace.getConfiguration();
         await config.update(CONFIG_KEYS.GEMINI_ENABLED, enabled, vscode.ConfigurationTarget.Global);
-        console.log('[SecretService] Gemini Integration status updated:', enabled);
+        debugLog('SecretService', `Gemini Integration status updated: ${enabled}`);
     }
 
     /**

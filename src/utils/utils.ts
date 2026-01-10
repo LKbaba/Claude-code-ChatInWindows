@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { TOOL_STATUS_MAP, DEFAULT_TOOL_STATUS, READ_TOOL_DEFAULTS, FILE_SIZE_LIMITS } from './constants';
 import { getNpmPrefix } from './npmFinder';
+import { debugLog, debugError } from '../services/DebugLogger';
 
 const exec = util.promisify(cp.exec);
 
@@ -21,7 +22,7 @@ export async function resolveNpmPrefix(): Promise<string | undefined> {
     const prefix = await getNpmPrefix();
 
     if (!prefix) {
-        console.error('[utils] Could not get npm prefix');
+        debugError('utils', 'Could not get npm prefix');
         vscode.window.showErrorMessage(
             'Could not find npm global path. Please ensure Node.js and npm are properly installed.\n' +
             'Tip: Try starting VS Code from command line (run "code" command)'
@@ -29,7 +30,7 @@ export async function resolveNpmPrefix(): Promise<string | undefined> {
         return undefined;
     }
 
-    console.log(`[utils] npm prefix found at: ${prefix}`);
+    debugLog('utils', `npm prefix found at: ${prefix}`);
     return prefix;
 }
 
@@ -128,15 +129,15 @@ export function optimizeToolInput(
             
             // Log what was added
             if (!hadOffset && !hadLimit) {
-                console.log(`Read tool: Enforced offset=${READ_TOOL_DEFAULTS.DEFAULT_OFFSET} and limit=${READ_TOOL_DEFAULTS.CONSERVATIVE_LIMIT} for file "${optimizedInput.file_path}"`);
+                debugLog('ReadTool', `Enforced offset=${READ_TOOL_DEFAULTS.DEFAULT_OFFSET} and limit=${READ_TOOL_DEFAULTS.CONSERVATIVE_LIMIT} for file "${optimizedInput.file_path}"`);
             } else if (!hadOffset) {
-                console.log(`Read tool: Added missing offset=${READ_TOOL_DEFAULTS.DEFAULT_OFFSET} (limit=${optimizedInput.limit}) for file "${optimizedInput.file_path}"`);
+                debugLog('ReadTool', `Added missing offset=${READ_TOOL_DEFAULTS.DEFAULT_OFFSET} (limit=${optimizedInput.limit}) for file "${optimizedInput.file_path}"`);
             } else if (!hadLimit) {
-                console.log(`Read tool: Added missing limit=${READ_TOOL_DEFAULTS.CONSERVATIVE_LIMIT} (offset=${optimizedInput.offset}) for file "${optimizedInput.file_path}"`);
+                debugLog('ReadTool', `Added missing limit=${READ_TOOL_DEFAULTS.CONSERVATIVE_LIMIT} (offset=${optimizedInput.offset}) for file "${optimizedInput.file_path}"`);
             }
-            
+
             // Always log the final parameters for debugging
-            console.log(`Read tool parameters: file="${optimizedInput.file_path}", offset=${optimizedInput.offset}, limit=${optimizedInput.limit}`);
+            debugLog('ReadTool', `Parameters: file="${optimizedInput.file_path}", offset=${optimizedInput.offset}, limit=${optimizedInput.limit}`);
             break;
 
         case 'Bash':
@@ -149,7 +150,7 @@ export function optimizeToolInput(
                 if (originalCommand.includes('&&')) {
                     // Use bash -c to ensure proper shell execution with && support
                     optimizedInput.command = `bash -c "${originalCommand.replace(/"/g, '\\"')}"`;
-                    console.log(`Wrapped Bash command for Windows: "${originalCommand}" -> "${optimizedInput.command}"`);
+                    debugLog('BashTool', `Wrapped command for Windows: "${originalCommand}" -> "${optimizedInput.command}"`);
                     
                     // Send optimization notice to UI
                     if (onMessage) {
@@ -165,7 +166,7 @@ export function optimizeToolInput(
         case 'Grep':
             // v1.0.45 redesigned the Grep tool with new parameters
             // Ensure compatibility by logging parameters for debugging
-            console.log(`Grep tool parameters: pattern="${optimizedInput.pattern}", path="${optimizedInput.path || '.'}", include="${optimizedInput.include || ''}", exclude="${optimizedInput.exclude || ''}"`);
+            debugLog('GrepTool', `Parameters: pattern="${optimizedInput.pattern}", path="${optimizedInput.path || '.'}", include="${optimizedInput.include || ''}", exclude="${optimizedInput.exclude || ''}"`);
             
             // Fix Windows path if provided
             if (optimizedInput.path && process.platform === 'win32') {
@@ -394,11 +395,10 @@ n8n_update_partial_workflow({
         // Only write file when update is needed
         if (needsUpdate) {
             fs.writeFileSync(claudeMdPath, content, 'utf8');
-            console.log('[updateClaudeMd] Successfully updated CLAUDE.md with:', 
-                updatedSections.join(', '));
+            debugLog('updateClaudeMd', `Successfully updated CLAUDE.md with: ${updatedSections.join(', ')}`);
         }
     } catch (error) {
-        console.error('[updateClaudeMd] Failed to update CLAUDE.md:', error);
+        debugError('updateClaudeMd', 'Failed to update CLAUDE.md', error);
         // Don't throw - this is not critical
     }
 }

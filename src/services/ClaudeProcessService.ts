@@ -11,6 +11,7 @@ import { ConfigurationManagerFacade } from '../managers/config/ConfigurationMana
 import { ConversationManager } from '../managers/ConversationManager';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { getMcpSystemPrompts } from '../utils/mcpPrompts';
+import { debugLog, debugError } from './DebugLogger';
 
 export interface ProcessOptions {
     message: string;
@@ -79,7 +80,7 @@ export class ClaudeProcessService {
         execEnvironment.spawnOptions.cwd = fixedCwd;
         
         // Spawn the process
-        console.log('[ClaudeProcessService] Spawning Claude with:', {
+        debugLog('ClaudeProcessService', 'Spawning Claude', {
             executable: execEnvironment.claudeExecutablePath,
             args: args,
             cwd: fixedCwd,
@@ -88,10 +89,10 @@ export class ClaudeProcessService {
             argsDetails: args.map((arg, i) => `[${i}]: "${arg}"`)
         });
         this._currentProcess = cp.spawn(execEnvironment.claudeExecutablePath, args, { ...execEnvironment.spawnOptions, cwd: fixedCwd });
-        
+
         // Send the message to stdin
         if (this._currentProcess.stdin) {
-            console.log('[ClaudeProcessService] Sending message to stdin:', options.message);
+            debugLog('ClaudeProcessService', `Sending message to stdin: ${options.message.substring(0, 100)}...`);
             this._currentProcess.stdin.write(options.message + '\n');
             this._currentProcess.stdin.end();
         }
@@ -118,12 +119,12 @@ export class ClaudeProcessService {
             try {
                 await this._windowsCompatibility.killProcess(pid);
             } catch (error) {
-                console.error('Error killing Claude process:', error);
+                debugError('ClaudeProcessService', 'Error killing Claude process', error);
                 // Try to kill directly as fallback
                 try {
                     processToKill.kill('SIGTERM');
                 } catch (killError) {
-                    console.error('Fallback kill failed:', killError);
+                    debugError('ClaudeProcessService', 'Fallback kill failed', killError);
                 }
             }
         }
@@ -166,7 +167,7 @@ export class ClaudeProcessService {
                 ANTHROPIC_API_KEY: apiConfig.key,
                 ANTHROPIC_BASE_URL: apiConfig.baseUrl
             };
-            console.log('[ClaudeProcessService] Using custom API:', {
+            debugLog('ClaudeProcessService', 'Using custom API', {
                 baseUrl: apiConfig.baseUrl,
                 hasKey: !!apiConfig.key
             });
@@ -212,18 +213,18 @@ export class ClaudeProcessService {
 
         // Add MCP system prompts if MCP is enabled
         const mcpStatus = this._configurationManager.getMcpStatus();
-        console.log('[ClaudeProcessService] MCP Status:', {
+        debugLog('ClaudeProcessService', 'MCP Status', {
             status: mcpStatus.status,
             serverCount: mcpStatus.servers?.length || 0,
             serverNames: mcpStatus.servers?.map((s: any) => s.name) || []
         });
-        
+
         if (mcpStatus.status === 'configured' && mcpStatus.servers && mcpStatus.servers.length > 0) {
             const mcpPrompts = getMcpSystemPrompts(mcpStatus.servers);
             if (mcpPrompts && mcpPrompts.trim()) {
                 // On Windows, we need to properly escape the multi-line prompt
                 // The prompt should be passed as a single quoted argument
-                console.log('[ClaudeProcessService] MCP prompts content:', {
+                debugLog('ClaudeProcessService', 'MCP prompts content', {
                     length: mcpPrompts.length,
                     hasNewlines: mcpPrompts.includes('\n'),
                     preview: mcpPrompts.substring(0, 100) + '...'
@@ -306,9 +307,9 @@ export class ClaudeProcessService {
 
         // Handle process error
         process.on('error', (error: Error) => {
-            console.error('Claude process error:', error);
+            debugError('ClaudeProcessService', 'Claude process error', error);
             callbacks.onError(`Process error: ${error.message}`);
-            
+
             // Clear process reference
             if (this._currentProcess === process) {
                 this._currentProcess = undefined;

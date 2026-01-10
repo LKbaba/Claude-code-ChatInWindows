@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as util from 'util';
+import { debugLog, debugError } from '../services/DebugLogger';
 
 const exec = util.promisify(cp.exec);
 
@@ -46,7 +47,7 @@ export async function findNpmExecutable(): Promise<string | null> {
         'C:\\ProgramData\\chocolatey\\bin\\npm',
     ];
 
-    console.log('[npmFinder] Starting to find npm executable...');
+    debugLog('npmFinder', 'Starting to find npm executable...');
 
     // Try each path
     for (const npmPath of possiblePaths) {
@@ -54,24 +55,24 @@ export async function findNpmExecutable(): Promise<string | null> {
             if (npmPath === 'npm') {
                 // Try direct execution
                 const { stdout } = await exec('npm --version');
-                console.log(`[npmFinder] Success: Found npm in PATH, version: ${stdout.trim()}`);
+                debugLog('npmFinder', `Success: Found npm in PATH, version: ${stdout.trim()}`);
                 return 'npm';
             } else if (npmPath && fs.existsSync(npmPath)) {
                 // Check if file exists and is executable
                 const { stdout } = await exec(`"${npmPath}" --version`);
-                console.log(`[npmFinder] Success: Found npm at ${npmPath}, version: ${stdout.trim()}`);
+                debugLog('npmFinder', `Success: Found npm at ${npmPath}, version: ${stdout.trim()}`);
                 return npmPath;
             }
         } catch (error) {
             // Continue to try next path
             if (npmPath !== 'npm') {
-                console.log(`[npmFinder] Not found at ${npmPath}`);
+                debugLog('npmFinder', `Not found at ${npmPath}`);
             }
             continue;
         }
     }
 
-    console.error('[npmFinder] Error: Could not find npm in any known location');
+    debugError('npmFinder', 'Could not find npm in any known location');
     return null;
 }
 
@@ -84,7 +85,7 @@ export async function getNpmPrefix(): Promise<string | undefined> {
         const npmPath = await findNpmExecutable();
 
         if (!npmPath) {
-            console.error('[npmFinder] Could not find npm executable');
+            debugError('npmFinder', 'Could not find npm executable');
             return undefined;
         }
 
@@ -93,19 +94,19 @@ export async function getNpmPrefix(): Promise<string | undefined> {
             ? 'npm config get prefix'
             : `"${npmPath}" config get prefix`;
 
-        console.log(`[npmFinder] Executing command: ${command}`);
+        debugLog('npmFinder', `Executing command: ${command}`);
         const { stdout } = await exec(command);
         const prefix = stdout.trim();
 
         if (!prefix) {
-            console.error('[npmFinder] npm config get prefix returned empty');
+            debugError('npmFinder', 'npm config get prefix returned empty');
             return undefined;
         }
 
-        console.log(`[npmFinder] Successfully got npm prefix: ${prefix}`);
+        debugLog('npmFinder', `Successfully got npm prefix: ${prefix}`);
         return prefix;
     } catch (error) {
-        console.error('[npmFinder] Failed to execute npm config get prefix:', error);
+        debugError('npmFinder', 'Failed to execute npm config get prefix', error);
         return undefined;
     }
 }

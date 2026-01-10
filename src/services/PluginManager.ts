@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { debugLog, debugWarn, debugError } from './DebugLogger';
 
 /**
  * 已安装插件的数据结构
@@ -99,11 +100,11 @@ export class PluginManager {
     public async loadInstalledPlugins(forceReload: boolean = false): Promise<InstalledPlugin[]> {
         // 如果有缓存且不强制刷新，直接返回缓存
         if (this.cachedPlugins && !forceReload) {
-            console.log('[PluginManager] Returning cached plugins');
+            debugLog('PluginManager', 'Returning cached plugins');
             return this.cachedPlugins;
         }
 
-        console.log('[PluginManager] Loading plugins from file');
+        debugLog('PluginManager', 'Loading plugins from file');
 
         try {
             // 获取插件配置文件路径
@@ -111,7 +112,7 @@ export class PluginManager {
 
             // 检查文件是否存在
             if (!fs.existsSync(pluginsFilePath)) {
-                console.warn(`[PluginManager] Plugin config file not found: ${pluginsFilePath}`);
+                debugWarn('PluginManager', `Plugin config file not found: ${pluginsFilePath}`);
                 this.cachedPlugins = [];
                 return [];
             }
@@ -130,11 +131,11 @@ export class PluginManager {
             this.cachedPlugins = plugins;
             this.lastLoadTime = Date.now();
 
-            console.log(`[PluginManager] Successfully loaded ${plugins.length} plugin(s)`);
+            debugLog('PluginManager', `Successfully loaded ${plugins.length} plugin(s)`);
             return plugins;
 
         } catch (error) {
-            console.error('[PluginManager] Failed to load plugins:', error);
+            debugError('PluginManager', 'Failed to load plugins', error);
 
             // 错误情况下返回空数组，不影响扩展运行
             this.cachedPlugins = [];
@@ -148,7 +149,7 @@ export class PluginManager {
      */
     public getCachedPlugins(): InstalledPlugin[] {
         if (!this.cachedPlugins) {
-            console.warn('[PluginManager] Cache is empty, returning empty array');
+            debugWarn('PluginManager', 'Cache is empty, returning empty array');
             return [];
         }
         return this.cachedPlugins;
@@ -172,7 +173,7 @@ export class PluginManager {
         const plugins: InstalledPlugin[] = [];
 
         if (!pluginsData.plugins || typeof pluginsData.plugins !== 'object') {
-            console.warn('[PluginManager] Plugin data format is invalid');
+            debugWarn('PluginManager', 'Plugin data format is invalid');
             return plugins;
         }
 
@@ -199,7 +200,7 @@ export class PluginManager {
 
                 plugins.push(plugin);
             } catch (error) {
-                console.error(`[PluginManager] Failed to parse plugin: ${key}`, error);
+                debugError('PluginManager', `Failed to parse plugin: ${key}`, error);
             }
         }
 
@@ -241,7 +242,7 @@ export class PluginManager {
         this.cachedPlugins = null;
         this.marketplaceMetadata = {};
         this.lastLoadTime = 0;
-        console.log('[PluginManager] Cache cleared');
+        debugLog('PluginManager', 'Cache cleared');
     }
 
     /**
@@ -253,7 +254,7 @@ export class PluginManager {
             // 从第一个安装路径推断 marketplace 目录
             const firstPlugin = Object.values(pluginsData.plugins)[0];
             if (!firstPlugin || !firstPlugin.installPath) {
-                console.warn('[PluginManager] Cannot find plugin installation path');
+                debugWarn('PluginManager', 'Cannot find plugin installation path');
                 return;
             }
 
@@ -265,12 +266,12 @@ export class PluginManager {
             const marketplacePath = path.dirname(path.dirname(installPath));
             const marketplaceJsonPath = path.join(marketplacePath, '.claude-plugin', 'marketplace.json');
 
-            console.log(`[PluginManager] Inferred marketplace path: ${marketplacePath}`);
-            console.log(`[PluginManager] marketplace.json path: ${marketplaceJsonPath}`);
+            debugLog('PluginManager', `Inferred marketplace path: ${marketplacePath}`);
+            debugLog('PluginManager', `marketplace.json path: ${marketplaceJsonPath}`);
 
             // 检查文件是否存在
             if (!fs.existsSync(marketplaceJsonPath)) {
-                console.warn(`[PluginManager] marketplace.json not found: ${marketplaceJsonPath}`);
+                debugWarn('PluginManager', `marketplace.json not found: ${marketplaceJsonPath}`);
                 return;
             }
 
@@ -286,9 +287,9 @@ export class PluginManager {
                 };
             }
 
-            console.log(`[PluginManager] Successfully loaded marketplace metadata with ${Object.keys(this.marketplaceMetadata).length} plugin(s)`);
+            debugLog('PluginManager', `Successfully loaded marketplace metadata with ${Object.keys(this.marketplaceMetadata).length} plugin(s)`);
         } catch (error) {
-            console.error('[PluginManager] Failed to load marketplace metadata:', error);
+            debugError('PluginManager', 'Failed to load marketplace metadata', error);
         }
     }
 
@@ -337,7 +338,7 @@ export class PluginManager {
 
             return undefined;
         } catch (error) {
-            console.error(`[PluginManager] Failed to read plugin description: ${installPath}`, error);
+            debugError('PluginManager', `Failed to read plugin description: ${installPath}`, error);
             return undefined;
         }
     }
@@ -375,7 +376,7 @@ export class PluginManager {
                 }
             }
         } catch (error) {
-            console.error(`[PluginManager] Failed to read directory: ${dirPath}`, error);
+            debugError('PluginManager', `Failed to read directory: ${dirPath}`, error);
         }
 
         return descriptions;
