@@ -22,6 +22,8 @@ export interface MessageCallbacks {
     sendToWebview: (message: any) => void;
     saveMessage: (message: any) => void;
     onOperationTracked?: (operation: Operation) => void;
+    // Plan Mode 状态变化回调：当 Claude 调用 EnterPlanMode/ExitPlanMode 时触发
+    onPlanModeChange?: (isInPlanMode: boolean) => void;
 }
 
 export interface TokenUpdate {
@@ -274,7 +276,7 @@ export class MessageProcessor {
                 // Analyze bash command for file operations
                 const command = content.input.command || '';
                 const fileOpResult = this._analyzeBashCommand(command);
-                
+
                 if (fileOpResult) {
                     operationType = fileOpResult.type;
                     operationData = fileOpResult.data;
@@ -283,6 +285,22 @@ export class MessageProcessor {
                     operationData = {
                         command: command
                     };
+                }
+                break;
+
+            case 'EnterPlanMode':
+                // Claude 进入 Plan Mode，通知前端更新 UI 状态
+                debugLog('MessageProcessor', 'Claude entered Plan Mode');
+                if (callbacks.onPlanModeChange) {
+                    callbacks.onPlanModeChange(true);
+                }
+                break;
+
+            case 'ExitPlanMode':
+                // Claude 退出 Plan Mode，通知前端恢复正常状态
+                debugLog('MessageProcessor', 'Claude exited Plan Mode');
+                if (callbacks.onPlanModeChange) {
+                    callbacks.onPlanModeChange(false);
                 }
                 break;
         }
@@ -618,9 +636,11 @@ export class MessageProcessor {
      * Determine if a tool result should be hidden
      */
     private _shouldHideToolResult(toolName: string | undefined, isError: boolean): boolean {
-        // Always hide AskUserQuestion results (regardless of error status)
-        // CLI's -p mode auto-returns "Error: Answer questions?" and re-displays in plain text
-        if (toolName === 'AskUserQuestion') {
+        // 始终隐藏 AskUserQuestion 和 ExitPlanMode 的结果（无论是否错误）
+        // CLI 的 -p 模式会自动返回错误消息，然后 Claude 会用普通文本重新处理
+        // - AskUserQuestion: "Error: Answer questions?" → Claude 用文本重新显示问题
+        // - ExitPlanMode: "Exit plan mode?" → Claude 确认退出并继续
+        if (toolName === 'AskUserQuestion' || toolName === 'ExitPlanMode') {
             return true;
         }
 
