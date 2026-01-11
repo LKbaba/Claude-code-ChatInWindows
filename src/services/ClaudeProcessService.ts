@@ -90,9 +90,9 @@ export class ClaudeProcessService {
         });
         this._currentProcess = cp.spawn(execEnvironment.claudeExecutablePath, args, { ...execEnvironment.spawnOptions, cwd: fixedCwd });
 
-        // 发送 JSON 格式的用户消息到 stdin
+        // Send JSON-formatted user message to stdin
         if (this._currentProcess.stdin) {
-            // 构建符合 stream-json 格式的用户消息
+            // Build user message in stream-json format
             const userMessage = this._buildUserMessage(options.message, options.imagesInMessage);
             const jsonMessage = JSON.stringify(userMessage);
             debugLog('ClaudeProcessService', `Sending JSON message to stdin: ${jsonMessage.substring(0, 200)}...`);
@@ -185,9 +185,9 @@ export class ClaudeProcessService {
     private async _buildCommandArgs(options: ProcessOptions, mcpConfigPath: string | null): Promise<string[]> {
         const args: string[] = [];
 
-        // 添加基础参数
-        // --input-format=stream-json: 启用 JSON 输入格式，与 output-format 一致
-        // --dangerously-skip-permissions: 自动批准所有权限
+        // Add base arguments
+        // --input-format=stream-json: Enable JSON input format, consistent with output-format
+        // --dangerously-skip-permissions: Auto-approve all permissions
         args.push(
             '-p',
             '--output-format', 'stream-json',
@@ -251,30 +251,30 @@ export class ClaudeProcessService {
     }
 
     /**
-     * 构建用户消息 JSON
-     * 将用户输入转换为 Claude CLI stream-json 格式
-     * @param text 文本内容
-     * @param images 图片数组（Base64 编码，可选）
+     * Build user message JSON
+     * Convert user input to Claude CLI stream-json format
+     * @param text Text content
+     * @param images Image array (Base64 encoded, optional)
      */
     private _buildUserMessage(text: string, images?: string[]): object {
-        // 构建消息内容数组，首先添加文本
+        // Build message content array, starting with text
         const content: any[] = [{ type: 'text', text }];
 
-        // 添加图片（如果有）
+        // Add images if provided
         if (images && images.length > 0) {
             images.forEach(imageData => {
                 content.push({
                     type: 'image',
                     source: {
                         type: 'base64',
-                        media_type: 'image/png',  // 默认 PNG，后续可扩展自动检测
+                        media_type: 'image/png',  // Default PNG, can be extended for auto-detection
                         data: imageData
                     }
                 });
             });
         }
 
-        // 返回符合 stream-json 格式的用户消息对象
+        // Return user message object in stream-json format
         return {
             type: 'user',
             message: {
@@ -363,8 +363,8 @@ export class ClaudeProcessService {
     }
 
     /**
-     * 清理资源（VS Code 关闭或扩展停用时调用）
-     * 确保 Claude CLI 进程被正确终止，防止孤儿进程
+     * Clean up resources (called when VS Code closes or extension deactivates)
+     * Ensure Claude CLI process is properly terminated to prevent orphan processes
      */
     public dispose(): void {
         if (this._currentProcess) {

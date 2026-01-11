@@ -618,8 +618,8 @@ export class MessageProcessor {
      * Determine if a tool result should be hidden
      */
     private _shouldHideToolResult(toolName: string | undefined, isError: boolean): boolean {
-        // AskUserQuestion 的结果始终隐藏（无论是否错误）
-        // CLI 的 -p 模式会自动返回 "Error: Answer questions?" 并用普通文本重新显示问题
+        // Always hide AskUserQuestion results (regardless of error status)
+        // CLI's -p mode auto-returns "Error: Answer questions?" and re-displays in plain text
         if (toolName === 'AskUserQuestion') {
             return true;
         }

@@ -269,9 +269,9 @@ export const uiScript = `
 			// Clear tool status when result is received
 			clearToolStatus();
 
-			// 隐藏标记的工具结果
-			// AskUserQuestion: CLI 会自动返回错误并用普通文本重新显示问题，无需显示错误
-			// Read, Edit 等: 成功结果不需要显示
+			// Hide marked tool results
+			// AskUserQuestion: CLI auto-returns error and re-displays in plain text, no need to show error
+			// Read, Edit, etc.: Success results don't need to be displayed
 			if (data.hidden) {
 				// Don't hide MCP thinking results - we want to show them
 				if (data.toolName && data.toolName.startsWith('mcp__') && data.toolName.includes('thinking')) {
