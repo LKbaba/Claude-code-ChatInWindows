@@ -22,7 +22,7 @@ export interface MessageCallbacks {
     sendToWebview: (message: any) => void;
     saveMessage: (message: any) => void;
     onOperationTracked?: (operation: Operation) => void;
-    // Plan Mode 状态变化回调：当 Claude 调用 EnterPlanMode/ExitPlanMode 时触发
+    // Plan Mode state change callback: triggered when Claude calls EnterPlanMode/ExitPlanMode
     onPlanModeChange?: (isInPlanMode: boolean) => void;
 }
 
@@ -289,7 +289,7 @@ export class MessageProcessor {
                 break;
 
             case 'EnterPlanMode':
-                // Claude 进入 Plan Mode，通知前端更新 UI 状态
+                // Claude entered Plan Mode, notify frontend to update UI state
                 debugLog('MessageProcessor', 'Claude entered Plan Mode');
                 if (callbacks.onPlanModeChange) {
                     callbacks.onPlanModeChange(true);
@@ -297,7 +297,7 @@ export class MessageProcessor {
                 break;
 
             case 'ExitPlanMode':
-                // Claude 退出 Plan Mode，通知前端恢复正常状态
+                // Claude exited Plan Mode, notify frontend to restore normal state
                 debugLog('MessageProcessor', 'Claude exited Plan Mode');
                 if (callbacks.onPlanModeChange) {
                     callbacks.onPlanModeChange(false);
@@ -498,7 +498,7 @@ export class MessageProcessor {
                     }
                 }
                 break;
-            // Claude Code 2.1.2 新增工具
+            // Claude Code 2.1.2+ new tools
             case 'TaskOutput':
                 if (content.input?.task_id) {
                     details = ` • task: ${content.input.task_id}`;
@@ -521,7 +521,7 @@ export class MessageProcessor {
                 break;
             case 'EnterPlanMode':
             case 'ExitPlanMode':
-                // 这些工具没有特别需要显示的参数
+                // These tools don't have special parameters to display
                 break;
         }
 
@@ -636,10 +636,10 @@ export class MessageProcessor {
      * Determine if a tool result should be hidden
      */
     private _shouldHideToolResult(toolName: string | undefined, isError: boolean): boolean {
-        // 始终隐藏 AskUserQuestion 和 ExitPlanMode 的结果（无论是否错误）
-        // CLI 的 -p 模式会自动返回错误消息，然后 Claude 会用普通文本重新处理
-        // - AskUserQuestion: "Error: Answer questions?" → Claude 用文本重新显示问题
-        // - ExitPlanMode: "Exit plan mode?" → Claude 确认退出并继续
+        // Always hide AskUserQuestion and ExitPlanMode results (regardless of error status)
+        // CLI's -p mode auto-returns error messages, then Claude will reprocess with plain text
+        // - AskUserQuestion: "Error: Answer questions?" → Claude redisplays question as text
+        // - ExitPlanMode: "Exit plan mode?" → Claude confirms exit and continues
         if (toolName === 'AskUserQuestion' || toolName === 'ExitPlanMode') {
             return true;
         }
@@ -764,7 +764,7 @@ export class MessageProcessor {
     private _updateTokens(usage: any, callbacks: MessageCallbacks): void {
         const inputTokens = usage.input_tokens || 0;
         const outputTokens = usage.output_tokens || 0;
-        // 缓存相关的 tokens 不计入总数，只传递给前端显示
+        // Cache-related tokens are not counted in totals, only passed to frontend for display
         const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
         const cacheReadTokens = usage.cache_read_input_tokens || 0;
         
