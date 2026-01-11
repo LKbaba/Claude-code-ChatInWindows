@@ -565,7 +565,7 @@ export class ClaudeChatProvider {
 							// In compact mode, collect summary instead of displaying immediately
 							this._compactSummaryBuffer += text;
 						} else {
-							// 正常模式下，显示 Claude 的响应
+							// In normal mode, display Claude's response
 							this._sendAndSaveMessage({
 								type: 'output',
 								data: text
@@ -624,8 +624,8 @@ export class ClaudeChatProvider {
 						this._totalTokensOutput = totals.totalTokensOutput;
 						this._requestCount = totals.requestCount;
 
-						// 收到最终结果时立即更新 UI 状态为 Ready
-						// 不等待进程 close 事件，避免 ~0.5s 的延迟
+						// Update UI state to Ready immediately when final result is received
+						// Don't wait for process close event to avoid ~0.5s delay
 						if (!this._isCompactMode) {
 							this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
 						}
@@ -3011,7 +3011,7 @@ Please provide a well-structured summary.`;
 	}
 
 	public dispose() {
-		// 清理 Claude 进程服务，防止孤儿进程
+		// Clean up Claude process service to prevent orphan processes
 		if (this._processService) {
 			this._processService.dispose();
 		}
