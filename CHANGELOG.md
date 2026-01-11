@@ -14,15 +14,27 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
 - **Compact mode processing state**
   - Fixed `_isCompactMode` flag being reset too early (before process completion)
   - Filtered out `current*` fields from `updateTotals` messages during compact mode
+- **Ready state delay**
+  - Fixed ~0.5s delay between showing cost info and "Ready" status
+  - Now sends `setProcessing: false` in `onFinalResult` callback instead of waiting for `onClose`
+- **AskUserQuestion error display**
+  - Hidden CLI auto-returned error message `"Error: Answer questions?"`
+  - Claude will re-display questions in plain text format
 
 ### Changed
 - Changed Compact icon from 🗜️ to ⚡ for better visual representation
 - Changed Compact summary messages to English for international users:
   - "⚡ Conversation Summary" instead of "⚓️ 对话总结"
   - "This is a summary of the previous conversation. Starting a new conversation now."
+- Simplified AskUserQuestion handling (due to CLI `-p` mode architectural limitation)
+  - Removed interactive modal UI code (~580 lines of CSS/JS)
+  - Questions now answered through normal chat flow
 
 ### Added
 - Added note in Usage Statistics that subagent usage is excluded from calculations
+- Added `dispose()` method to `ClaudeProcessService` for proper process cleanup
+- Added `--input-format=stream-json` parameter for consistent JSON messaging
+- Added `_buildUserMessage()` method for structured message construction
 
 ## [3.0.2]
 

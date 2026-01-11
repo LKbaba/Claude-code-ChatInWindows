@@ -268,14 +268,16 @@ export const uiScript = `
 		function addToolResultMessage(data) {
 			// Clear tool status when result is received
 			clearToolStatus();
-			
-			// For Read and Edit tools with hidden flag, just hide loading state
-			if (data.hidden && !data.isError) {
+
+			// 隐藏标记的工具结果
+			// AskUserQuestion: CLI 会自动返回错误并用普通文本重新显示问题，无需显示错误
+			// Read, Edit 等: 成功结果不需要显示
+			if (data.hidden) {
 				// Don't hide MCP thinking results - we want to show them
 				if (data.toolName && data.toolName.startsWith('mcp__') && data.toolName.includes('thinking')) {
 					// Continue to show the result
 				} else {
-					// Hide other tools like Read, Edit, etc.
+					// Hide AskUserQuestion errors and other hidden tools
 					return;
 				}
 			}

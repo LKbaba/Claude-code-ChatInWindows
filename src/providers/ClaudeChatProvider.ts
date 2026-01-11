@@ -565,7 +565,7 @@ export class ClaudeChatProvider {
 							// In compact mode, collect summary instead of displaying immediately
 							this._compactSummaryBuffer += text;
 						} else {
-							// In normal mode, display Claude's response
+							// 正常模式下，显示 Claude 的响应
 							this._sendAndSaveMessage({
 								type: 'output',
 								data: text
@@ -598,18 +598,18 @@ export class ClaudeChatProvider {
 					onFinalResult: (result: any) => {
 						if (result.sessionId) {
 							this._currentSessionId = result.sessionId;
-							
+
 							// Set conversationId on first session creation
 							if (!this._conversationId) {
 								this._conversationId = result.sessionId;
 								debugLog('ClaudeChatProvider', `Set conversationId: ${this._conversationId}`);
 							}
-							
+
 							// Update operation tracker with conversationId
 							if (this._conversationId) {
 								this._operationTracker.setCurrentSession(this._conversationId);
 							}
-							
+
 							this._sendAndSaveMessage({
 								type: 'sessionInfo',
 								data: {
@@ -623,6 +623,12 @@ export class ClaudeChatProvider {
 						this._totalTokensInput = totals.totalTokensInput;
 						this._totalTokensOutput = totals.totalTokensOutput;
 						this._requestCount = totals.requestCount;
+
+						// 收到最终结果时立即更新 UI 状态为 Ready
+						// 不等待进程 close 事件，避免 ~0.5s 的延迟
+						if (!this._isCompactMode) {
+							this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
+						}
 					},
 					onError: (error: string) => {
 						if (error.includes('login')) {
@@ -3005,6 +3011,11 @@ Please provide a well-structured summary.`;
 	}
 
 	public dispose() {
+		// 清理 Claude 进程服务，防止孤儿进程
+		if (this._processService) {
+			this._processService.dispose();
+		}
+
 		if (this._panel) {
 			this._panel.dispose();
 			this._panel = undefined;
