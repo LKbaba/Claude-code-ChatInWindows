@@ -90,10 +90,13 @@ export class ClaudeProcessService {
         });
         this._currentProcess = cp.spawn(execEnvironment.claudeExecutablePath, args, { ...execEnvironment.spawnOptions, cwd: fixedCwd });
 
-        // Send the message to stdin
+        // 发送 JSON 格式的用户消息到 stdin
         if (this._currentProcess.stdin) {
-            debugLog('ClaudeProcessService', `Sending message to stdin: ${options.message.substring(0, 100)}...`);
-            this._currentProcess.stdin.write(options.message + '\n');
+            // 构建符合 stream-json 格式的用户消息
+            const userMessage = this._buildUserMessage(options.message, options.imagesInMessage);
+            const jsonMessage = JSON.stringify(userMessage);
+            debugLog('ClaudeProcessService', `Sending JSON message to stdin: ${jsonMessage.substring(0, 200)}...`);
+            this._currentProcess.stdin.write(jsonMessage + '\n');
             this._currentProcess.stdin.end();
         }
         
@@ -182,8 +185,16 @@ export class ClaudeProcessService {
     private async _buildCommandArgs(options: ProcessOptions, mcpConfigPath: string | null): Promise<string[]> {
         const args: string[] = [];
 
-        // Add base arguments
-        args.push('-p', '--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions');
+        // 添加基础参数
+        // --input-format=stream-json: 启用 JSON 输入格式，与 output-format 一致
+        // --dangerously-skip-permissions: 自动批准所有权限
+        args.push(
+            '-p',
+            '--output-format', 'stream-json',
+            '--input-format', 'stream-json',
+            '--verbose',
+            '--dangerously-skip-permissions'
+        );
 
         // Add MCP config if available
         if (mcpConfigPath) {
@@ -237,6 +248,40 @@ export class ClaudeProcessService {
         // Note: The message is not added to args anymore - it will be sent via stdin
 
         return args;
+    }
+
+    /**
+     * 构建用户消息 JSON
+     * 将用户输入转换为 Claude CLI stream-json 格式
+     * @param text 文本内容
+     * @param images 图片数组（Base64 编码，可选）
+     */
+    private _buildUserMessage(text: string, images?: string[]): object {
+        // 构建消息内容数组，首先添加文本
+        const content: any[] = [{ type: 'text', text }];
+
+        // 添加图片（如果有）
+        if (images && images.length > 0) {
+            images.forEach(imageData => {
+                content.push({
+                    type: 'image',
+                    source: {
+                        type: 'base64',
+                        media_type: 'image/png',  // 默认 PNG，后续可扩展自动检测
+                        data: imageData
+                    }
+                });
+            });
+        }
+
+        // 返回符合 stream-json 格式的用户消息对象
+        return {
+            type: 'user',
+            message: {
+                role: 'user',
+                content
+            }
+        };
     }
 
     /**
@@ -315,5 +360,21 @@ export class ClaudeProcessService {
                 this._currentProcess = undefined;
             }
         });
+    }
+
+    /**
+     * 清理资源（VS Code 关闭或扩展停用时调用）
+     * 确保 Claude CLI 进程被正确终止，防止孤儿进程
+     */
+    public dispose(): void {
+        if (this._currentProcess) {
+            debugLog('ClaudeProcessService', 'Disposing: killing Claude process on extension deactivation');
+            try {
+                this._currentProcess.kill();
+            } catch (error) {
+                debugError('ClaudeProcessService', 'Error killing process during dispose', error);
+            }
+            this._currentProcess = undefined;
+        }
     }
 }

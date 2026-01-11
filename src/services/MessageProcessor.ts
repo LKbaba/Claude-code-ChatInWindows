@@ -618,16 +618,22 @@ export class MessageProcessor {
      * Determine if a tool result should be hidden
      */
     private _shouldHideToolResult(toolName: string | undefined, isError: boolean): boolean {
+        // AskUserQuestion 的结果始终隐藏（无论是否错误）
+        // CLI 的 -p 模式会自动返回 "Error: Answer questions?" 并用普通文本重新显示问题
+        if (toolName === 'AskUserQuestion') {
+            return true;
+        }
+
         if (isError) return false;
-        
+
         // Don't hide thinking results - we want to show the thinking process
         // Only hide specific tools that don't have useful output
         const hiddenTools = ['Read', 'Edit', 'TodoWrite', 'MultiEdit'];
-        
+
         // Also hide MCP thinking results that only contain metadata
         // (You can comment out this line if you want to see all MCP results)
         // if (toolName === 'mcp__sequential-thinking__sequentialthinking') return true;
-        
+
         return toolName ? hiddenTools.includes(toolName) : false;
     }
     
