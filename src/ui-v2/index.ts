@@ -31,40 +31,40 @@ export function generateUIHtml(): string {
 }
 
 function getStyles(): string {
-  // 渐进式改进：保持布局稳定，逐步引入视觉增强
+  // Progressive enhancement: maintain layout stability, gradually introduce visual enhancements
   return `<style>${getStylesWithEnhancements()}</style>`;
 }
 
-// 渐进式样式改进 - 在原有样式基础上逐步添加增强效果
+// Progressive style improvements - gradually add enhancements on top of original styles
 function getStylesWithEnhancements(): string {
-  // 第一步：定义和谐的深色主题渐变色系统
+  // Step 1: Define harmonious dark theme gradient color system
   const colorVariables = `
     :root {
-      /* 主渐变色 - 深靛蓝到深紫（更柔和） */
+      /* Primary gradient - deep indigo to deep purple (softer) */
       --grad-primary: linear-gradient(90deg, #3730a3 0%, #4c1d95 100%);
       --grad-primary-start: #3730a3;
       --grad-primary-end: #4c1d95;
       --grad-primary-mid: #4338ca;
-      
-      /* 语义渐变色 - 全部调整为深色系 */
+
+      /* Semantic gradients - all adjusted for dark theme */
       --grad-success: linear-gradient(135deg, #166534 0%, #14532d 100%);
       --grad-warning: linear-gradient(135deg, #a16207 0%, #854d0e 100%);
       --grad-error: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
       --grad-info: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
-      
-      /* 工具渐变色 */
+
+      /* Tool gradients */
       --grad-tool: linear-gradient(135deg, #5b21b6 0%, #4c1d95 100%);
       --grad-tool-result: linear-gradient(135deg, #115e59 0%, #134e4a 100%);
-      
-      /* 焦点颜色（用于输入框等） */
+
+      /* Focus colors (for input fields etc.) */
       --color-focus-soft: rgba(99, 102, 241, 0.25);
       --color-focus-medium: rgba(99, 102, 241, 0.4);
     }
   `;
-  
-  // 第二步：只改primary按钮的背景色为渐变
+
+  // Step 2: Only change primary button background to gradient
   const primaryButtonEnhancement = `
-    /* Primary按钮渐变背景 - New Chat按钮 */
+    /* Primary button gradient background - New Chat button */
     .btn.primary {
       background: var(--grad-primary);
       color: white;
@@ -75,13 +75,13 @@ function getStylesWithEnhancements(): string {
       background: var(--grad-primary);
       opacity: 0.9;
       transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(67, 56, 202, 0.25);  /* 使用主色调的阴影 */
+      box-shadow: 0 2px 8px rgba(67, 56, 202, 0.25);  /* Use main color shadow */
     }
   `;
-  
-  // 第三步：Send按钮渐变
+
+  // Step 3: Send button gradient
   const sendButtonEnhancement = `
-    /* Send按钮渐变背景 */
+    /* Send button gradient background */
     .send-btn {
       background: var(--grad-primary);
       color: white;
@@ -98,19 +98,19 @@ function getStylesWithEnhancements(): string {
       background: var(--grad-primary);
       opacity: 0.9;
       transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(67, 56, 202, 0.25);  /* 使用主色调的阴影 */
+      box-shadow: 0 2px 8px rgba(67, 56, 202, 0.25);  /* Use main color shadow */
     }
-    
+
     .send-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
       background: linear-gradient(90deg, #cccccc 0%, #aaaaaa 100%);
     }
   `;
-  
-  // 第四步：Outlined按钮悬停效果增强
+
+  // Step 4: Outlined button hover effect enhancement
   const outlinedButtonEnhancement = `
-    /* Outlined按钮增强效果 - Settings、Stats等按钮 */
+    /* Outlined button enhancement - Settings, Stats buttons */
     .btn.outlined {
       background-color: transparent;
       color: var(--vscode-foreground);
@@ -119,8 +119,8 @@ function getStylesWithEnhancements(): string {
       overflow: hidden;
       transition: all 0.3s ease;
     }
-    
-    /* 添加渐变边框效果 */
+
+    /* Add gradient border effect */
     .btn.outlined::before {
       content: '';
       position: absolute;
@@ -136,26 +136,26 @@ function getStylesWithEnhancements(): string {
     }
     
     .btn.outlined:hover {
-      background-color: rgba(67, 56, 202, 0.05);  /* 使用主色调的透明版本 */
+      background-color: rgba(67, 56, 202, 0.05);  /* Use transparent version of main color */
       border-color: transparent;
       transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(67, 56, 202, 0.15);  /* 更柔和的阴影 */
+      box-shadow: 0 2px 8px rgba(67, 56, 202, 0.15);  /* Softer shadow */
     }
-    
+
     .btn.outlined:hover::before {
       opacity: 1;
     }
-    
-    /* 内部内容确保在渐变边框之上 */
+
+    /* Ensure inner content is above gradient border */
     .btn.outlined > * {
       position: relative;
       z-index: 1;
     }
   `;
-  
-  // 第五步：消息边框渐变和标签背景（和谐深色版本）
+
+  // Step 5: Message border gradient and label background (harmonious dark version)
   const messageEnhancement = `
-    /* 消息边框渐变 - 使用新的和谐色系 */
+    /* Message border gradient - using new harmonious color scheme */
     .message.user::before {
       content: '';
       position: absolute;
@@ -185,8 +185,8 @@ function getStylesWithEnhancements(): string {
       width: 4px;
       background: var(--grad-error);
     }
-    
-    /* 标签样式 - 使用新的和谐色系 */
+
+    /* Label styles - using new harmonious color scheme */
     .message-label {
       padding: 2px 8px;
       border-radius: 4px;
@@ -213,10 +213,10 @@ function getStylesWithEnhancements(): string {
       color: white;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     }
-    
-    /* 图标样式调整 - 移除此处定义，使用后面的定义 */
-    
-    /* 工具消息渐变 */
+
+    /* Icon style adjustment - removed here, using definition below */
+
+    /* Tool message gradients */
     .message.tool::before {
       content: '';
       position: absolute;
@@ -236,17 +236,17 @@ function getStylesWithEnhancements(): string {
       width: 4px;
       background: var(--grad-tool-result);
     }
-    
-    /* 工具消息标签样式 - 修正为只有标签有背景 */
+
+    /* Tool message label styles - fixed to only label has background */
     .message.tool {
       background-color: transparent !important;
     }
-    
+
     .message.tool-result {
       background-color: transparent !important;
     }
-    
-    /* 工具消息标签 */
+
+    /* Tool message labels */
     .message.tool .message-label {
       background: var(--grad-tool);
       color: white;
@@ -258,8 +258,8 @@ function getStylesWithEnhancements(): string {
       color: white;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     }
-    
-    /* 工具名称标签样式 */
+
+    /* Tool name label styles */
     .tool-name {
       display: inline-block;
       padding: 2px 8px;
@@ -271,21 +271,21 @@ function getStylesWithEnhancements(): string {
       margin-right: 8px;
     }
   `;
-  
-  // 第六步：输入框焦点动画（柔和版本）
+
+  // Step 6: Input field focus animation (softer version)
   const inputFocusEnhancement = `
-    /* 输入框焦点效果 - 更柔和 */
+    /* Input field focus effect - softer */
     .textarea-wrapper {
       position: relative;
       transition: box-shadow 0.3s ease;
     }
-    
-    /* 使用柔和的阴影代替强烈的渐变边框 */
+
+    /* Use soft shadow instead of strong gradient border */
     .textarea-wrapper:focus-within {
       box-shadow: 0 0 0 2px var(--color-focus-soft);
     }
-    
-    /* 输入框本身的样式调整 */
+
+    /* Input field style adjustments */
     .input-field {
       transition: background-color 0.3s ease;
     }
@@ -294,16 +294,16 @@ function getStylesWithEnhancements(): string {
       outline: none;
       background-color: var(--vscode-input-background);
     }
-    
-    /* 发送按钮在焦点时的微妙光晕 */
+
+    /* Subtle glow on send button when focused */
     .textarea-wrapper:focus-within .send-btn {
       box-shadow: 0 2px 8px rgba(67, 56, 202, 0.2);
     }
   `;
-  
-  // 第七步：滚动条和状态灯增强
+
+  // Step 7: Scrollbar and status light enhancements
   const scrollbarAndStatusEnhancement = `
-    /* 自定义滚动条样式 - 应用到消息容器和聊天容器 */
+    /* Custom scrollbar styles - apply to message and chat containers */
     .messages::-webkit-scrollbar,
     .chat-container::-webkit-scrollbar {
       width: 12px;
@@ -331,15 +331,15 @@ function getStylesWithEnhancements(): string {
       border: 2px solid var(--vscode-editor-background);
       background-clip: padding-box;
     }
-    
-    /* 确保滚动条在所有容器中可见 */
+
+    /* Ensure scrollbar is visible in all containers */
     .messages,
     .chat-container {
       scrollbar-width: thin;
       scrollbar-color: #6366f1 rgba(255, 255, 255, 0.03);
     }
-    
-    /* 状态指示器脉冲动画 */
+
+    /* Status indicator pulse animation */
     @keyframes greenPulse {
       0% {
         opacity: 1;
@@ -354,14 +354,14 @@ function getStylesWithEnhancements(): string {
         transform: scale(1);
       }
     }
-    
-    /* 应用脉冲动画到ready状态 */
+
+    /* Apply pulse animation to ready status */
     .status.ready .status-indicator {
       animation: greenPulse 2s ease-in-out infinite;
     }
   `;
-  
-  // 返回原始样式 + 颜色变量 + 所有增强
+
+  // Return original styles + color variables + all enhancements
   return colorVariables + getStylesOld() + primaryButtonEnhancement + sendButtonEnhancement + outlinedButtonEnhancement + messageEnhancement + inputFocusEnhancement + scrollbarAndStatusEnhancement;
 }
 
@@ -766,16 +766,16 @@ function getStylesOld(): string {
         width: 18px;
         height: 18px;
         border-radius: 3px;
-        display: inline-flex;  /* 使用inline-flex确保正确对齐 */
+        display: inline-flex;  /* Use inline-flex to ensure proper alignment */
         align-items: center;
         justify-content: center;
-        font-size: 12px;  /* 调整emoji大小 */
+        font-size: 12px;  /* Adjust emoji size */
         color: white;
         font-weight: 600;
         flex-shrink: 0;
         margin-left: 6px;
-        line-height: 1;  /* 确保行高正确 */
-        vertical-align: middle;  /* 垂直对齐中间 */
+        line-height: 1;  /* Ensure correct line height */
+        vertical-align: middle;  /* Vertical align middle */
     }
 
     .message-icon.user {
@@ -1200,7 +1200,7 @@ function getStylesOld(): string {
         opacity: 1;
     }
 
-    /* Compact 按钮样式 - 小白点设计 */
+    /* Compact button style - small white dot design */
     .mode-switch {
         position: relative;
         width: 20px;
@@ -1209,7 +1209,7 @@ function getStylesOld(): string {
         display: inline-block;
     }
 
-    /* 小白点本体 */
+    /* Small white dot body */
     .mode-switch::after {
         content: '';
         position: absolute;
@@ -1224,14 +1224,14 @@ function getStylesOld(): string {
         opacity: 0.8;
     }
 
-    /* 悬停效果 - 发光 */
+    /* Hover effect - glow */
     .mode-switch:hover::after {
         opacity: 1;
         box-shadow: 0 0 8px rgba(255, 255, 255, 0.6),
                     0 0 12px rgba(255, 255, 255, 0.4);
     }
 
-    /* 科技感涟漪效果 */
+    /* Tech-style ripple effect */
     .mode-switch::before {
         content: '';
         position: absolute;
@@ -1245,19 +1245,19 @@ function getStylesOld(): string {
         transition: all 0.3s ease;
     }
 
-    /* 点击时的涟漪扩散 */
+    /* Ripple spread on click */
     .mode-switch:active::before {
         border-color: rgba(255, 255, 255, 0.5);
         transform: translate(-50%, -50%) scale(1.5);
         opacity: 0;
     }
 
-    /* 点击时小白点缩小 */
+    /* Small white dot shrinks on click */
     .mode-switch:active::after {
         transform: translate(-50%, -50%) scale(0.8);
     }
 
-    /* 科技感旋转动画 */
+    /* Tech-style rotation animation */
     @keyframes techSpin {
         0% {
             transform: translate(-50%, -50%) rotate(0deg) scale(1);
@@ -1276,7 +1276,7 @@ function getStylesOld(): string {
         }
     }
 
-    /* 激活状态 - 蓝色发光 + 旋转 */
+    /* Active state - blue glow + rotation */
     .mode-switch.active::after {
         background-color: rgba(100, 200, 255, 0.9);
         animation: techSpin 0.8s ease-out;
@@ -1300,7 +1300,7 @@ function getStylesOld(): string {
         border-color: var(--vscode-focusBorder);
     }
 
-    /* Plan Mode 激活时的紫色边框样式 */
+    /* Purple border style when Plan Mode is active */
     .textarea-wrapper.plan-mode-active {
         border-color: #B794F4;
         border-width: 2px;
@@ -1398,7 +1398,7 @@ function getStylesOld(): string {
         opacity: 1;
     }
 
-    /* / Button (Slash Commands) 和 @ Button (File Reference) - 斜杠命令和文件引用按钮 */
+    /* / Button (Slash Commands) and @ Button (File Reference) - slash command and file reference buttons */
     .slash-btn,
     .at-btn {
         background-color: transparent;
@@ -1681,7 +1681,7 @@ function getStylesOld(): string {
         display: flex;
         align-items: flex-start;
         gap: 12px;
-        padding: 10px 0;  /* 从 16px 改为 10px，减小插件之间的间距 */
+        padding: 10px 0;  /* Changed from 16px to 10px, reduce spacing between plugins */
         cursor: pointer;
         border-radius: 6px;
         transition: background-color 0.2s ease;
@@ -1693,7 +1693,7 @@ function getStylesOld(): string {
 
     .tool-item:hover {
         background-color: var(--vscode-list-hoverBackground);
-        padding: 10px 12px;  /* 同步修改，保持一致 */
+        padding: 10px 12px;  /* Sync modification, keep consistent */
         margin: 0 -12px;
     }
 
@@ -1706,36 +1706,36 @@ function getStylesOld(): string {
 
     .tool-item label {
         color: var(--vscode-foreground);
-        /* 移除固定的字体大小，让子元素（plugin-name、plugin-description）自己控制 */
+        /* Removed fixed font size, let child elements (plugin-name, plugin-description) control themselves */
         cursor: pointer;
         flex: 1;
         line-height: 1.4;
     }
 
     /* ========================================
-     * 插件显示样式
+     * Plugin display styles
      * ========================================
-     * 注意：这些样式定义在 index.ts 的 getStylesOld() 函数中，
-     * 而不是在 tools.ts 中，因为：
-     * 1. getStylesWithEnhancements() 使用 getStylesOld() 而非 getCombinedStyles()
-     * 2. 如果在 tools.ts 中修改样式，不会生效
-     * 3. 未来如果重构样式系统，需要确保使用 getCombinedStyles()
+     * Note: These styles are defined in getStylesOld() function in index.ts,
+     * not in tools.ts, because:
+     * 1. getStylesWithEnhancements() uses getStylesOld() instead of getCombinedStyles()
+     * 2. If styles are modified in tools.ts, they won't take effect
+     * 3. If style system is refactored in the future, need to ensure using getCombinedStyles()
      * ======================================== */
 
-    /* 插件名称样式 */
+    /* Plugin name styles */
     .plugin-name {
         font-weight: 600;
-        font-size: 15px;  /* 插件标题大小（比描述的11px稍大，但不会太大） */
+        font-size: 15px;  /* Plugin title size (slightly larger than description's 11px, but not too large) */
         color: var(--vscode-foreground);
-        margin-bottom: 4px;  /* 标题和描述之间的间距 */
+        margin-bottom: 4px;  /* Spacing between title and description */
     }
 
-    /* 插件描述样式 */
+    /* Plugin description styles */
     .plugin-description {
-        font-size: 11px;  /* 描述字体大小 */
+        font-size: 11px;  /* Description font size */
         line-height: 1.4;
         color: var(--vscode-descriptionForeground);
-        /* 移除了 margin-left，使描述和标题左对齐 */
+        /* Removed margin-left, align description with title */
         word-wrap: break-word;
         white-space: normal;
     }
@@ -1777,7 +1777,7 @@ function getStylesOld(): string {
         flex: 1;
     }
 
-    /* 高级设置样式 */
+    /* Advanced settings styles */
     .advanced-settings-divider {
         height: 1px;
         background: var(--vscode-panel-border);
@@ -1798,9 +1798,9 @@ function getStylesOld(): string {
         opacity: 0.8;
     }
 
-    /* enhance-subagents-item 继承 tool-item 的样式，不添加额外的装饰 */
+    /* enhance-subagents-item inherits tool-item styles, no additional decoration */
     .enhance-subagents-item {
-        /* 使用 tool-item 的默认样式即可，无需额外样式 */
+        /* Use tool-item default styles, no additional styles needed */
     }
 
     .default-model-layout {
@@ -2131,14 +2131,14 @@ function getStylesOld(): string {
         box-shadow: 0 0 6px rgba(255, 69, 58, 0.5);
     }
 
-    /* Plan Mode 状态灯：紫色实心圆点 + 脉冲呼吸动画（和 Processing 一样的效果，只是颜色不同） */
+    /* Plan Mode status light: purple solid dot + pulse breathing animation (same effect as Processing, just different color) */
     .status.planning .status-indicator {
         background-color: #B794F4;
         box-shadow: 0 0 6px rgba(183, 148, 244, 0.5);
         animation: purplePulse 1.5s ease-in-out infinite;
     }
 
-    /* 紫色脉冲呼吸动画 */
+    /* Purple pulse breathing animation */
     @keyframes purplePulse {
         0%, 100% {
             opacity: 1;
@@ -2417,7 +2417,7 @@ function getStylesOld(): string {
         font-style: italic;
     }
 
-    /* 压缩对话消息样式 */
+    /* Compacting conversation message styles */
     .compacting-message {
         position: relative;
         overflow: hidden;
@@ -2444,7 +2444,7 @@ function getStylesOld(): string {
         font-style: italic;
     }
 
-    /* 黄色进度条动画 */
+    /* Yellow progress bar animation */
     .compacting-progress-bar {
         position: absolute;
         bottom: 0;
@@ -2536,7 +2536,7 @@ function getStylesOld(): string {
         opacity: 0.7;
     }
 
-    /* 语义化颜色 - 仅保留 Cost 颜色 */
+    /* Semantic colors - only keep Cost color */
     .stats-cost-value {
         color: var(--vscode-charts-orange);
         font-weight: 700;
@@ -2870,7 +2870,7 @@ function getStylesOld(): string {
         opacity: 0.7;
     }
 
-    /* 统计表格数值颜色 - 语义化配色 */
+    /* Statistics table value colors - semantic color scheme */
     .stats-table-input-value {
         color: var(--vscode-charts-blue);
         font-weight: 600;

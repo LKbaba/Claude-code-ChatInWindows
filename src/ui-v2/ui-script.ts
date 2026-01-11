@@ -774,15 +774,15 @@ export const uiScript = `
 		function togglePlanMode() {
 			planModeEnabled = !planModeEnabled;
 			const switchElement = document.getElementById('planModeSwitch');
-			// 获取输入框容器，用于切换紫色边框样式
+			// Get textarea wrapper for toggling purple border style
 			const textareaWrapper = document.querySelector('.textarea-wrapper');
 			if (planModeEnabled) {
 				switchElement.classList.add('active');
-				// Plan Mode 激活时，输入框边框变为紫色
+				// When Plan Mode is active, input border turns purple
 				textareaWrapper?.classList.add('plan-mode-active');
 			} else {
 				switchElement.classList.remove('active');
-				// Plan Mode 关闭时，恢复默认边框
+				// When Plan Mode is off, restore default border
 				textareaWrapper?.classList.remove('plan-mode-active');
 			}
 		}
@@ -846,7 +846,7 @@ export const uiScript = `
 		let totalTokensOutput = 0;
 		let requestCount = 0;
 		let isProcessing = false;
-		let isInPlanMode = false;  // Claude 是否处于 Plan Mode
+		let isInPlanMode = false;  // Whether Claude is in Plan Mode
 		let requestStartTime = null;
 		let requestTimer = null;
 		let spinnerFrame = 0;
@@ -862,7 +862,7 @@ export const uiScript = `
 
 		function updateStatus(text, state = 'ready') {
 			if (state === 'processing' || state === 'planning') {
-				// Processing 和 Planning 状态都显示 spinner 动画
+				// Both Processing and Planning states show spinner animation
 				const spinner = spinnerFrames[spinnerFrame % spinnerFrames.length];
 				statusTextDiv.textContent = spinner + ' ' + text;
 			} else {
@@ -884,7 +884,7 @@ export const uiScript = `
 					elapsedStr = \` • \${elapsedSeconds}s\`;
 				}
 
-				// Plan Mode 时显示 "Planning"（紫色灯），否则显示 "Processing"（黄色灯）
+				// In Plan Mode show "Planning" (purple light), otherwise show "Processing" (yellow light)
 				if (isInPlanMode) {
 					const statusText = \`Planning • \${tokensStr}\${elapsedStr}\`;
 					updateStatus(statusText, 'planning');
@@ -2257,11 +2257,11 @@ export const uiScript = `
 					break;
 
 				case 'setPlanMode':
-					// Claude 调用 EnterPlanMode/ExitPlanMode 时触发
+					// Triggered when Claude calls EnterPlanMode/ExitPlanMode
 					isInPlanMode = message.data;
 					console.log('[Compact] setPlanMode:', isInPlanMode);
 
-					// 同步更新 Plan First 开关状态和输入框边框
+					// Sync Plan First switch state and input border
 					const planSwitch = document.getElementById('planModeSwitch');
 					const textareaWrapper = document.querySelector('.textarea-wrapper');
 					if (isInPlanMode) {
@@ -2272,7 +2272,7 @@ export const uiScript = `
 						textareaWrapper?.classList.remove('plan-mode-active');
 					}
 
-					// 更新状态栏显示
+					// Update status bar display
 					updateStatusWithTotals();
 					break;
 
@@ -2755,7 +2755,7 @@ export const uiScript = `
 				outputTokens: 0
 			});
 
-			// 重置 Plan Mode 状态（新会话时清除之前的状态）
+			// Reset Plan Mode state (clear previous state when starting new session)
 			isInPlanMode = false;
 			const planSwitch = document.getElementById('planModeSwitch');
 			const textareaWrapper = document.querySelector('.textarea-wrapper');
