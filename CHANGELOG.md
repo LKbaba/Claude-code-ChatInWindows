@@ -2,6 +2,26 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.0.4]
+
+### Added
+- **Plan Mode Status Light**
+  - Status light turns purple when Claude enters Plan Mode (via EnterPlanMode tool)
+  - Text changes from "Processing" to "Planning" with purple indicator
+  - Includes pulse breathing animation same as Processing state
+  - Status automatically syncs when Claude calls EnterPlanMode/ExitPlanMode tools
+  - Plan First switch and input border also sync with Plan Mode state
+
+### Changed
+- **Code Comments Internationalization**
+  - Converted all Chinese comments to English for international developers
+  - Affected files: `index.ts`, `ui-script.ts`, `MessageProcessor.ts`, `ClaudeChatProvider.ts`
+
+### Fixed
+- **ExitPlanMode Error Display**
+  - Hidden CLI auto-returned error message for ExitPlanMode tool
+  - Same handling as AskUserQuestion to prevent confusing error display
+
 ## [3.0.3]
 
 ### Fixed
