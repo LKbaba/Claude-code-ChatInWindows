@@ -774,10 +774,16 @@ export const uiScript = `
 		function togglePlanMode() {
 			planModeEnabled = !planModeEnabled;
 			const switchElement = document.getElementById('planModeSwitch');
+			// 获取输入框容器，用于切换紫色边框样式
+			const textareaWrapper = document.querySelector('.textarea-wrapper');
 			if (planModeEnabled) {
 				switchElement.classList.add('active');
+				// Plan Mode 激活时，输入框边框变为紫色
+				textareaWrapper?.classList.add('plan-mode-active');
 			} else {
 				switchElement.classList.remove('active');
+				// Plan Mode 关闭时，恢复默认边框
+				textareaWrapper?.classList.remove('plan-mode-active');
 			}
 		}
 
@@ -840,6 +846,7 @@ export const uiScript = `
 		let totalTokensOutput = 0;
 		let requestCount = 0;
 		let isProcessing = false;
+		let isInPlanMode = false;  // Claude 是否处于 Plan Mode
 		let requestStartTime = null;
 		let requestTimer = null;
 		let spinnerFrame = 0;
@@ -854,8 +861,8 @@ export const uiScript = `
 		let toolTimerInterval = null;
 
 		function updateStatus(text, state = 'ready') {
-			if (state === 'processing') {
-				// Add spinner animation for processing state
+			if (state === 'processing' || state === 'planning') {
+				// Processing 和 Planning 状态都显示 spinner 动画
 				const spinner = spinnerFrames[spinnerFrame % spinnerFrames.length];
 				statusTextDiv.textContent = spinner + ' ' + text;
 			} else {
@@ -868,25 +875,31 @@ export const uiScript = `
 			if (isProcessing) {
 				// While processing, show tokens and elapsed time
 				const totalTokens = totalTokensInput + totalTokensOutput;
-				const tokensStr = totalTokens > 0 ? 
+				const tokensStr = totalTokens > 0 ?
 					\`\${totalTokens.toLocaleString()} tokens\` : '0 tokens';
-				
+
 				let elapsedStr = '';
 				if (requestStartTime) {
 					const elapsedSeconds = Math.floor((Date.now() - requestStartTime) / 1000);
 					elapsedStr = \` • \${elapsedSeconds}s\`;
 				}
-				
-				const statusText = \`Processing • \${tokensStr}\${elapsedStr}\`;
-				updateStatus(statusText, 'processing');
+
+				// Plan Mode 时显示 "Planning"（紫色灯），否则显示 "Processing"（黄色灯）
+				if (isInPlanMode) {
+					const statusText = \`Planning • \${tokensStr}\${elapsedStr}\`;
+					updateStatus(statusText, 'planning');
+				} else {
+					const statusText = \`Processing • \${tokensStr}\${elapsedStr}\`;
+					updateStatus(statusText, 'processing');
+				}
 			} else {
 				// When ready, show full info
 				const costStr = totalCost > 0 ? \`$\${totalCost.toFixed(4)}\` : '$0.00';
 				const totalTokens = totalTokensInput + totalTokensOutput;
-				const tokensStr = totalTokens > 0 ? 
+				const tokensStr = totalTokens > 0 ?
 					\`\${totalTokens.toLocaleString()} tokens\` : '0 tokens';
 				const requestStr = requestCount > 0 ? \`\${requestCount} requests\` : '';
-				
+
 				const statusText = \`Ready • \${costStr} • \${tokensStr}\${requestStr ? \` • \${requestStr}\` : ''}\`;
 				updateStatus(statusText, 'ready');
 			}
@@ -2242,7 +2255,27 @@ export const uiScript = `
 					updateStatusWithTotals();
 					console.log('[Compact] setProcessing done, messagesDiv children:', messagesDiv.children.length);
 					break;
-					
+
+				case 'setPlanMode':
+					// Claude 调用 EnterPlanMode/ExitPlanMode 时触发
+					isInPlanMode = message.data;
+					console.log('[Compact] setPlanMode:', isInPlanMode);
+
+					// 同步更新 Plan First 开关状态和输入框边框
+					const planSwitch = document.getElementById('planModeSwitch');
+					const textareaWrapper = document.querySelector('.textarea-wrapper');
+					if (isInPlanMode) {
+						planSwitch?.classList.add('active');
+						textareaWrapper?.classList.add('plan-mode-active');
+					} else {
+						planSwitch?.classList.remove('active');
+						textareaWrapper?.classList.remove('plan-mode-active');
+					}
+
+					// 更新状态栏显示
+					updateStatusWithTotals();
+					break;
+
 				case 'clearLoading':
 					// Remove the last loading message
 					const messages = messagesDiv.children;
@@ -2721,7 +2754,14 @@ export const uiScript = `
 				inputTokens: 0,
 				outputTokens: 0
 			});
-			
+
+			// 重置 Plan Mode 状态（新会话时清除之前的状态）
+			isInPlanMode = false;
+			const planSwitch = document.getElementById('planModeSwitch');
+			const textareaWrapper = document.querySelector('.textarea-wrapper');
+			planSwitch?.classList.remove('active');
+			textareaWrapper?.classList.remove('plan-mode-active');
+
 			vscode.postMessage({
 				type: 'newSession'
 			});

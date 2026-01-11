@@ -1300,6 +1300,18 @@ function getStylesOld(): string {
         border-color: var(--vscode-focusBorder);
     }
 
+    /* Plan Mode 激活时的紫色边框样式 */
+    .textarea-wrapper.plan-mode-active {
+        border-color: #B794F4;
+        border-width: 2px;
+        box-shadow: 0 0 0 2px rgba(183, 148, 244, 0.2);
+    }
+
+    .textarea-wrapper.plan-mode-active:focus-within {
+        border-color: #9F7AEA;
+        box-shadow: 0 0 0 3px rgba(183, 148, 244, 0.3);
+    }
+
     .input-field {
         width: 100%;
         background-color: transparent;
@@ -2119,9 +2131,25 @@ function getStylesOld(): string {
         box-shadow: 0 0 6px rgba(255, 69, 58, 0.5);
     }
 
-    @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.7; transform: scale(1.1); }
+    /* Plan Mode 状态灯：紫色实心圆点 + 脉冲呼吸动画（和 Processing 一样的效果，只是颜色不同） */
+    .status.planning .status-indicator {
+        background-color: #B794F4;
+        box-shadow: 0 0 6px rgba(183, 148, 244, 0.5);
+        animation: purplePulse 1.5s ease-in-out infinite;
+    }
+
+    /* 紫色脉冲呼吸动画 */
+    @keyframes purplePulse {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow: 0 0 6px rgba(183, 148, 244, 0.5);
+        }
+        50% {
+            opacity: 0.85;
+            transform: scale(1.15);
+            box-shadow: 0 0 12px rgba(183, 148, 244, 0.8);
+        }
     }
 
     .status-text {

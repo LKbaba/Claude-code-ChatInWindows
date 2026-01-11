@@ -462,8 +462,9 @@ export class ClaudeChatProvider {
 		// Prepend mode instructions if enabled
 		let actualMessage = windowsEnvironmentInfo + message;
 		if (planMode) {
-			// Plan First mode: Claude will create a detailed plan and wait for approval before implementing
-			actualMessage = windowsEnvironmentInfo + 'PLAN FIRST FOR THIS MESSAGE ONLY: Plan first before making any changes. Show me in detail what you will change and wait for my explicit approval in a separate message before proceeding. Do not implement anything until I confirm. This planning requirement applies ONLY to this current message.\n\n' + message;
+			// Plan First 模式：引导 Claude 使用 EnterPlanMode 工具进入计划模式
+			// 新版提示词明确指示使用工具，而不是简单的消息前缀
+			actualMessage = windowsEnvironmentInfo + 'ENTER PLAN MODE: Use the EnterPlanMode tool to enter planning mode. Create a detailed implementation plan and wait for my explicit approval before making any changes. Do not implement anything until I confirm by selecting \'Yes\' in the ExitPlanMode dialog. This planning requirement applies ONLY to this current message.\n\n' + message;
 		}
 		if (thinkingMode) {
 			// Thinking Mode: Claude will show its step-by-step reasoning process
@@ -667,6 +668,14 @@ export class ClaudeChatProvider {
 						});
 						// Save operations periodically
 						this._operationTracker.saveOperations();
+					},
+					onPlanModeChange: (isInPlanMode: boolean) => {
+						// Claude 调用 EnterPlanMode/ExitPlanMode 时，通知前端更新状态
+						debugLog('ClaudeChatProvider', 'Plan Mode changed', { isInPlanMode });
+						this._panel?.webview.postMessage({
+							type: 'setPlanMode',
+							data: isInPlanMode
+						});
 					}
 				});
 			},
