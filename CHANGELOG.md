@@ -2,6 +2,39 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.0.6] - 2025-01-12
+
+### Added
+- **Language Mode Enhancement: "Only communicate" option**
+  - New checkbox in Language selection modal (next to title)
+  - When checked: Communication in selected language, code comments remain in English
+  - When unchecked: Both communication and code comments use selected language
+  - Dynamic description text updates based on selection
+  - Setting persists across sessions
+
+### Fixed
+- **Plan Mode State Sync**
+  - Fixed Plan First switch not resetting when Claude exits Plan Mode
+  - Prevents "ENTER PLAN MODE" prompt from being incorrectly added on next message
+
+- **Angle Bracket Display**
+  - Fixed user messages containing `<tag>` being incorrectly parsed as HTML
+  - Added `escapeHtml()` function to properly display angle brackets in chat
+  - Example: `<div>` now displays correctly instead of disappearing
+
+- **Copy Content Line Breaks**
+  - Optimized copy function to clean up excessive line breaks
+  - Replaces 3+ consecutive newlines with 2 for cleaner clipboard content
+
+### Changed
+- Language setting now uses prompt injection instead of official `settings.json`
+  - More reliable: works immediately without requiring new session
+  - Works with `--resume` sessions (official config doesn't reload on resume)
+
+### Removed
+- Removed `ClaudeConfigService.ts` (no longer needed)
+  - Language setting via `~/.claude/settings.json` replaced with prompt-based approach
+
 ## [3.0.5] - 2025-01-12
 
 ### Added
