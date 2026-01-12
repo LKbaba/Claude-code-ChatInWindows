@@ -9,6 +9,7 @@ import * as util from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getNpmPrefix } from './npmFinder';
+import { ApiConfigManager } from '../managers/config/ApiConfigManager';
 
 const exec = util.promisify(cp.exec);
 
@@ -41,13 +42,47 @@ export class EnvironmentChecker {
             };
         }
 
-        // 2. Check for claude.cmd
-        const claudePath = path.join(npmPrefix, 'claude.cmd');
-        if (!fs.existsSync(claudePath)) {
-            return { success: false, message: `Claude CLI not found at the expected path: ${claudePath}. Please install it globally via 'npm install -g @anthropic-ai/claude-cli'.` };
+        // 2. Get configured CLI command name (supports relay service custom commands like sssclaude)
+        const configManager = new ApiConfigManager();
+        const apiConfig = configManager.getApiConfig();
+        // If custom API is enabled, use configured command name; otherwise use default 'claude'
+        const cliCommand = apiConfig.useCustomAPI ? (apiConfig.cliCommand || 'claude') : 'claude';
+
+        // 3. Check for CLI command in multiple locations (npm prefix and Bun bin)
+        const homeDir = require('os').homedir();
+        const bunBinPath = path.join(homeDir, '.bun', 'bin');
+
+        // Search paths for the CLI executable
+        const searchPaths: { path: string, exists: boolean }[] = [
+            { path: path.join(npmPrefix, `${cliCommand}.cmd`), exists: false },
+            { path: path.join(npmPrefix, `${cliCommand}.exe`), exists: false },
+            { path: path.join(bunBinPath, `${cliCommand}.cmd`), exists: false },
+            { path: path.join(bunBinPath, `${cliCommand}.exe`), exists: false },
+            { path: path.join(bunBinPath, cliCommand), exists: false }
+        ];
+
+        let cliFound = false;
+        for (const searchPath of searchPaths) {
+            if (fs.existsSync(searchPath.path)) {
+                searchPath.exists = true;
+                cliFound = true;
+                break;
+            }
         }
 
-        // 3. Check for Git Bash
+        if (!cliFound) {
+            // Provide different error hints based on command name
+            const installHint = cliCommand === 'claude'
+                ? `Please install it globally via 'npm install -g @anthropic-ai/claude-cli'.`
+                : `Please ensure '${cliCommand}' is installed correctly.\n` +
+                  `If using a relay service (like sssaicode), the command may be installed via Bun.\n` +
+                  `Searched paths:\n` +
+                  `  - npm: ${npmPrefix}\n` +
+                  `  - Bun: ${bunBinPath}`;
+            return { success: false, message: `CLI '${cliCommand}' not found. ${installHint}` };
+        }
+
+        // 4. Check for Git Bash
         const gitBashPath = config.get<string>('windows.gitBashPath');
         if (!gitBashPath) {
             return { success: false, message: 'The path to Git Bash (bash.exe) is not configured. Please set "claudeCodeChatUI.windows.gitBashPath" in your settings.' };

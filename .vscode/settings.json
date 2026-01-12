@@ -18,8 +18,7 @@
 			"args": [
 				"-y",
 				"@executeautomation/playwright-mcp-server"
-			],
-			"env": {}
+			]
 		}
 	]
 }

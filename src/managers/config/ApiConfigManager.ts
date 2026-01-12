@@ -9,6 +9,7 @@ export interface ApiConfig {
     useCustomAPI: boolean;
     key: string;
     baseUrl: string;
+    cliCommand: string;  // CLI command name, default 'claude', relay service users can set to 'sssclaude'
 }
 
 export interface WindowsConfig {
@@ -39,7 +40,8 @@ export class ApiConfigManager {
         return {
             useCustomAPI: config.get<boolean>('api.useCustomAPI', false),
             key: config.get<string>('api.key', ''),
-            baseUrl: config.get<string>('api.baseUrl', 'https://api.anthropic.com')
+            baseUrl: config.get<string>('api.baseUrl', 'https://api.anthropic.com'),
+            cliCommand: config.get<string>('api.cliCommand', 'claude')  // Read CLI command name config
         };
     }
 

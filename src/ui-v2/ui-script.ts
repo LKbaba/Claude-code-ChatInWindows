@@ -2722,6 +2722,7 @@ export const uiScript = `
 				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
 				document.getElementById('api-key').value = message.data['api.key'] || '';
 				document.getElementById('api-baseUrl').value = message.data['api.baseUrl'] || 'https://api.anthropic.com';
+				document.getElementById('api-cliCommand').value = message.data['api.cliCommand'] || 'claude';  // Load CLI command name config
 				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
 			}
 
@@ -4647,11 +4648,12 @@ export const uiScript = `
 			const useCustomAPI = document.getElementById('api-useCustomAPI').checked;
 			const apiKey = document.getElementById('api-key').value;
 			const apiBaseUrl = document.getElementById('api-baseUrl').value;
+			const apiCliCommand = document.getElementById('api-cliCommand').value || 'claude';  // Collect CLI command name config
 
 			// Send settings to VS Code immediately
 			console.log('Updating settings with MCP servers:', mcpServers);
-			console.log('Updating API settings:', { useCustomAPI, hasKey: !!apiKey, baseUrl: apiBaseUrl });
-			
+			console.log('Updating API settings:', { useCustomAPI, hasKey: !!apiKey, baseUrl: apiBaseUrl, cliCommand: apiCliCommand });
+
 			// Only send MCP settings since WSL elements don't exist in the UI
 			if (mcpEnabledCheckbox) {
 				vscode.postMessage({
@@ -4661,7 +4663,8 @@ export const uiScript = `
 						'mcp.servers': mcpServers,
 						'api.useCustomAPI': useCustomAPI,
 						'api.key': apiKey,
-						'api.baseUrl': apiBaseUrl
+						'api.baseUrl': apiBaseUrl,
+						'api.cliCommand': apiCliCommand  // Send CLI command name config
 					}
 				});
 			}
@@ -4803,6 +4806,7 @@ export const uiScript = `
 				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
 				document.getElementById('api-key').value = message.data['api.key'] || '';
 				document.getElementById('api-baseUrl').value = message.data['api.baseUrl'] || 'https://api.anthropic.com';
+				document.getElementById('api-cliCommand').value = message.data['api.cliCommand'] || 'claude';  // Load CLI command name config
 				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
 			}
 

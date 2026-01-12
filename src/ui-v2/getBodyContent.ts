@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.0.4</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.0.5</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -424,12 +424,16 @@ export function getBodyContent(): string {
 							<label for="api-baseUrl" style="display: block; font-size: 12px; margin-bottom: 4px;">Base URL</label>
 							<input type="text" id="api-baseUrl" placeholder="https://api.tu-zi.com" value="https://api.anthropic.com" style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;" onchange="updateSettings()">
 						</div>
+						<div style="margin-bottom: 12px;">
+							<label for="api-cliCommand" style="display: block; font-size: 12px; margin-bottom: 4px;">CLI Command Name</label>
+							<input type="text" id="api-cliCommand" placeholder="claude" value="claude" style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;" onchange="updateSettings()">
+						</div>
 						<div style="padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
 							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
 								🔒 Your API key will be stored securely in VS Code settings.
 							</p>
 							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
-								💡 Popular third-party services: tu-zi.com, openrouter.ai, etc.
+								💡 If using a relay service subscription (e.g. @sssaicode/claude), set CLI Command Name to 'sssclaude'
 							</p>
 						</div>
 					</div>
