@@ -17,6 +17,7 @@ export interface Settings extends VsCodeSettings {
     'api.cliCommand': string;  // CLI command name for relay service support
     'language.enabled': boolean;
     'language.selected': string | null;
+    'language.onlyCommunicate': boolean;  // Communicate only mode: code comments remain in English
 }
 
 export class ConfigurationManagerFacade {
@@ -46,7 +47,8 @@ export class ConfigurationManagerFacade {
             'api.baseUrl': apiConfig.baseUrl,
             'api.cliCommand': apiConfig.cliCommand,  // Include CLI command name in settings
             'language.enabled': vsCodeSettings['language.enabled'] || false,
-            'language.selected': vsCodeSettings['language.selected'] || null
+            'language.selected': vsCodeSettings['language.selected'] || null,
+            'language.onlyCommunicate': vsCodeSettings['language.onlyCommunicate'] || false
         };
     }
 

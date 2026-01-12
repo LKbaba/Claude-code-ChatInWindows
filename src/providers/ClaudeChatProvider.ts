@@ -22,6 +22,7 @@ import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
 import { secretService, SecretService } from '../services/SecretService';
 import { debugLog, debugWarn, debugError } from '../services/DebugLogger';
+// ClaudeConfigService removed - language setting now implemented entirely via prompts
 
 // Compute mode settings interface
 interface ComputeModeSettings {
@@ -196,7 +197,7 @@ export class ClaudeChatProvider {
 			async message => {
 				switch (message.type) {
 					case 'sendMessage':
-						this._sendMessageToClaude(message.text, message.planMode, message.thinkingMode, message.languageMode, message.selectedLanguage);
+						this._sendMessageToClaude(message.text, message.planMode, message.thinkingMode, message.languageMode, message.selectedLanguage, message.onlyCommunicate);
 						return;
 					case 'newSession':
 						this._newSession();
@@ -412,7 +413,7 @@ export class ClaudeChatProvider {
 	 * - The prefixes trigger Claude's built-in behaviors without needing special CLI flags
 	 * - Both modes only affect the current message, not the entire conversation
 	 */
-	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean, languageMode?: boolean, selectedLanguage?: string) {
+	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean, languageMode?: boolean, selectedLanguage?: string, onlyCommunicate?: boolean) {
 		if (this._processService.isProcessRunning()) {
 			// DEBUG: console.log("A request is already in progress. Please wait.");
 			
@@ -494,21 +495,52 @@ export class ClaudeChatProvider {
 			actualMessage = windowsEnvironmentInfo + thinkingPrompt + thinkingMessage + actualMessage;
 		}
 		
-		// Language Mode: Add language instruction at the end
+		// Language Mode: Set language via prompt injection
+		// Prompt-based approach is more reliable than official config since --resume sessions don't re-read settings.json
 		if (languageMode && selectedLanguage) {
-			const languagePrompts: { [key: string]: string } = {
-				'zh': '\n\n请用中文与我交流。在编写代码时，代码注释也请使用中文。',
-				'es': '\n\nPor favor, comunícate conmigo en español. Al escribir código, también usa español en los comentarios del código.',
-				'ar': '\n\nيرجى التواصل معي بالعربية. عند كتابة الكود، يرجى أيضًا استخدام العربية في تعليقات الكود.',
-				'fr': '\n\nVeuillez communiquer avec moi en français. Lors de l\'écriture du code, veuillez également utiliser le français dans les commentaires du code.',
-				'de': '\n\nBitte kommunizieren Sie mit mir auf Deutsch. Beim Schreiben von Code verwenden Sie bitte auch Deutsch in den Code-Kommentaren.',
-				'ja': '\n\n日本語で私と会話してください。コードを書く際は、コードコメントも日本語で記述してください。',
-				'ko': '\n\n한국어로 대화해 주세요. 코드를 작성할 때 코드 주석도 한국어로 작성해 주세요.'
+			// Select prompt type based on onlyCommunicate flag
+			// onlyCommunicate = true: Communication only, code comments remain in English
+			// onlyCommunicate = false: Both communication and code comments use target language
+			const languagePrompts: { [key: string]: { communicate: string; full: string } } = {
+				'zh': {
+					communicate: '\n\n请用中文与我交流。在编写代码时，代码注释请使用英文。',
+					full: '\n\n请用中文与我交流。在编写代码时，代码注释也请使用中文。'
+				},
+				'es': {
+					communicate: '\n\nPor favor, comunícate conmigo en español. Al escribir código, usa inglés en los comentarios.',
+					full: '\n\nPor favor, comunícate conmigo en español. Al escribir código, también usa español en los comentarios del código.'
+				},
+				'ar': {
+					communicate: '\n\nيرجى التواصل معي بالعربية. عند كتابة الكود، يرجى استخدام الإنجليزية في التعليقات.',
+					full: '\n\nيرجى التواصل معي بالعربية. عند كتابة الكود، يرجى أيضًا استخدام العربية في تعليقات الكود.'
+				},
+				'fr': {
+					communicate: '\n\nVeuillez communiquer avec moi en français. Lors de l\'écriture du code, utilisez l\'anglais pour les commentaires.',
+					full: '\n\nVeuillez communiquer avec moi en français. Lors de l\'écriture du code, veuillez également utiliser le français dans les commentaires du code.'
+				},
+				'de': {
+					communicate: '\n\nBitte kommunizieren Sie mit mir auf Deutsch. Beim Schreiben von Code verwenden Sie bitte Englisch für die Kommentare.',
+					full: '\n\nBitte kommunizieren Sie mit mir auf Deutsch. Beim Schreiben von Code verwenden Sie bitte auch Deutsch in den Code-Kommentaren.'
+				},
+				'ja': {
+					communicate: '\n\n日本語で私と会話してください。コードを書く際は、コードコメントは英語で記述してください。',
+					full: '\n\n日本語で私と会話してください。コードを書く際は、コードコメントも日本語で記述してください。'
+				},
+				'ko': {
+					communicate: '\n\n한국어로 대화해 주세요. 코드를 작성할 때 코드 주석은 영어로 작성해 주세요.',
+					full: '\n\n한국어로 대화해 주세요. 코드를 작성할 때 코드 주석도 한국어로 작성해 주세요.'
+				}
 			};
-			
-			const languagePrompt = languagePrompts[selectedLanguage];
-			if (languagePrompt) {
+
+			const prompts = languagePrompts[selectedLanguage];
+			if (prompts) {
+				const languagePrompt = onlyCommunicate ? prompts.communicate : prompts.full;
 				actualMessage = actualMessage + languagePrompt;
+				debugLog('ClaudeChatProvider', 'Using language prompt', {
+					language: selectedLanguage,
+					onlyCommunicate: onlyCommunicate,
+					promptType: onlyCommunicate ? 'communicate' : 'full'
+				});
 			}
 		}
 

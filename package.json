@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -268,6 +268,11 @@
             "Auto-detect"
           ],
           "description": "Selected language for Claude responses"
+        },
+        "claudeCodeChatUI.language.onlyCommunicate": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, only communication language changes; code comments remain in English (uses official Claude language setting)"
         },
         "claudeCodeChatUI.api.useCustomAPI": {
           "type": "boolean",

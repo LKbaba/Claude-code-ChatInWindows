@@ -22,6 +22,7 @@ export const uiScript = `
 		let thinkingModeEnabled = false;
 		let languageModeEnabled = false;
 		let selectedLanguage = null;
+		let onlyCommunicateEnabled = false;  // Communicate only mode: code comments remain in English
 		let currentMode = 'auto'; // Current compute mode
 
 		// Undo/Redo history management
@@ -114,6 +115,18 @@ export const uiScript = `
 			}
 		}
 
+		// HTML escape function to prevent XSS attacks and correctly display angle brackets
+		function escapeHtml(text) {
+			const htmlEntities = {
+				'&': '&amp;',
+				'<': '&lt;',
+				'>': '&gt;',
+				'"': '&quot;',
+				"'": '&#39;'
+			};
+			return text.replace(/[&<>"']/g, char => htmlEntities[char]);
+		}
+
 		function addMessage(content, type = 'claude') {
 			const messageDiv = document.createElement('div');
 			messageDiv.className = \`message \${type}\`;
@@ -163,7 +176,7 @@ export const uiScript = `
 			contentDiv.className = 'message-content';
 			
 			if(type == 'user' || type === 'claude' || type === 'thinking'){
-				// Apply file link conversion to Claude's messages
+				// User messages are escaped in parseSimpleMarkdown, Claude messages may contain formatted HTML
 				const processedContent = type === 'claude' ? convertFileLinksToClickable(content) : content;
 				contentDiv.innerHTML = processedContent;
 			} else if (type === 'system' && content.includes('class="request-stats"')) {
@@ -715,7 +728,8 @@ export const uiScript = `
 					planMode: planModeEnabled,
 					thinkingMode: thinkingModeEnabled,
 					languageMode: languageModeEnabled,
-					selectedLanguage: selectedLanguage
+					selectedLanguage: selectedLanguage,
+					onlyCommunicate: onlyCommunicateEnabled  // Communicate only mode
 				});
 				
 				messageInput.value = '';
@@ -1765,6 +1779,28 @@ export const uiScript = `
 			hideLanguageModal();
 		}
 
+		// Toggle "communicate only" mode
+		function toggleOnlyCommunicate() {
+			const checkbox = document.getElementById('onlyCommunicateCheckbox');
+			onlyCommunicateEnabled = checkbox?.checked || false;
+
+			// Update description text
+			const descriptionEl = document.getElementById('languageModalDescription');
+			if (descriptionEl) {
+				descriptionEl.textContent = onlyCommunicateEnabled
+					? 'The language for CC to communicate only.'
+					: 'The language for CC to communicate & write code-comments.';
+			}
+
+			// Save to settings
+			vscode.postMessage({
+				type: 'updateSettings',
+				settings: {
+					'language.onlyCommunicate': onlyCommunicateEnabled
+				}
+			});
+		}
+
 		function saveThinkingIntensity() {
 			const thinkingSlider = document.getElementById('thinkingIntensitySlider');
 			const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
@@ -2120,9 +2156,14 @@ export const uiScript = `
 		function copyMessageContent(messageDiv) {
 			const contentDiv = messageDiv.querySelector('.message-content');
 			if (contentDiv) {
-				// Get text content, preserving line breaks
-				const text = contentDiv.innerText || contentDiv.textContent;
-				
+				// Get text content
+				let text = contentDiv.innerText || contentDiv.textContent;
+
+				// Clean up excessive line breaks: replace 3+ consecutive newlines with 2
+				text = text.replace(/\\n{3,}/g, '\\n\\n');
+				// Trim leading/trailing whitespace
+				text = text.trim();
+
 				// Copy to clipboard
 				navigator.clipboard.writeText(text).then(() => {
 					// Show brief feedback
@@ -2165,7 +2206,9 @@ export const uiScript = `
 					
 				case 'userInput':
 					if (message.data.trim()) {
-						addMessage(parseSimpleMarkdown(message.data, imagePathMap), 'user');
+						// Escape HTML in user messages to prevent angle brackets from being treated as tags (e.g., <div> would disappear)
+						const escapedUserInput = escapeHtml(message.data);
+						addMessage(parseSimpleMarkdown(escapedUserInput, imagePathMap), 'user');
 					}
 					break;
 					
@@ -2260,6 +2303,12 @@ export const uiScript = `
 					// Triggered when Claude calls EnterPlanMode/ExitPlanMode
 					isInPlanMode = message.data;
 					console.log('[Compact] setPlanMode:', isInPlanMode);
+
+					// When Claude exits Plan Mode, sync reset the user switch state
+					// Prevents "ENTER PLAN MODE" prompt from being added on next message
+					if (!isInPlanMode) {
+						planModeEnabled = false;
+					}
 
 					// Sync Plan First switch state and input border
 					const planSwitch = document.getElementById('planModeSwitch');
@@ -2673,6 +2722,21 @@ export const uiScript = `
 					}
 				}
 				
+				// Restore "communicate only" checkbox state
+				const savedOnlyCommunicate = message.data['language.onlyCommunicate'] || false;
+				onlyCommunicateEnabled = savedOnlyCommunicate;
+				const onlyCommunicateCheckbox = document.getElementById('onlyCommunicateCheckbox');
+				if (onlyCommunicateCheckbox) {
+					onlyCommunicateCheckbox.checked = savedOnlyCommunicate;
+				}
+				// Update description text
+				const langDescEl = document.getElementById('languageModalDescription');
+				if (langDescEl) {
+					langDescEl.textContent = savedOnlyCommunicate
+						? 'The language for CC to communicate only.'
+						: 'The language for CC to communicate & write code-comments.';
+				}
+
 				// Skip WSL settings as those elements don't exist in the UI
 
 				// Load MCP settings
@@ -4757,6 +4821,21 @@ export const uiScript = `
 					}
 				}
 				
+				// Restore "communicate only" checkbox state
+				const savedOnlyCommunicate = message.data['language.onlyCommunicate'] || false;
+				onlyCommunicateEnabled = savedOnlyCommunicate;
+				const onlyCommunicateCheckbox = document.getElementById('onlyCommunicateCheckbox');
+				if (onlyCommunicateCheckbox) {
+					onlyCommunicateCheckbox.checked = savedOnlyCommunicate;
+				}
+				// Update description text
+				const langDescEl = document.getElementById('languageModalDescription');
+				if (langDescEl) {
+					langDescEl.textContent = savedOnlyCommunicate
+						? 'The language for CC to communicate only.'
+						: 'The language for CC to communicate & write code-comments.';
+				}
+
 				// Skip WSL settings as those elements don't exist in the UI
 
 				// Load MCP settings
