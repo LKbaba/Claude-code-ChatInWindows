@@ -1621,7 +1621,204 @@ export const uiScript = `
 		}
 	});
 
-	
+	// ========== Skills Modal Functions ==========
+
+	/**
+	 * Show skills modal
+	 * Request skill list from backend
+	 */
+	function showSkillsModal() {
+		console.log('[Skills] showSkillsModal called');
+		// Show modal
+		document.getElementById('skillsModal').style.display = 'flex';
+		// Update status to loading
+		const statusEl = document.getElementById('skills-status');
+		if (statusEl) {
+			statusEl.textContent = 'Loading skills...';
+		}
+		// Request skill list from backend
+		console.log('[Skills] Requesting skill list from backend');
+		vscode.postMessage({ type: 'getInstalledSkills' });
+	}
+
+	/**
+	 * Hide skills modal
+	 */
+	function hideSkillsModal() {
+		document.getElementById('skillsModal').style.display = 'none';
+	}
+
+	/**
+	 * Handle refresh skills button click
+	 */
+	function handleRefreshSkills() {
+		console.log('[Skills] Refresh button clicked');
+		const refreshBtn = document.getElementById('refresh-skills-btn');
+		if (refreshBtn) {
+			// Show loading state
+			refreshBtn.disabled = true;
+		}
+		// Update status
+		const statusEl = document.getElementById('skills-status');
+		if (statusEl) {
+			statusEl.textContent = 'Refreshing...';
+		}
+		// Send refresh request to backend
+		vscode.postMessage({ type: 'refreshSkills' });
+	}
+
+	/**
+	 * Update skills list content
+	 * @param {Array} skills - Skill list from backend
+	 */
+	function updateSkillsList(skills) {
+		console.log('[Skills] updateSkillsList called with', skills?.length, 'skills');
+
+		const listContainer = document.getElementById('skillsList');
+		const statusEl = document.getElementById('skills-status');
+
+		if (!skills) {
+			skills = [];
+		}
+
+		// Group skills by scope
+		const workspaceSkills = skills.filter(function(s) { return s.scope === 'workspace'; });
+		const userSkills = skills.filter(function(s) { return s.scope === 'user'; });
+		const pluginSkills = skills.filter(function(s) { return s.scope === 'plugin'; });
+
+		// Update status bar
+		if (statusEl) {
+			const totalCount = skills.length;
+			const scopeCount = (workspaceSkills.length > 0 ? 1 : 0) +
+							   (userSkills.length > 0 ? 1 : 0) +
+							   (pluginSkills.length > 0 ? 1 : 0);
+			statusEl.textContent = 'Loaded ' + totalCount + ' skill(s) across ' + scopeCount + ' scope(s)';
+		}
+
+		// Render skills list
+		if (listContainer) {
+			listContainer.innerHTML = renderSkillsList(workspaceSkills, userSkills, pluginSkills);
+		}
+
+		// Restore refresh button state
+		const refreshBtn = document.getElementById('refresh-skills-btn');
+		if (refreshBtn) {
+			refreshBtn.disabled = false;
+		}
+	}
+
+	/**
+	 * Render skills list HTML
+	 * @param {Array} workspaceSkills - Workspace scope skills
+	 * @param {Array} userSkills - User scope skills
+	 * @param {Array} pluginSkills - Plugin scope skills
+	 * @returns {string} HTML string
+	 */
+	function renderSkillsList(workspaceSkills, userSkills, pluginSkills) {
+		var html = '';
+
+		// Workspace skills section
+		html += '<details class="skill-category" open>';
+		html += '<summary class="skill-category-header workspace">';
+		html += '<span class="collapse-indicator">▶</span>';
+		html += '<span class="category-title">Workspace</span>';
+		html += '<span class="category-path">./.claude/commands/</span>';
+		html += '</summary>';
+		html += '<div class="skill-category-content">';
+		if (workspaceSkills.length === 0) {
+			html += '<div class="skill-empty-state">No workspace skills found</div>';
+		} else {
+			html += renderSkillItems(workspaceSkills, false);
+		}
+		html += '</div></details>';
+
+		// User skills section
+		html += '<details class="skill-category" open>';
+		html += '<summary class="skill-category-header user">';
+		html += '<span class="collapse-indicator">▶</span>';
+		html += '<span class="category-title">User Global</span>';
+		html += '<span class="category-path">~/.claude/commands/</span>';
+		html += '</summary>';
+		html += '<div class="skill-category-content">';
+		if (userSkills.length === 0) {
+			html += '<div class="skill-empty-state">No user skills found</div>';
+		} else {
+			html += renderSkillItems(userSkills, false);
+		}
+		html += '</div></details>';
+
+		// Plugin skills section (collapsed by default)
+		html += '<details class="skill-category">';
+		html += '<summary class="skill-category-header plugin">';
+		html += '<span class="collapse-indicator">▶</span>';
+		html += '<span class="category-title">Plugin Skills</span>';
+		html += '<span class="category-count">(' + pluginSkills.length + ')</span>';
+		html += '</summary>';
+		html += '<div class="skill-category-content">';
+		if (pluginSkills.length === 0) {
+			html += '<div class="skill-empty-state">No plugin skills found</div>';
+		} else {
+			html += renderSkillItems(pluginSkills, true);
+		}
+		html += '</div></details>';
+
+		return html;
+	}
+
+	/**
+	 * Render individual skill items
+	 * @param {Array} skills - Skills to render
+	 * @param {boolean} showPluginBadge - Whether to show plugin badge
+	 * @returns {string} HTML string
+	 */
+	function renderSkillItems(skills, showPluginBadge) {
+		return skills.map(function(skill) {
+			var classes = 'skill-item';
+			if (skill.isOverridden) {
+				classes += ' skill-overridden';
+			}
+
+			var html = '<div class="' + classes + '">';
+			html += '<span class="skill-name">' + escapeHtmlSkill(skill.name) + '</span>';
+
+			if (skill.description) {
+				html += '<span class="skill-description">' + escapeHtmlSkill(skill.description) + '</span>';
+			} else {
+				html += '<span class="skill-description" style="opacity: 0.5;">No description</span>';
+			}
+
+			if (showPluginBadge && skill.pluginName) {
+				html += '<span class="skill-plugin-badge">' + escapeHtmlSkill(skill.pluginName) + '</span>';
+			}
+
+			html += '</div>';
+			return html;
+		}).join('');
+	}
+
+	/**
+	 * Helper function to escape HTML special characters for skills
+	 * @param {string} text - Text to escape
+	 * @returns {string} Escaped text
+	 */
+	function escapeHtmlSkill(text) {
+		if (!text) return '';
+		return text
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#039;');
+	}
+
+	// Close skills modal (click on background)
+	document.getElementById('skillsModal').addEventListener('click', function(e) {
+		if (e.target === document.getElementById('skillsModal')) {
+			hideSkillsModal();
+		}
+	});
+
+
 		// Model selector functions
 		let currentModel = 'opus'; // Default model
 
@@ -2638,6 +2835,10 @@ export const uiScript = `
 				case 'pluginsList':
 					// Receive plugin list and show modal
 					updatePluginsList(message.data.plugins || [], message.data.refreshed);
+					break;
+				case 'installedSkillsUpdated':
+					// Receive skill list and update modal
+					updateSkillsList(message.skills || []);
 					break;
 				case 'operationHistory':
 					// Update operation history UI and sync currentOperations

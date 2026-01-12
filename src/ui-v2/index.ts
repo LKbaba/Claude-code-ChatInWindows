@@ -1753,6 +1753,174 @@ function getStylesOld(): string {
         color: var(--vscode-descriptionForeground);
     }
 
+    /* ========================================
+     * Skills modal styles
+     * ======================================== */
+
+    /* Skills modal content */
+    .skills-modal-content {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    /* Skills status bar */
+    .skills-status {
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--vscode-panel-border);
+    }
+
+    /* Skills list container */
+    .skills-list {
+        padding: 12px;
+        overflow-y: auto;
+    }
+
+    /* Skill category container */
+    .skill-category {
+        margin-bottom: 8px;
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    /* Category header (clickable summary) */
+    .skill-category-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        background: var(--vscode-sideBar-background);
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+    }
+
+    .skill-category-header::-webkit-details-marker {
+        display: none;
+    }
+
+    .skill-category-header:hover {
+        background: var(--vscode-list-hoverBackground);
+    }
+
+    /* Scope-specific border colors */
+    .skill-category-header.workspace {
+        border-left: 3px solid var(--vscode-textLink-foreground);
+    }
+
+    .skill-category-header.user {
+        border-left: 3px solid var(--vscode-descriptionForeground);
+    }
+
+    .skill-category-header.plugin {
+        border-left: 3px solid var(--vscode-badge-background);
+    }
+
+    /* Category title */
+    .category-title {
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--vscode-foreground);
+    }
+
+    /* Category path display */
+    .category-path {
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+        font-family: monospace;
+        margin-left: auto;
+    }
+
+    /* Category count display */
+    .category-count {
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+        margin-left: auto;
+    }
+
+    /* Collapse indicator */
+    .collapse-indicator {
+        font-size: 10px;
+        color: var(--vscode-descriptionForeground);
+        transition: transform 0.2s ease;
+    }
+
+    details[open] .collapse-indicator {
+        transform: rotate(90deg);
+    }
+
+    /* Skill category content */
+    .skill-category-content {
+        background: var(--vscode-editor-background);
+    }
+
+    /* Individual skill item */
+    .skill-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--vscode-panel-border);
+        gap: 12px;
+    }
+
+    .skill-item:last-child {
+        border-bottom: none;
+    }
+
+    .skill-item:hover {
+        background: var(--vscode-list-hoverBackground);
+    }
+
+    /* Skill name */
+    .skill-name {
+        font-weight: 500;
+        font-size: 13px;
+        color: var(--vscode-foreground);
+        min-width: 150px;
+    }
+
+    /* Skill description */
+    .skill-description {
+        flex: 1;
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Plugin source badge */
+    .skill-plugin-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        background: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        white-space: nowrap;
+    }
+
+    /* Empty state for skill categories */
+    .skill-empty-state {
+        padding: 16px 12px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 12px;
+        text-align: center;
+    }
+
+    /* Overridden skill indicator */
+    .skill-overridden {
+        opacity: 0.5;
+    }
+
+    .skill-overridden .skill-name::after {
+        content: ' (overridden)';
+        font-size: 10px;
+        font-weight: normal;
+        color: var(--vscode-descriptionForeground);
+    }
+
     /* Model selection specific styles */
     .model-explanatory-text {
         padding: 20px;
