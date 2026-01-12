@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -285,6 +285,11 @@
           "default": "https://api.anthropic.com",
           "description": "Base URL for custom API endpoint (e.g., https://api.tu-zi.com)",
           "format": "uri"
+        },
+        "claudeCodeChatUI.api.cliCommand": {
+          "type": "string",
+          "default": "claude",
+          "description": "CLI command name (set to 'sssclaude' if using relay service subscription)"
         },
         "claudeCodeChatUI.geminiIntegrationEnabled": {
           "type": "boolean",

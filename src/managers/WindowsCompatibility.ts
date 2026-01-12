@@ -15,6 +15,62 @@ export class WindowsCompatibility {
         private readonly _configurationManager: ApiConfigManager
     ) {}
 
+    /**
+     * Get CLI command name
+     * If custom API is enabled, use configured command name (e.g. sssclaude); otherwise use default 'claude'
+     */
+    private getCliCommand(): string {
+        const apiConfig = this._configurationManager.getApiConfig();
+        return apiConfig.useCustomAPI ? (apiConfig.cliCommand || 'claude') : 'claude';
+    }
+
+    /**
+     * Get Bun global bin path
+     * Bun installs global packages to ~/.bun/bin/
+     */
+    private getBunBinPath(): string {
+        const homeDir = require('os').homedir();
+        return path.join(homeDir, '.bun', 'bin');
+    }
+
+    /**
+     * Find CLI executable path
+     * Searches in multiple locations: npm prefix, Bun bin, and PATH
+     */
+    private findCliExecutable(cliCommand: string, npmPrefix: string | undefined): string | undefined {
+        const searchPaths: string[] = [];
+
+        // 1. npm prefix (for npm/yarn installed packages)
+        if (npmPrefix) {
+            searchPaths.push(npmPrefix);
+        }
+
+        // 2. Bun bin path (for Bun installed packages like sssclaude)
+        const bunBinPath = this.getBunBinPath();
+        if (fs.existsSync(bunBinPath)) {
+            searchPaths.push(bunBinPath);
+        }
+
+        // Search for the executable in all paths
+        for (const searchPath of searchPaths) {
+            const cmdPath = path.join(searchPath, `${cliCommand}.cmd`);
+            const exePath = path.join(searchPath, `${cliCommand}.exe`);
+            const noExtPath = path.join(searchPath, cliCommand);
+
+            if (fs.existsSync(cmdPath)) {
+                return cmdPath;
+            }
+            if (fs.existsSync(exePath)) {
+                return exePath;
+            }
+            if (fs.existsSync(noExtPath)) {
+                return noExtPath;
+            }
+        }
+
+        return undefined;
+    }
+
     async getExecutionEnvironment(forTerminal = false): Promise<ExecutionEnvironment> {
         const spawnOptions: cp.SpawnOptions = {
             env: { ...process.env }
@@ -49,23 +105,32 @@ export class WindowsCompatibility {
             spawnOptions.env!.TMPDIR = '/tmp';
             
             const npmPrefix = await this._npmPrefixPromise;
-            if (!npmPrefix) {
-                // This should have been caught by the EnvironmentChecker, but we log it just in case.
-                console.error('Could not determine npm prefix during execution.');
-                return { spawnOptions, claudeExecutablePath: undefined };
-            }
+            const cliCommand = this.getCliCommand();
 
-            // For terminal commands, we just need the PATH, not the absolute executable
+            // For terminal commands, we need to add both npm and Bun paths to PATH
             if (forTerminal) {
-                spawnOptions.env!.PATH = `${npmPrefix}${path.delimiter}${spawnOptions.env!.PATH}`;
+                let pathAdditions = '';
+                if (npmPrefix) {
+                    pathAdditions = npmPrefix;
+                }
+                // Add Bun bin path for Bun-installed packages (like sssclaude)
+                const bunBinPath = this.getBunBinPath();
+                if (fs.existsSync(bunBinPath)) {
+                    pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${bunBinPath}` : bunBinPath;
+                }
+                if (pathAdditions) {
+                    spawnOptions.env!.PATH = `${pathAdditions}${path.delimiter}${spawnOptions.env!.PATH}`;
+                }
                 spawnOptions.shell = true;
             } else {
-                // For direct spawn, use the absolute path to avoid PATH issues
-                const potentialPath = path.join(npmPrefix, 'claude.cmd');
-                if (fs.existsSync(potentialPath)) {
-                    claudeExecutablePath = potentialPath;
+                // For direct spawn, search for executable in multiple locations
+                const executablePath = this.findCliExecutable(cliCommand, npmPrefix);
+                if (executablePath) {
+                    claudeExecutablePath = executablePath;
                 } else {
-                    console.error(`claude.cmd not found at expected path: ${potentialPath}`);
+                    // Log searched paths for debugging
+                    const searchedPaths = [npmPrefix, this.getBunBinPath()].filter(Boolean);
+                    console.error(`${cliCommand} not found in any of these paths: ${searchedPaths.join(', ')}`);
                     return { spawnOptions, claudeExecutablePath: undefined };
                 }
             }
@@ -143,12 +208,14 @@ export class WindowsCompatibility {
             fullCommand = `${command} --session ${sessionId}`;
         }
 
-        // The environment is already configured by spawnOptions
-        return `claude ${fullCommand}`;
+        // Use configured CLI command name (supports relay service custom commands like sssclaude)
+        const cliCommand = this.getCliCommand();
+        return `${cliCommand} ${fullCommand}`;
     }
 
     getLoginCommand(): string {
-        return 'claude';
+        // Use configured CLI command name (supports relay service custom commands like sssclaude)
+        return this.getCliCommand();
     }
 
     providePlatformSpecificError(error: any): string {

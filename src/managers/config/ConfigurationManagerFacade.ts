@@ -14,6 +14,7 @@ export interface Settings extends VsCodeSettings {
     'api.useCustomAPI': boolean;
     'api.key': string;
     'api.baseUrl': string;
+    'api.cliCommand': string;  // CLI command name for relay service support
     'language.enabled': boolean;
     'language.selected': string | null;
 }
@@ -43,6 +44,7 @@ export class ConfigurationManagerFacade {
             'api.useCustomAPI': apiConfig.useCustomAPI,
             'api.key': apiConfig.key,
             'api.baseUrl': apiConfig.baseUrl,
+            'api.cliCommand': apiConfig.cliCommand,  // Include CLI command name in settings
             'language.enabled': vsCodeSettings['language.enabled'] || false,
             'language.selected': vsCodeSettings['language.selected'] || null
         };

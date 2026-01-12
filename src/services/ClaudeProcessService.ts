@@ -163,16 +163,29 @@ export class ClaudeProcessService {
         }
 
         // Add API configuration to environment variables if custom API is enabled
+        // Note: Only pass env vars for official 'claude' command
+        // Third-party CLIs like 'sssclaude' have their own auth mechanism and don't use these env vars
         const apiConfig = this._configurationManager.getApiConfig();
-        if (apiConfig.useCustomAPI && apiConfig.key && apiConfig.baseUrl) {
+        const cliCommand = apiConfig.cliCommand || 'claude';
+        const isOfficialClaude = cliCommand === 'claude';
+
+        if (apiConfig.useCustomAPI && apiConfig.key && apiConfig.baseUrl && isOfficialClaude) {
+            // Only pass API env vars for official claude CLI
             execEnvironment.spawnOptions.env = {
                 ...execEnvironment.spawnOptions.env,
                 ANTHROPIC_API_KEY: apiConfig.key,
                 ANTHROPIC_BASE_URL: apiConfig.baseUrl
             };
-            debugLog('ClaudeProcessService', 'Using custom API', {
+            debugLog('ClaudeProcessService', 'Using custom API with official claude', {
                 baseUrl: apiConfig.baseUrl,
                 hasKey: !!apiConfig.key
+            });
+        } else if (apiConfig.useCustomAPI && !isOfficialClaude) {
+            // Third-party CLI (like sssclaude) - don't pass API env vars
+            // These CLIs have their own authentication mechanism
+            debugLog('ClaudeProcessService', 'Using third-party CLI', {
+                cliCommand: cliCommand,
+                note: 'API env vars not passed - CLI has its own auth'
             });
         }
 

@@ -2,6 +2,18 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.0.5] - 2025-01-12
+
+### Added
+- **Custom CLI Command Name Support**
+  - Added "CLI Command Name" field in "API Configuration" section
+  - Compatible with relay service subscription clients (e.g. `sssclaude`)
+  - Default value is `claude`, relay service users can change to `sssclaude`
+
+### Changed
+- Optimized environment check logic to detect based on configured command name
+- Updated error messages to guide users in configuring relay services correctly
+
 ## [3.0.4]
 
 ### Added
