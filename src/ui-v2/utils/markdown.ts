@@ -18,9 +18,9 @@ export function parseSimpleMarkdown(markdown: string, imagePathMap?: Map<string,
     for (let line of lines) {
         line = line.trim();
 
-        // 处理图片路径 - 匹配 @开头的图片文件路径
+        // Process image paths - match image file paths starting with @
         line = line.replace(/@([\w\-\/]+\.(png|jpg|jpeg|gif|webp|bmp))\s*/gi, (match, path) => {
-            // 如果有映射表，使用webview URI，否则使用占位符
+            // Use webview URI if mapping table exists, otherwise use placeholder
             const imgSrc = imagePathMap?.get(path) || `vscode-resource://${path}`;
             return `<img src="${imgSrc}" alt="Image: ${path}" style="max-width: 100%; height: auto; display: block; margin: 10px 0;">`;
         });

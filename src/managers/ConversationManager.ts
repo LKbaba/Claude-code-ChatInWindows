@@ -210,7 +210,7 @@ export class ConversationManager {
         }
     }
 
-    // 获取当前token使用情况
+    // Get current token usage
     getCurrentTokenUsage(currentTokensInput: number, currentTokensOutput: number): {
         used: number;
         total: number;
@@ -218,33 +218,33 @@ export class ConversationManager {
         inputTokens: number;
         outputTokens: number;
     } {
-        const TOTAL_TOKENS = 200000; // Claude的200K上下文窗口，固定值
-        
-        // 使用实际的累计值（类似 usage statistics）
-        // 这些值是从 MessageProcessor 传递过来的实际使用量
+        const TOTAL_TOKENS = 200000; // Claude's 200K context window, fixed value
+
+        // Use actual cumulative values (similar to usage statistics)
+        // These values are passed from MessageProcessor representing actual usage
         const totalUsed = currentTokensInput + currentTokensOutput;
-        
-        // 计算已使用的百分比
+
+        // Calculate used percentage
         const usedPercentage = (totalUsed / TOTAL_TOKENS) * 100;
-        
-        // 计算剩余百分比
+
+        // Calculate remaining percentage
         const remainingPercentage = Math.max(0, 100 - usedPercentage);
-        
+
         return {
             used: totalUsed,
             total: TOTAL_TOKENS,
-            percentage: Math.round(remainingPercentage), // 返回剩余百分比
+            percentage: Math.round(remainingPercentage), // Return remaining percentage
             inputTokens: currentTokensInput,
             outputTokens: currentTokensOutput
         };
     }
 
-    // 获取对话内容用于生成摘要
+    // Get conversation content for summary generation
     getConversationForSummary(): { userMessages: string[], assistantMessages: string[] } {
         const userMessages: string[] = [];
         const assistantMessages: string[] = [];
-        
-        // 遍历当前对话的所有消息
+
+        // Iterate through all messages in current conversation
         for (const message of this._currentConversation) {
             if (message.messageType === 'userInput' && message.data) {
                 userMessages.push(message.data);

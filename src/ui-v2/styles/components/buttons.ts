@@ -237,7 +237,7 @@ export const buttonStyles = `
 }
 
 /* Tool Buttons */
-/* 注意：这些样式目前未被使用，实际样式在 index.ts 的 getStylesOld() 中 */
+/* Note: These styles are currently not used, actual styles are in index.ts getStylesOld() */
 .tools-btn {
   background-color: transparent;
   color: var(--vscode-foreground);
@@ -257,8 +257,8 @@ export const buttonStyles = `
   border-color: var(--vscode-focusBorder);
 }
 
-/* / Button (Slash Commands) 和 @ Button (File Reference) - 斜杠命令和文件引用按钮 */
-/* 参考 reference/claude-code-chat/src/ui-styles.ts 第1435-1451行 */
+/* / Button (Slash Commands) and @ Button (File Reference) - Slash commands and file reference buttons */
+/* Reference: reference/claude-code-chat/src/ui-styles.ts lines 1435-1451 */
 .slash-btn,
 .at-btn {
   background-color: transparent;

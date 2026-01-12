@@ -9,11 +9,11 @@ export const VALID_MODELS = [
     'opus',
     'sonnet',
     'default',
-    'opusplan',                       // 新增 Opus Plan 混合模式
-    'claude-opus-4-5-20251101',       // 新增 Opus 4.5
-    'claude-opus-4-1-20250805',       // 保留 Opus 4.1
-    'claude-sonnet-4-5-20250929',     // 新增 Sonnet 4.5
-    'claude-haiku-4-5-20251001'       // 新增 Haiku 4.5
+    'opusplan',                       // Opus Plan hybrid mode
+    'claude-opus-4-5-20251101',       // Opus 4.5
+    'claude-opus-4-1-20250805',       // Opus 4.1
+    'claude-sonnet-4-5-20250929',     // Sonnet 4.5
+    'claude-haiku-4-5-20251001'       // Haiku 4.5
 ] as const;
 export type ValidModel = typeof VALID_MODELS[number];
 
@@ -21,7 +21,7 @@ export type ValidModel = typeof VALID_MODELS[number];
  * Tool status mapping for displaying human-readable status messages
  */
 export const TOOL_STATUS_MAP: Record<string, string> = {
-    // 核心工具
+    // Core tools
     'Task': 'Exploring project structure',
     'Bash': 'Executing command',
     'Read': 'Reading file',
@@ -37,14 +37,14 @@ export const TOOL_STATUS_MAP: Record<string, string> = {
     'MultiEdit': 'Editing multiple files',
     'NotebookRead': 'Reading notebook',
     'NotebookEdit': 'Editing notebook',
-    // Claude Code 2.1.2 新增工具
+    // Claude Code 2.1.2 added tools
     'TaskOutput': 'Getting task output',
     'KillShell': 'Stopping background task',
     'AskUserQuestion': 'Waiting for user input',
     'Skill': 'Executing skill',
     'EnterPlanMode': 'Entering plan mode',
     'ExitPlanMode': 'Exiting plan mode',
-    // MCP 工具
+    // MCP tools
     'mcp__sequential-thinking__sequentialthinking': 'Analyzing with sequential thinking',
     'mcp__context7__search': 'Searching documentation via Context7',
     'mcp__context7__get_context': 'Fetching context via Context7'

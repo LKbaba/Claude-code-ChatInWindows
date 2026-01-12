@@ -162,6 +162,12 @@
           "default": "C:\\Program Files\\Git\\bin\\bash.exe",
           "description": "Path to git-bash.exe on Windows. This is required for non-WSL execution to provide a Posix-like shell environment for the Claude CLI."
         },
+        "claudeCodeChatUI.thinking.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Enable thinking mode for Claude responses. Can be configured per-workspace."
+        },
         "claudeCodeChatUI.thinking.intensity": {
           "type": "string",
           "enum": [
@@ -171,6 +177,7 @@
             "ultrathink"
           ],
           "default": "think",
+          "scope": "resource",
           "description": "Thinking mode intensity level. Higher levels provide more detailed reasoning but consume more tokens."
         },
         "claudeCodeChatUI.mcp.enabled": {
@@ -239,7 +246,8 @@
         "claudeCodeChatUI.language.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable language mode for Claude responses"
+          "scope": "resource",
+          "description": "Enable language mode for Claude responses. Can be configured per-workspace."
         },
         "claudeCodeChatUI.language.selected": {
           "type": [
@@ -247,6 +255,7 @@
             "null"
           ],
           "default": null,
+          "scope": "resource",
           "enum": [
             "zh",
             "es",
@@ -267,12 +276,13 @@
             "한국어",
             "Auto-detect"
           ],
-          "description": "Selected language for Claude responses"
+          "description": "Selected language for Claude responses. Can be configured per-workspace."
         },
         "claudeCodeChatUI.language.onlyCommunicate": {
           "type": "boolean",
           "default": false,
-          "description": "When enabled, only communication language changes; code comments remain in English (uses official Claude language setting)"
+          "scope": "resource",
+          "description": "When enabled, only communication language changes; code comments remain in English. Can be configured per-workspace."
         },
         "claudeCodeChatUI.api.useCustomAPI": {
           "type": "boolean",

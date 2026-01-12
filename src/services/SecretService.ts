@@ -1,37 +1,37 @@
 /**
- * SecretService - 安全存储服务
- * 使用 VS Code SecretStorage API 安全存储敏感信息（如 API Keys）
+ * SecretService - Secure Storage Service
+ * Uses VS Code SecretStorage API to securely store sensitive information (such as API Keys)
  *
- * 主要功能：
- * - 安全存储和获取 Gemini API Key
- * - 支持其他敏感配置的扩展
+ * Main features:
+ * - Secure storage and retrieval of Gemini API Key
+ * - Support for extending to other sensitive configurations
  */
 
 import * as vscode from 'vscode';
 import { debugLog, debugError } from './DebugLogger';
 
-// 存储键常量
+// Storage key constants
 const SECRET_KEYS = {
     GEMINI_API_KEY: 'gemini-api-key',
     GEMINI_ENABLED: 'gemini-integration-enabled'
 } as const;
 
-// VS Code 配置键常量
+// VS Code configuration key constants
 const CONFIG_KEYS = {
     GEMINI_ENABLED: 'claudeCodeChatUI.geminiIntegrationEnabled'
 } as const;
 
 /**
- * Gemini 集成配置接口
+ * Gemini Integration Configuration Interface
  */
 export interface GeminiIntegrationConfig {
-    enabled: boolean;           // 是否启用 Gemini Integration
+    enabled: boolean;           // Whether Gemini Integration is enabled
     apiKey: string | undefined; // Gemini API Key
 }
 
 /**
- * SecretService 单例类
- * 管理所有敏感数据的安全存储
+ * SecretService Singleton Class
+ * Manages secure storage of all sensitive data
  */
 export class SecretService {
     private static instance: SecretService | undefined;
@@ -41,7 +41,7 @@ export class SecretService {
     private constructor() {}
 
     /**
-     * 获取 SecretService 单例实例
+     * Get SecretService singleton instance
      */
     public static getInstance(): SecretService {
         if (!SecretService.instance) {
@@ -51,9 +51,9 @@ export class SecretService {
     }
 
     /**
-     * 初始化 SecretService
-     * 必须在使用其他方法之前调用
-     * @param context VS Code 扩展上下文
+     * Initialize SecretService
+     * Must be called before using other methods
+     * @param context VS Code extension context
      */
     public initialize(context: vscode.ExtensionContext): void {
         this.context = context;
@@ -62,19 +62,19 @@ export class SecretService {
     }
 
     /**
-     * 检查服务是否已初始化
+     * Check if service is initialized
      */
     private ensureInitialized(): void {
         if (!this.secrets || !this.context) {
-            throw new Error('[SecretService] 服务未初始化。请先调用 initialize() 方法。');
+            throw new Error('[SecretService] Service not initialized. Please call initialize() method first.');
         }
     }
 
-    // ==================== Gemini API Key 相关方法 ====================
+    // ==================== Gemini API Key Related Methods ====================
 
     /**
-     * 获取 Gemini API Key
-     * @returns API Key 或 undefined（如果未设置）
+     * Get Gemini API Key
+     * @returns API Key or undefined (if not set)
      */
     public async getGeminiApiKey(): Promise<string | undefined> {
         this.ensureInitialized();
@@ -89,8 +89,8 @@ export class SecretService {
     }
 
     /**
-     * 设置 Gemini API Key
-     * @param apiKey 要存储的 API Key
+     * Set Gemini API Key
+     * @param apiKey API Key to store
      */
     public async setGeminiApiKey(apiKey: string): Promise<void> {
         this.ensureInitialized();
@@ -104,7 +104,7 @@ export class SecretService {
     }
 
     /**
-     * 删除 Gemini API Key
+     * Delete Gemini API Key
      */
     public async deleteGeminiApiKey(): Promise<void> {
         this.ensureInitialized();
@@ -117,11 +117,11 @@ export class SecretService {
         }
     }
 
-    // ==================== Gemini Integration 配置方法 ====================
+    // ==================== Gemini Integration Configuration Methods ====================
 
     /**
-     * 获取 Gemini Integration 是否启用
-     * @returns 启用状态
+     * Get Gemini Integration enabled status
+     * @returns Enabled status
      */
     public getGeminiIntegrationEnabled(): boolean {
         const config = vscode.workspace.getConfiguration();
@@ -129,8 +129,8 @@ export class SecretService {
     }
 
     /**
-     * 设置 Gemini Integration 启用状态
-     * @param enabled 是否启用
+     * Set Gemini Integration enabled status
+     * @param enabled Whether to enable
      */
     public async setGeminiIntegrationEnabled(enabled: boolean): Promise<void> {
         const config = vscode.workspace.getConfiguration();
@@ -139,8 +139,8 @@ export class SecretService {
     }
 
     /**
-     * 获取完整的 Gemini 集成配置
-     * @returns Gemini 集成配置对象
+     * Get complete Gemini integration configuration
+     * @returns Gemini integration configuration object
      */
     public async getGeminiIntegrationConfig(): Promise<GeminiIntegrationConfig> {
         const enabled = this.getGeminiIntegrationEnabled();
@@ -153,35 +153,35 @@ export class SecretService {
     }
 
     /**
-     * 检查是否应该注入 Gemini API Key
-     * 条件：Integration 已启用 且 API Key 已设置
-     * @returns 是否应该注入
+     * Check if Gemini API Key should be injected
+     * Condition: Integration is enabled AND API Key is set
+     * @returns Whether to inject
      */
     public async shouldInjectGeminiApiKey(): Promise<boolean> {
         const config = await this.getGeminiIntegrationConfig();
         return config.enabled && !!config.apiKey;
     }
 
-    // ==================== 工具方法 ====================
+    // ==================== Utility Methods ====================
 
     /**
-     * 检查 API Key 格式是否有效（基本验证）
-     * Gemini API Key 通常以 "AIza" 开头
-     * @param apiKey 要验证的 API Key
-     * @returns 是否有效
+     * Check if API Key format is valid (basic validation)
+     * Gemini API Key usually starts with "AIza"
+     * @param apiKey API Key to validate
+     * @returns Whether valid
      */
     public static isValidGeminiApiKeyFormat(apiKey: string): boolean {
         if (!apiKey || typeof apiKey !== 'string') {
             return false;
         }
-        // Gemini API Key 通常以 "AIza" 开头，长度约为 39 个字符
+        // Gemini API Key usually starts with "AIza", length is about 39 characters
         return apiKey.startsWith('AIza') && apiKey.length >= 35;
     }
 
     /**
-     * 获取 API Key 的掩码显示（用于 UI 显示）
-     * @param apiKey 原始 API Key
-     * @returns 掩码后的字符串，如 "AIza••••••••••••••••••••"
+     * Get masked display of API Key (for UI display)
+     * @param apiKey Original API Key
+     * @returns Masked string, e.g., "AIza••••••••••••••••••••"
      */
     public static maskApiKey(apiKey: string | undefined): string {
         if (!apiKey) {
@@ -190,10 +190,10 @@ export class SecretService {
         if (apiKey.length <= 8) {
             return '••••••••';
         }
-        // 显示前 4 个字符，其余用 • 代替
+        // Show first 4 characters, replace the rest with •
         return apiKey.substring(0, 4) + '•'.repeat(Math.min(apiKey.length - 4, 20));
     }
 }
 
-// 导出单例实例的获取方法
+// Export singleton instance getter
 export const secretService = SecretService.getInstance();

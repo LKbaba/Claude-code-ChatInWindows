@@ -1,10 +1,10 @@
 /**
  * VS Code Configuration Manager
- * 管理 VS Code 扩展的通用设置
+ * Manages general settings for the VS Code extension
  *
- * 配置保存策略：
- * - MCP 相关配置（mcp.enabled, mcp.servers）：优先保存到工作区级别，实现项目隔离
- * - 其他配置：保存到用户级别（全局）
+ * Configuration save strategy:
+ * - MCP related config (mcp.enabled, mcp.servers): Saved to workspace level for project isolation
+ * - Other config: Saved to user level (global)
  */
 
 import * as vscode from 'vscode';
@@ -18,26 +18,26 @@ export interface VsCodeSettings {
 }
 
 /**
- * MCP 配置的保存目标
+ * MCP configuration save target
  */
 export type McpConfigTarget = 'user' | 'workspace';
 
 export class VsCodeConfigManager {
     /**
-     * 当前 MCP 配置保存的目标级别
-     * 默认为 'workspace'，让每个项目有独立的 MCP 配置
+     * Current MCP configuration save target level
+     * Defaults to 'workspace' for project-specific MCP configuration
      */
     private _mcpConfigTarget: McpConfigTarget = 'workspace';
 
     /**
-     * 获取 MCP 配置保存目标
+     * Get MCP configuration save target
      */
     public getMcpConfigTarget(): McpConfigTarget {
         return this._mcpConfigTarget;
     }
 
     /**
-     * 设置 MCP 配置保存目标
+     * Set MCP configuration save target
      */
     public setMcpConfigTarget(target: McpConfigTarget): void {
         this._mcpConfigTarget = target;
@@ -45,17 +45,17 @@ export class VsCodeConfigManager {
     }
 
     /**
-     * 获取当前活动编辑器的资源 URI
-     * 用于多根工作区场景下获取正确的配置作用域
+     * Get current active editor's resource URI
+     * Used for getting correct configuration scope in multi-root workspace
      */
     private getActiveResourceUri(): vscode.Uri | undefined {
-        // 优先使用活动编辑器的文档 URI
+        // Prefer active editor's document URI
         const activeEditor = vscode.window.activeTextEditor;
         if (activeEditor) {
             return activeEditor.document.uri;
         }
 
-        // 其次使用第一个工作区文件夹
+        // Fall back to first workspace folder
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
             return workspaceFolders[0].uri;
@@ -65,25 +65,26 @@ export class VsCodeConfigManager {
     }
 
     /**
-     * 获取当前扩展设置
-     * @returns 当前设置对象
+     * Get current extension settings
+     * @returns Current settings object
      */
     public getCurrentSettings(): VsCodeSettings {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         const settings: VsCodeSettings = {
+            'thinking.enabled': config.get<boolean>('thinking.enabled', false),
             'thinking.intensity': config.get<string>('thinking.intensity', 'think'),
             'language.enabled': config.get<boolean>('language.enabled', false),
             'language.selected': config.get<string | null>('language.selected', this.getDefaultLanguage())
         };
 
-        // 获取特定配置值
+        // Get specific configuration values
         settings['mcp.enabled'] = config.get<boolean>('mcp.enabled', false);
         settings['mcp.servers'] = config.get<any[]>('mcp.servers', []);
         settings['api.useCustomAPI'] = config.get<boolean>('api.useCustomAPI', false);
         settings['api.key'] = config.get<string>('api.key', '');
         settings['api.baseUrl'] = config.get<string>('api.baseUrl', 'https://api.anthropic.com');
 
-        // 获取其他可能需要的设置
+        // Get other potentially needed settings
         const allKeys = Object.keys(config);
         for (const key of allKeys) {
             if (!settings.hasOwnProperty(key)) {
@@ -94,7 +95,7 @@ export class VsCodeConfigManager {
             }
         }
 
-        // ========== 分别获取全局和工作区的 MCP 服务器配置 ==========
+        // ========== Get global and workspace MCP server configurations separately ==========
         const serversInspect = config.inspect<any[]>('mcp.servers');
 
         settings['mcp.globalServers'] = serversInspect?.globalValue || [];
@@ -104,8 +105,8 @@ export class VsCodeConfigManager {
     }
 
     /**
-     * 获取 MCP 配置的来源信息
-     * 用于在 UI 中显示配置是来自用户级别还是工作区级别
+     * Get MCP configuration source info
+     * Used in UI to show whether config is from user or workspace level
      */
     public getMcpConfigSource(): { enabled: string; servers: string } {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
@@ -123,46 +124,74 @@ export class VsCodeConfigManager {
     }
 
     /**
-     * 判断设置项是否为 MCP 相关配置
+     * Check if setting key is MCP related
      */
     private isMcpRelatedKey(key: string): boolean {
         return key.startsWith('mcp.');
     }
 
     /**
-     * 获取配置保存目标
-     * @param key 配置项的键
-     * @returns VS Code 配置目标
+     * Check if setting key is project-level configuration
+     * These settings are saved to workspace level for project isolation
+     * Includes: MCP config, language mode, thinking mode
+     */
+    private isProjectLevelKey(key: string): boolean {
+        // MCP config
+        if (key.startsWith('mcp.')) {
+            return true;
+        }
+        // Language mode config (each project may need different language settings)
+        if (key.startsWith('language.')) {
+            return true;
+        }
+        // Thinking mode config (each project may need different thinking intensity)
+        if (key.startsWith('thinking.')) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get configuration save target
+     * @param key Configuration key
+     * @returns VS Code configuration target
      */
     private getConfigTargetForKey(key: string): vscode.ConfigurationTarget {
-        // MCP 相关配置根据设置保存到对应级别
-        if (this.isMcpRelatedKey(key)) {
-            // 如果没有工作区，则回退到全局配置
+        // Project-level config (MCP, language mode, thinking mode) saved to workspace level
+        if (this.isProjectLevelKey(key)) {
+            // If no workspace, fall back to global config
             if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-                debugLog('VsCodeConfigManager', `No workspace, MCP config "${key}" saved to user level`);
+                debugLog('VsCodeConfigManager', `No workspace, project config "${key}" saved to user level`);
                 return vscode.ConfigurationTarget.Global;
             }
 
-            if (this._mcpConfigTarget === 'workspace') {
-                return vscode.ConfigurationTarget.Workspace;
-            } else {
-                return vscode.ConfigurationTarget.Global;
+            // MCP config is controlled by mcpConfigTarget
+            if (this.isMcpRelatedKey(key)) {
+                if (this._mcpConfigTarget === 'workspace') {
+                    return vscode.ConfigurationTarget.Workspace;
+                } else {
+                    return vscode.ConfigurationTarget.Global;
+                }
             }
+
+            // Language mode and thinking mode default to workspace level
+            debugLog('VsCodeConfigManager', `Saving project config "${key}" to workspace level`);
+            return vscode.ConfigurationTarget.Workspace;
         }
 
-        // 其他配置保存到用户级别
+        // Other config saved to user level
         return vscode.ConfigurationTarget.Global;
     }
 
     /**
-     * 更新扩展设置
-     * MCP 相关配置会根据 mcpConfigTarget 保存到对应级别
+     * Update extension settings
+     * MCP related config will be saved to level based on mcpConfigTarget
      *
-     * 重要：对于 mcp.servers，需要同时清理另一个级别的配置，
-     * 否则两个级别的配置会合并导致删除不生效
+     * Important: For mcp.servers, need to clean up config from the other level,
+     * otherwise configs from both levels will merge and delete won't work
      *
-     * @param settings 要更新的设置
-     * @returns 设置更新完成后的 Promise
+     * @param settings Settings to update
+     * @returns Promise when settings update completes
      */
     public async updateSettings(settings: { [key: string]: any }): Promise<void> {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
@@ -174,8 +203,8 @@ export class VsCodeConfigManager {
             debugLog('VsCodeConfigManager', `Saving config "${key}" to ${targetName} level`);
             await config.update(key, value, target);
 
-            // 对于 mcp.servers，需要清理另一个级别的配置
-            // 否则两个级别的配置会合并，导致删除操作看起来不生效
+            // For mcp.servers, need to clean up config from other level
+            // Otherwise configs will merge and delete won't seem to work
             if (key === 'mcp.servers') {
                 await this.cleanupMcpServersFromOtherLevel(config, target, value);
             }
@@ -183,39 +212,39 @@ export class VsCodeConfigManager {
     }
 
     /**
-     * 清理另一个级别的 mcp.servers 配置
-     * 确保删除操作能正确生效
+     * Clean up mcp.servers config from the other level
+     * Ensures delete operations work correctly
      *
-     * 策略：
-     * - 如果保存到用户级别：清空工作区级别的 mcp.servers
-     * - 如果保存到工作区级别：清空用户级别的 mcp.servers
+     * Strategy:
+     * - If saved to user level: clear workspace level mcp.servers
+     * - If saved to workspace level: clear user level mcp.servers
      *
-     * @param config VS Code 配置对象
-     * @param savedTarget 已保存到的目标级别
-     * @param newServers 新的服务器列表
+     * @param config VS Code configuration object
+     * @param savedTarget Target level already saved to
+     * @param newServers New server list
      */
     private async cleanupMcpServersFromOtherLevel(
         config: vscode.WorkspaceConfiguration,
         savedTarget: vscode.ConfigurationTarget,
         newServers: any[]
     ): Promise<void> {
-        // 检查是否有工作区
+        // Check if workspace exists
         const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
         if (!hasWorkspace) {
-            // 没有工作区，无需清理
+            // No workspace, no need to clean
             return;
         }
 
         const serversInspect = config.inspect<any[]>('mcp.servers');
 
         if (savedTarget === vscode.ConfigurationTarget.Global) {
-            // 保存到用户级别，需要清空工作区级别
+            // Saved to user level, need to clear workspace level
             if (serversInspect?.workspaceValue !== undefined) {
                 debugLog('VsCodeConfigManager', 'Clearing workspace level mcp.servers (prevent config merge)');
                 await config.update('mcp.servers', undefined, vscode.ConfigurationTarget.Workspace);
             }
         } else if (savedTarget === vscode.ConfigurationTarget.Workspace) {
-            // 保存到工作区级别，需要清空用户级别
+            // Saved to workspace level, need to clear user level
             if (serversInspect?.globalValue !== undefined) {
                 debugLog('VsCodeConfigManager', 'Clearing user level mcp.servers (prevent config merge)');
                 await config.update('mcp.servers', undefined, vscode.ConfigurationTarget.Global);
@@ -224,10 +253,10 @@ export class VsCodeConfigManager {
     }
 
     /**
-     * 专门用于更新 MCP 配置的方法
-     * 可以指定保存到用户级别还是工作区级别
-     * @param settings MCP 相关设置
-     * @param target 保存目标：'user' | 'workspace'
+     * Method specifically for updating MCP configuration
+     * Can specify to save to user or workspace level
+     * @param settings MCP related settings
+     * @param target Save target: 'user' | 'workspace'
      */
     public async updateMcpSettings(
         settings: { [key: string]: any },
@@ -238,7 +267,7 @@ export class VsCodeConfigManager {
             ? vscode.ConfigurationTarget.Workspace
             : vscode.ConfigurationTarget.Global;
 
-        // 如果没有工作区且目标是工作区，回退到全局
+        // If no workspace and target is workspace, fall back to global
         if (target === 'workspace' && (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0)) {
             debugLog('VsCodeConfigManager', 'No workspace, MCP config saved to user level');
             for (const [key, value] of Object.entries(settings)) {
@@ -255,12 +284,12 @@ export class VsCodeConfigManager {
     }
 
     /**
-     * 将当前用户级别的 MCP 配置迁移到工作区级别
-     * 用于将全局配置转换为项目特定配置
+     * Migrate current user-level MCP config to workspace level
+     * Used to convert global config to project-specific config
      */
     public async migrateMcpToWorkspace(): Promise<void> {
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-            vscode.window.showWarningMessage('无法迁移 MCP 配置：当前没有打开的工作区');
+            vscode.window.showWarningMessage('Cannot migrate MCP config: no workspace is open');
             return;
         }
 
@@ -268,11 +297,11 @@ export class VsCodeConfigManager {
         const enabledInspect = config.inspect<boolean>('mcp.enabled');
         const serversInspect = config.inspect<any[]>('mcp.servers');
 
-        // 获取用户级别的值
+        // Get user level values
         const userEnabled = enabledInspect?.globalValue;
         const userServers = serversInspect?.globalValue;
 
-        // 如果有用户级别的配置，复制到工作区级别
+        // If user level config exists, copy to workspace level
         if (userEnabled !== undefined || (userServers && userServers.length > 0)) {
             if (userEnabled !== undefined) {
                 await config.update('mcp.enabled', userEnabled, vscode.ConfigurationTarget.Workspace);

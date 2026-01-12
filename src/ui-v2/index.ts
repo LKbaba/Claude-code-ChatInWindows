@@ -1954,23 +1954,101 @@ function getStylesOld(): string {
         border-color: var(--vscode-focusBorder);
     }
 
-    /* Language selection modal */
-    .language-modal-description {
-        padding: 0px 20px;
-        font-size: 12px;
-        color: var(--vscode-descriptionForeground);
-        line-height: 1.5;
-        text-align: center;
-        margin: 20px;
-        margin-bottom: 0px;
+    /* Language selection modal styles */
+
+    /* Settings area container */
+    .language-settings-area {
+        padding: 16px;
+        border-bottom: 1px solid var(--vscode-panel-border);
+        background-color: rgba(255, 255, 255, 0.02);
     }
 
+    /* Checkbox container */
+    .language-checkbox-wrapper {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        margin-bottom: 8px;
+    }
+
+    /* Hide native checkbox */
+    .language-checkbox-wrapper input {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+        height: 0;
+        width: 0;
+    }
+
+    /* Custom checkbox style */
+    .language-checkmark {
+        height: 18px;
+        width: 18px;
+        background-color: var(--vscode-input-background);
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 3px;
+        margin-right: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+
+    /* Checkbox checkmark */
+    .language-checkmark::after {
+        content: "";
+        display: none;
+        width: 5px;
+        height: 9px;
+        border: solid var(--vscode-foreground);
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+        margin-bottom: 2px;
+    }
+
+    /* Checked state */
+    .language-checkbox-wrapper input:checked ~ .language-checkmark {
+        background-color: var(--vscode-focusBorder);
+        border-color: var(--vscode-focusBorder);
+    }
+
+    .language-checkbox-wrapper input:checked ~ .language-checkmark::after {
+        display: block;
+        border-color: white;
+    }
+
+    /* Hover effect */
+    .language-checkbox-wrapper:hover .language-checkmark {
+        border-color: var(--vscode-focusBorder);
+    }
+
+    /* Checkbox text */
+    .language-checkbox-text {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--vscode-foreground);
+    }
+
+    /* Description text */
+    .language-modal-description {
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+        margin: 0;
+        margin-left: 28px;
+        line-height: 1.4;
+        transition: opacity 0.2s;
+    }
+
+    /* Language item title */
     .language-title {
         font-size: 14px;
         font-weight: 500;
         margin-bottom: 4px;
     }
 
+    /* Language item description */
     .language-description {
         font-size: 11px;
         color: var(--vscode-descriptionForeground);

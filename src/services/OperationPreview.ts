@@ -7,11 +7,11 @@ import * as path from 'path';
  * Statistics for operation preview
  */
 export interface OperationStatistics {
-    totalLines?: number;      // 文件总行数
-    affectedLines?: number;   // 受影响的行数
-    fileSize?: string;        // 文件大小
-    additions?: number;       // 添加的行数
-    deletions?: number;       // 删除的行数
+    totalLines?: number;      // Total lines in file
+    affectedLines?: number;   // Number of affected lines
+    fileSize?: string;        // File size
+    additions?: number;       // Number of added lines
+    deletions?: number;       // Number of deleted lines
 }
 
 /**

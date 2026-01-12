@@ -246,7 +246,7 @@ export class OperationTracker {
     const operation = this._operations.get(operationId);
     if (operation) {
       operation.status = OperationStatus.UNDONE;
-      operation.undone = true; // 保留向后兼容
+      operation.undone = true; // Keep for backward compatibility
       this.emitOperationChanged(operation);
     }
   }
@@ -258,7 +258,7 @@ export class OperationTracker {
     const operation = this._operations.get(operationId);
     if (operation) {
       operation.status = OperationStatus.ACTIVE;
-      operation.undone = false; // 保留向后兼容
+      operation.undone = false; // Keep for backward compatibility
       this.emitOperationChanged(operation);
     }
   }

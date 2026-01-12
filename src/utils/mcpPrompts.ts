@@ -58,7 +58,7 @@ export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
 **Requirements**: Must run in a project with components.json file
 **Note**: Run 'npx shadcn@latest init' first if components.json doesn't exist`,
 
-    // Gemini AI 助手 - 用于 UI 生成、多模态分析和创意编码
+    // Gemini AI assistant - for UI generation, multimodal analysis, and creative coding
     'gemini-assistant': `
 ## Gemini AI Assistant
 **Purpose**: AI-powered UI generation, multimodal analysis, and creative coding

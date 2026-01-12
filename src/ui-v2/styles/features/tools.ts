@@ -447,22 +447,22 @@ export const toolStyles = `
 /* ===================================
  * Plugin Display Styles
  * ===================================
- * ⚠️ 重要提示：这些样式当前没有被使用！
+ * WARNING: These styles are currently NOT in use!
  *
- * 原因：index.ts 中的 getStylesWithEnhancements() 函数
- * 使用的是 getStylesOld() 而不是 getCombinedStyles()，
- * 因此这个文件中的样式不会被包含在最终的 HTML 中。
+ * Reason: The getStylesWithEnhancements() function in index.ts
+ * uses getStylesOld() instead of getCombinedStyles(),
+ * so styles in this file are not included in the final HTML.
  *
- * 实际生效的样式位置：src/ui-v2/index.ts (约1703-1729行)
+ * Actual active styles location: src/ui-v2/index.ts (around lines 1703-1729)
  *
- * 如果需要修改插件显示样式，请直接修改 index.ts 中的
- * getStylesOld() 函数内的对应样式定义。
+ * If you need to modify plugin display styles, please directly modify
+ * the corresponding style definitions in getStylesOld() in index.ts.
  *
- * TODO: 未来重构时，应该让 getStylesWithEnhancements()
- * 使用 getCombinedStyles()，这样这里的样式就会生效。
+ * TODO: In future refactoring, getStylesWithEnhancements() should
+ * use getCombinedStyles(), so styles here will take effect.
  * =================================== */
 
-/* 插件名称（当前未使用） */
+/* Plugin name (currently not used) */
 .plugin-name {
   font-weight: var(--font-weight-semibold);
   font-size: 18px;
@@ -470,7 +470,7 @@ export const toolStyles = `
   margin-bottom: var(--space-xs);
 }
 
-/* 插件描述（当前未使用） */
+/* Plugin description (currently not used) */
 .plugin-description {
   font-size: 11px;
   line-height: 1.4;

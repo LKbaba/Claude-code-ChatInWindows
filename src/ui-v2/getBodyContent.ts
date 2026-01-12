@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.0.5</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.0.6</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -78,7 +78,7 @@ export function getBodyContent(): string {
 								</svg>
 							</button>
 
-							<!-- 算力模式选择器 -->
+							<!-- Compute mode selector -->
 							<button class="model-selector" id="modeSelector" onclick="showModeSelector()" title="Select compute mode">
 								<span id="selectedMode">Auto</span>
 								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
@@ -258,7 +258,7 @@ export function getBodyContent(): string {
 				Loading plugins...
 			</div>
 			<div id="pluginsList" class="tools-list">
-				<!-- 插件列表将动态填充到这里 -->
+				<!-- Plugin list will be dynamically populated here -->
 			</div>
 		</div>
 	</div>
@@ -284,7 +284,7 @@ export function getBodyContent(): string {
 					</div>
 					
 					<div id="mcpOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
-						<!-- 状态栏 -->
+						<!-- Status bar -->
 						<div id="mcpStatusBar" style="margin-bottom: 12px; padding: 8px; background: var(--vscode-panel-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px;">
 							<div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
 								<div id="mcpStatusText" style="font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -298,14 +298,14 @@ export function getBodyContent(): string {
 							</div>
 						</div>
 
-						<!-- ========== 全局配置区 ========== -->
+						<!-- ========== Global configuration section ========== -->
 						<div id="mcpGlobalSection" style="margin-bottom: 16px;">
 							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--vscode-panel-border);">
 								<span style="font-size: 12px; font-weight: 600; color: var(--vscode-foreground);">User (Global)</span>
 								<span style="font-size: 10px; color: var(--vscode-descriptionForeground);">All projects</span>
 							</div>
 							<div id="mcpGlobalServersList" style="margin-bottom: 8px;">
-								<!-- 全局 MCP 服务器列表 -->
+								<!-- Global MCP server list -->
 							</div>
 							<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
 								<button class="btn outlined" onclick="addMcpServer('global')" style="font-size: 11px; padding: 4px 10px;">
@@ -327,14 +327,14 @@ export function getBodyContent(): string {
 							</div>
 						</div>
 
-						<!-- ========== 工作区配置区 ========== -->
+						<!-- ========== Workspace configuration section ========== -->
 						<div id="mcpWorkspaceSection" style="margin-bottom: 12px;">
 							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--vscode-panel-border);">
 								<span style="font-size: 12px; font-weight: 600; color: var(--vscode-foreground);">Workspace</span>
 								<span style="font-size: 10px; color: var(--vscode-descriptionForeground);">This project only</span>
 							</div>
 							<div id="mcpWorkspaceServersList" style="margin-bottom: 8px;">
-								<!-- 工作区 MCP 服务器列表 -->
+								<!-- Workspace MCP server list -->
 							</div>
 							<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
 								<button class="btn outlined" onclick="addMcpServer('workspace')" style="font-size: 11px; padding: 4px 10px;">
@@ -356,9 +356,9 @@ export function getBodyContent(): string {
 							</div>
 						</div>
 
-						<!-- 保留原有的 mcpServersList 用于兼容，但隐藏 -->
+						<!-- Keep original mcpServersList for compatibility, but hidden -->
 						<div id="mcpServersList" style="display: none;">
-							<!-- 兼容旧逻辑 -->
+							<!-- For backward compatibility -->
 						</div>
 						<div style="margin-top: 12px; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
 							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
@@ -577,7 +577,7 @@ export function getBodyContent(): string {
 					</label>
 				</div>
 
-				<!-- 高级设置区域（始终显示） -->
+				<!-- Advanced settings section (always visible) -->
 				<div class="advanced-settings-divider"></div>
 				<div class="advanced-settings-section">
 					<div class="advanced-settings-title">Advanced Settings</div>
@@ -625,19 +625,21 @@ export function getBodyContent(): string {
 
 	<!-- Language selection modal -->
 	<div id="languageModal" class="tools-modal" style="display: none;">
-		<div class="tools-modal-content" style="width: 400px;">
-			<div class="tools-modal-header" style="display: flex; justify-content: space-between; align-items: center;">
-				<div style="display: flex; align-items: center; gap: 12px;">
-					<span>Select Language</span>
-					<label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--vscode-descriptionForeground);">
-						<input type="checkbox" id="onlyCommunicateCheckbox" onchange="toggleOnlyCommunicate()" style="cursor: pointer;">
-						<span>Only communicate</span>
-					</label>
-				</div>
+		<div class="tools-modal-content" style="width: 420px;">
+			<div class="tools-modal-header">
+				<span>Select Language</span>
 				<button class="tools-close-btn" onclick="hideLanguageModal()">✕</button>
 			</div>
-			<div class="language-modal-description" id="languageModalDescription">
-				The language for CC to communicate & write code-comments.
+			<!-- Settings area: Only communicate option -->
+			<div class="language-settings-area">
+				<label class="language-checkbox-wrapper" onclick="toggleOnlyCommunicate()">
+					<input type="checkbox" id="onlyCommunicateCheckbox">
+					<span class="language-checkmark"></span>
+					<span class="language-checkbox-text">Only communicate</span>
+				</label>
+				<p class="language-modal-description" id="languageModalDescription">
+					The language for CC to communicate & write code-comments.
+				</p>
 			</div>
 			<div class="tools-list">
 				<div class="tool-item" onclick="selectLanguage('zh')">

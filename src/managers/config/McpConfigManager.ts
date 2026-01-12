@@ -20,18 +20,18 @@ export interface McpStatus {
 
 export class McpConfigManager {
     /**
-     * 获取当前活动编辑器的资源 URI
-     * 用于多根工作区场景下获取正确的配置作用域
-     * @returns 资源 URI 或 undefined
+     * Get current active editor's resource URI
+     * Used to get correct configuration scope in multi-root workspace scenarios
+     * @returns Resource URI or undefined
      */
     private getActiveResourceUri(): vscode.Uri | undefined {
-        // 优先使用活动编辑器的文档 URI
+        // Prefer active editor's document URI
         const activeEditor = vscode.window.activeTextEditor;
         if (activeEditor) {
             return activeEditor.document.uri;
         }
 
-        // 其次使用第一个工作区文件夹
+        // Fall back to first workspace folder
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
             return workspaceFolders[0].uri;
@@ -41,55 +41,55 @@ export class McpConfigManager {
     }
 
     /**
-     * 获取合并后的 MCP 服务器配置
-     * 优先级：工作区配置 > 用户配置
-     * 合并策略：
-     *   - 同名服务器：工作区配置覆盖用户配置
-     *   - 不同名服务器：合并显示
-     *   - disabled: true 的服务器：从最终结果中排除
-     * @param resource 可选的资源 URI，用于多根工作区
-     * @returns 合并后的服务器列表（已过滤禁用的服务器）
+     * Get merged MCP server configuration
+     * Priority: workspace config > user config
+     * Merge strategy:
+     *   - Same name servers: workspace config overrides user config
+     *   - Different name servers: merge and display all
+     *   - disabled: true servers: excluded from final result
+     * @param resource Optional resource URI for multi-root workspace
+     * @returns Merged server list (filtered out disabled servers)
      */
     private getMergedMcpServers(resource?: vscode.Uri): any[] {
-        // 使用资源 URI 获取正确作用域的配置
+        // Use resource URI to get correct scope configuration
         const resourceUri = resource || this.getActiveResourceUri();
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI', resourceUri);
 
-        // 获取配置的详细信息，包括来源
+        // Get configuration details including source
         const serversInspect = config.inspect<any[]>('mcp.servers');
 
-        // 用户级别配置（全局）
+        // User level configuration (global)
         const userServers = serversInspect?.globalValue || [];
-        // 工作区级别配置（项目特定）
+        // Workspace level configuration (project specific)
         const workspaceServers = serversInspect?.workspaceValue || [];
-        // 工作区文件夹级别配置（多根工作区）
+        // Workspace folder level configuration (multi-root workspace)
         const folderServers = serversInspect?.workspaceFolderValue || [];
 
-        // 创建服务器名称到配置的映射，进行智能合并
+        // Create server name to config mapping for smart merging
         const serverMap = new Map<string, any>();
 
-        // 首先添加用户级别的服务器（全局）
+        // First add user level servers (global)
         for (const server of userServers) {
             if (server.name) {
                 serverMap.set(server.name, server);
             }
         }
 
-        // 然后用工作区级别的服务器覆盖/添加
+        // Then override/add with workspace level servers
         for (const server of workspaceServers) {
             if (server.name) {
                 serverMap.set(server.name, server);
             }
         }
 
-        // 最后用文件夹级别的服务器覆盖/添加
+        // Finally override/add with folder level servers
         for (const server of folderServers) {
             if (server.name) {
                 serverMap.set(server.name, server);
             }
         }
 
-        // 过滤掉 disabled: true 的服务器
+        // Filter out disabled: true servers
         const mergedServers = Array.from(serverMap.values())
             .filter(server => !server.disabled);
 
@@ -105,15 +105,15 @@ export class McpConfigManager {
     }
 
     /**
-     * 获取 MCP 启用状态
-     * VS Code 的 config.get() 已自动处理作用域优先级
-     * @param resource 可选的资源 URI，用于多根工作区
-     * @returns MCP 是否启用
+     * Get MCP enabled status
+     * VS Code's config.get() already handles scope priority automatically
+     * @param resource Optional resource URI for multi-root workspace
+     * @returns Whether MCP is enabled
      */
     private getMcpEnabled(resource?: vscode.Uri): boolean {
         const resourceUri = resource || this.getActiveResourceUri();
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI', resourceUri);
-        // VS Code 自动按优先级返回：workspaceFolder > workspace > user > default
+        // VS Code automatically returns by priority: workspaceFolder > workspace > user > default
         return config.get<boolean>('mcp.enabled', false);
     }
 
@@ -291,8 +291,8 @@ export class McpConfigManager {
             mcpConfig.mcpServers[server.name] = serverConfig;
         });
 
-        // ==================== Gemini API Key 运行时注入 ====================
-        // 检查是否需要将 SecretStorage 中的 Gemini API Key 注入到 gemini-assistant 服务器
+        // ==================== Gemini API Key Runtime Injection ====================
+        // Check if Gemini API Key from SecretStorage needs to be injected into gemini-assistant server
         await this.injectGeminiApiKeyIfNeeded(mcpConfig);
 
         // Write MCP config to a temporary file in ~/.claude directory
@@ -423,22 +423,22 @@ export class McpConfigManager {
         }
     }
 
-    // ==================== Gemini API Key 注入相关方法 ====================
+    // ==================== Gemini API Key Injection Related Methods ====================
 
     /**
-     * 检查服务器配置是否为 Gemini MCP 服务器
-     * 通过名称或参数中的特征识别
-     * @param serverName 服务器名称
-     * @param serverConfig 服务器配置
-     * @returns 是否为 Gemini 服务器
+     * Check if server config is a Gemini MCP server
+     * Identify by name or characteristics in arguments
+     * @param serverName Server name
+     * @param serverConfig Server configuration
+     * @returns Whether it's a Gemini server
      */
     private isGeminiServer(serverName: string, serverConfig: any): boolean {
-        // 检查服务器名称是否包含 'gemini'
+        // Check if server name contains 'gemini'
         if (serverName.toLowerCase().includes('gemini')) {
             return true;
         }
 
-        // 检查参数是否包含 Gemini-mcp 相关内容
+        // Check if args contain Gemini-mcp related content
         if (serverConfig.args && Array.isArray(serverConfig.args)) {
             const argsString = serverConfig.args.join(' ').toLowerCase();
             if (argsString.includes('gemini-mcp') || argsString.includes('gemini_mcp')) {
@@ -450,12 +450,12 @@ export class McpConfigManager {
     }
 
     /**
-     * 如果启用了 Gemini Integration，将安全存储的 API Key 注入到 Gemini 服务器配置中
-     * @param mcpConfig MCP 配置对象
+     * If Gemini Integration is enabled, inject securely stored API Key into Gemini server config
+     * @param mcpConfig MCP configuration object
      */
     private async injectGeminiApiKeyIfNeeded(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
         try {
-            // 检查是否应该注入 API Key
+            // Check if API Key should be injected
             const shouldInject = await secretService.shouldInjectGeminiApiKey();
 
             if (!shouldInject) {
@@ -463,23 +463,23 @@ export class McpConfigManager {
                 return;
             }
 
-            // 获取安全存储的 API Key
+            // Get securely stored API Key
             const apiKey = await secretService.getGeminiApiKey();
             if (!apiKey) {
                 debugLog('McpConfigManager', 'Unable to get Gemini API Key, skipping injection');
                 return;
             }
 
-            // 遍历所有服务器，找到 Gemini 服务器并注入 API Key
+            // Iterate all servers, find Gemini servers and inject API Key
             let injectedCount = 0;
             for (const [serverName, serverConfig] of Object.entries(mcpConfig.mcpServers)) {
                 if (this.isGeminiServer(serverName, serverConfig)) {
-                    // 确保 env 对象存在
+                    // Ensure env object exists
                     if (!serverConfig.env) {
                         serverConfig.env = {};
                     }
 
-                    // 注入 API Key（覆盖原有的占位符或值）
+                    // Inject API Key (override original placeholder or value)
                     const originalKey = serverConfig.env.GEMINI_API_KEY;
                     serverConfig.env.GEMINI_API_KEY = apiKey;
                     injectedCount++;
@@ -499,7 +499,7 @@ export class McpConfigManager {
 
         } catch (error) {
             debugError('McpConfigManager', 'Gemini API Key injection failed', error);
-            // 注入失败不应阻止 MCP 配置继续，只记录错误
+            // Injection failure should not block MCP config, just log the error
         }
     }
 

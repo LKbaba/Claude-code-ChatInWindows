@@ -1,8 +1,8 @@
 /**
- * DebugLogger 服务
+ * DebugLogger Service
  *
- * 提供循环缓冲日志功能，自动写入文件供 Claude 读取
- * 仅在开发模式下启用
+ * Provides circular buffer logging with automatic file writing for Claude to read
+ * Only enabled in development mode
  */
 
 import * as fs from 'fs';
@@ -13,7 +13,7 @@ export class DebugLogger {
     private static instance: DebugLogger | null = null;
 
     private logBuffer: string[] = [];
-    private maxLines: number = 0;  // 0 表示不限制行数，保留所有日志
+    private maxLines: number = 0;  // 0 means no line limit, keep all logs
     private logFile: string | null = null;
     private enabled: boolean = false;
     private writeTimer: NodeJS.Timeout | null = null;
@@ -22,7 +22,7 @@ export class DebugLogger {
     private constructor() {}
 
     /**
-     * 获取单例实例
+     * Get singleton instance
      */
     public static getInstance(): DebugLogger {
         if (!DebugLogger.instance) {
@@ -32,110 +32,110 @@ export class DebugLogger {
     }
 
     /**
-     * 初始化日志服务
-     * @param workspacePath 工作区路径
-     * @param enabled 是否启用
+     * Initialize logging service
+     * @param workspacePath Workspace path
+     * @param enabled Whether to enable logging
      */
     public initialize(workspacePath: string | undefined, enabled: boolean = false): void {
         this.enabled = enabled;
 
         if (workspacePath && enabled) {
             this.logFile = path.join(workspacePath, 'debug_log.txt');
-            // 执行滚动备份：将现有日志文件备份为 .bak
+            // Rotate log file: backup existing log file to .bak
             this.rotateLogFile(this.logFile);
-            this.log('DebugLogger', '调试日志已启用', { logFile: this.logFile, backupFile: this.logFile.replace('.txt', '.bak') });
+            this.log('DebugLogger', 'Debug logging enabled', { logFile: this.logFile, backupFile: this.logFile.replace('.txt', '.bak') });
         } else if (enabled) {
-            // 没有工作区时使用全局存储位置
+            // Use global storage location when no workspace
             const homeDir = process.env.HOME || process.env.USERPROFILE || '';
             const claudeDir = path.join(homeDir, '.claude-code-chatui');
 
-            // 确保目录存在
+            // Ensure directory exists
             if (!fs.existsSync(claudeDir)) {
                 fs.mkdirSync(claudeDir, { recursive: true });
             }
 
             this.logFile = path.join(claudeDir, 'debug_log.txt');
-            // 执行滚动备份
+            // Rotate log file
             this.rotateLogFile(this.logFile);
-            this.log('DebugLogger', '调试日志已启用（全局位置）', { logFile: this.logFile, backupFile: this.logFile.replace('.txt', '.bak') });
+            this.log('DebugLogger', 'Debug logging enabled (global location)', { logFile: this.logFile, backupFile: this.logFile.replace('.txt', '.bak') });
         }
     }
 
     /**
-     * 滚动备份日志文件
-     * 将现有的 debug_log.txt 重命名为 debug_log.bak（覆盖旧的备份）
-     * 这样始终保持两个文件：当前会话 + 上一次会话
-     * @param logFilePath 日志文件路径
+     * Rotate log file
+     * Rename existing debug_log.txt to debug_log.bak (overwrite old backup)
+     * This keeps two files: current session + previous session
+     * @param logFilePath Log file path
      */
     private rotateLogFile(logFilePath: string): void {
         try {
             if (fs.existsSync(logFilePath)) {
                 const backupPath = logFilePath.replace('.txt', '.bak');
-                // 将现有日志文件重命名为 .bak（会覆盖旧的 .bak 文件）
+                // Rename existing log file to .bak (overwrites old .bak file)
                 fs.renameSync(logFilePath, backupPath);
-                console.log(`[DebugLogger] 已备份上一次会话日志: ${backupPath}`);
+                console.log(`[DebugLogger] Backed up previous session log: ${backupPath}`);
             }
         } catch (error) {
-            // 备份失败不影响正常日志功能，只输出警告
-            console.warn('[DebugLogger] 备份日志文件失败:', error);
+            // Backup failure doesn't affect normal logging, just output warning
+            console.warn('[DebugLogger] Failed to backup log file:', error);
         }
     }
 
     /**
-     * 记录日志
-     * @param tag 模块标签
-     * @param message 日志消息
-     * @param data 附加数据（可选）
+     * Log a message
+     * @param tag Module tag
+     * @param message Log message
+     * @param data Additional data (optional)
      */
     public log(tag: string, message: string, data?: any): void {
         const timestamp = new Date().toISOString();
         const header = `[${timestamp}] [${tag}] ${message}`;
 
-        // 添加头部行
+        // Add header line
         this.logBuffer.push(header);
 
-        // 如果有数据，美化输出 JSON（每个字段一行，方便阅读）
+        // If data exists, format JSON nicely (one field per line for readability)
         if (data !== undefined) {
             try {
                 const dataStr = typeof data === 'object'
-                    ? JSON.stringify(data, null, 2)  // 美化 JSON，缩进2空格
+                    ? JSON.stringify(data, null, 2)  // Format JSON with 2-space indent
                     : String(data);
 
-                // 将 JSON 的每一行都添加到缓冲区（带缩进）
+                // Add each JSON line to buffer (with indent)
                 const lines = dataStr.split('\n');
                 for (const line of lines) {
-                    this.logBuffer.push('  ' + line);  // 缩进显示数据
+                    this.logBuffer.push('  ' + line);  // Indent data display
                 }
             } catch (e) {
-                this.logBuffer.push('  [无法序列化的数据]');
+                this.logBuffer.push('  [Unserializable data]');
             }
         }
 
-        // 添加空行分隔不同的日志条目
+        // Add empty line to separate log entries
         this.logBuffer.push('');
 
-        // 超出最大行数时移除旧的（0 表示不限制）
+        // Remove old entries when exceeding max lines (0 means no limit)
         if (this.maxLines > 0) {
             while (this.logBuffer.length > this.maxLines) {
                 this.logBuffer.shift();
             }
         }
 
-        // 同时输出到控制台（保持原有行为）
+        // Also output to console (preserve original behavior)
         if (data !== undefined) {
             console.log(`[${tag}] ${message}`, data);
         } else {
             console.log(`[${tag}] ${message}`);
         }
 
-        // 延迟写入文件（避免频繁 IO）
+        // Delayed file write (avoid frequent IO)
         if (this.enabled && this.logFile) {
             this.scheduleWrite();
         }
     }
 
     /**
-     * 记录错误
+     * Log an error
      */
     public error(tag: string, message: string, error?: Error | any): void {
         let errorInfo: any = {};
@@ -144,7 +144,7 @@ export class DebugLogger {
             errorInfo = {
                 name: error.name,
                 message: error.message,
-                stack: error.stack?.split('\n').slice(0, 5).join('\n')  // 只保留前5行堆栈
+                stack: error.stack?.split('\n').slice(0, 5).join('\n')  // Keep only first 5 stack lines
             };
         } else if (error) {
             errorInfo = error;
@@ -154,21 +154,21 @@ export class DebugLogger {
     }
 
     /**
-     * 记录警告
+     * Log a warning
      */
     public warn(tag: string, message: string, data?: any): void {
         this.log(`${tag}:WARN`, message, data);
     }
 
     /**
-     * 延迟写入文件（防抖）
+     * Schedule delayed file write (debounce)
      */
     private scheduleWrite(): void {
         if (this.pendingWrite) return;
 
         this.pendingWrite = true;
 
-        // 100ms 后写入，合并多次调用
+        // Write after 100ms, merge multiple calls
         if (this.writeTimer) {
             clearTimeout(this.writeTimer);
         }
@@ -180,7 +180,7 @@ export class DebugLogger {
     }
 
     /**
-     * 写入文件
+     * Write to file
      */
     private writeToFile(): void {
         if (!this.logFile || !this.enabled) return;
@@ -189,13 +189,13 @@ export class DebugLogger {
             const content = this.logBuffer.join('\n');
             fs.writeFileSync(this.logFile, content, 'utf8');
         } catch (error) {
-            // 写入失败时不要递归调用 log，直接输出到控制台
-            console.error('[DebugLogger] 写入日志文件失败:', error);
+            // Don't recursively call log on write failure, output directly to console
+            console.error('[DebugLogger] Failed to write log file:', error);
         }
     }
 
     /**
-     * 立即刷新日志到文件
+     * Flush logs to file immediately
      */
     public flush(): void {
         if (this.writeTimer) {
@@ -207,42 +207,42 @@ export class DebugLogger {
     }
 
     /**
-     * 获取最近的日志行
-     * @param count 行数
+     * Get recent log lines
+     * @param count Number of lines
      */
     public getRecentLogs(count: number = 50): string[] {
         return this.logBuffer.slice(-count);
     }
 
     /**
-     * 获取日志文件路径
+     * Get log file path
      */
     public getLogFilePath(): string | null {
         return this.logFile;
     }
 
     /**
-     * 检查是否启用
+     * Check if logging is enabled
      */
     public isEnabled(): boolean {
         return this.enabled;
     }
 
     /**
-     * 启用/禁用日志
+     * Enable/disable logging
      */
     public setEnabled(enabled: boolean): void {
         this.enabled = enabled;
         if (enabled) {
-            this.log('DebugLogger', '调试日志已启用');
+            this.log('DebugLogger', 'Debug logging enabled');
         } else {
-            this.flush();  // 禁用前刷新
-            console.log('[DebugLogger] 调试日志已禁用');
+            this.flush();  // Flush before disabling
+            console.log('[DebugLogger] Debug logging disabled');
         }
     }
 
     /**
-     * 清空日志
+     * Clear logs
      */
     public clear(): void {
         this.logBuffer = [];
@@ -250,13 +250,13 @@ export class DebugLogger {
             try {
                 fs.writeFileSync(this.logFile, '', 'utf8');
             } catch (e) {
-                // 忽略
+                // Ignore
             }
         }
     }
 
     /**
-     * 销毁实例
+     * Dispose instance
      */
     public dispose(): void {
         this.flush();
@@ -267,7 +267,7 @@ export class DebugLogger {
     }
 }
 
-// 导出便捷函数
+// Export convenience functions
 export const debugLog = (tag: string, message: string, data?: any) => {
     DebugLogger.getInstance().log(tag, message, data);
 };
