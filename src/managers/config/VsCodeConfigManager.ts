@@ -74,7 +74,8 @@ export class VsCodeConfigManager {
             'thinking.enabled': config.get<boolean>('thinking.enabled', false),
             'thinking.intensity': config.get<string>('thinking.intensity', 'think'),
             'language.enabled': config.get<boolean>('language.enabled', false),
-            'language.selected': config.get<string | null>('language.selected', this.getDefaultLanguage())
+            'language.selected': config.get<string | null>('language.selected', this.getDefaultLanguage()),
+            'language.onlyCommunicate': config.get<boolean>('language.onlyCommunicate', false)
         };
 
         // Get specific configuration values
