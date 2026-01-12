@@ -99,6 +99,13 @@ export function getBodyContent(): string {
 									<path d="M1 2.5l3 3 3-3"></path>
 								</svg>
 							</button>
+
+							<button class="plugins-btn" id="skills-button" onclick="showSkillsModal()" title="View all skills">
+								Skills: All
+								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
+									<path d="M1 2.5l3 3 3-3"></path>
+								</svg>
+							</button>
 						</div>
 						<div class="right-controls">
 							<button class="slash-btn" onclick="showSlashCommandsModal()" title="Slash commands">/</button>
@@ -279,6 +286,30 @@ export function getBodyContent(): string {
 			</div>
 			<div id="pluginsList" class="tools-list">
 				<!-- Plugin list will be dynamically populated here -->
+			</div>
+		</div>
+	</div>
+
+	<!-- Skills modal -->
+	<div id="skillsModal" class="tools-modal" style="display: none;">
+		<div class="tools-modal-content skills-modal-content">
+			<div class="tools-modal-header">
+				<span>Available Skills</span>
+				<div style="display: flex; gap: 8px; align-items: center;">
+					<button class="btn outlined" id="refresh-skills-btn"
+							onclick="handleRefreshSkills()"
+							title="Refresh skill list"
+							style="font-size: 11px; padding: 2px 8px;">
+						Refresh
+					</button>
+					<button class="tools-close-btn" onclick="hideSkillsModal()">x</button>
+				</div>
+			</div>
+			<div class="skills-status" id="skills-status">
+				Loading skills...
+			</div>
+			<div id="skillsList" class="skills-list">
+				<!-- Skills will be dynamically populated -->
 			</div>
 		</div>
 	</div>

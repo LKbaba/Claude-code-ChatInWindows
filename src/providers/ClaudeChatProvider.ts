@@ -20,6 +20,7 @@ import { expandVariables } from '../utils/configUtils';
 import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
+import { SkillManager } from '../services/SkillManager';
 import { secretService, SecretService } from '../services/SecretService';
 import { debugLog, debugWarn, debugError } from '../services/DebugLogger';
 // ClaudeConfigService removed - language setting now implemented entirely via prompts
@@ -261,6 +262,14 @@ export class ClaudeChatProvider {
 					case 'refreshPlugins':
 						// Refresh plugin list
 						this._refreshPlugins();
+						return;
+					case 'getInstalledSkills':
+						// Get installed skills list
+						this._getInstalledSkills();
+						return;
+					case 'refreshSkills':
+						// Refresh skills list
+						this._refreshSkills();
 						return;
 					case 'getClipboardText':
 						const clipboardText = await this._fileOperationsManager.getClipboardText();
@@ -2178,6 +2187,67 @@ export class ClaudeChatProvider {
 					refreshed: false,
 					error: 'Failed to refresh plugins'
 				}
+			});
+		}
+	}
+
+	/**
+	 * Get installed skills list
+	 * This method returns skills from cache or loads them if not cached
+	 */
+	private async _getInstalledSkills(): Promise<void> {
+		try {
+			const skillManager = SkillManager.getInstance();
+			// Get workspace path for loading project-level skills
+			const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+			skillManager.setWorkspacePath(workspaceFolder?.uri.fsPath);
+			// Load skills (uses cache if available)
+			const skills = await skillManager.loadInstalledSkills();
+
+			// Send skill list to webview
+			this._panel?.webview.postMessage({
+				type: 'installedSkillsUpdated',
+				skills: skills
+			});
+
+			debugLog('SkillManager', `Sent ${skills.length} skill(s) to webview`);
+		} catch (error: any) {
+			debugError('SkillManager', 'Failed to load skills', error);
+			this._panel?.webview.postMessage({
+				type: 'installedSkillsUpdated',
+				skills: [],
+				error: 'Failed to load skills'
+			});
+		}
+	}
+
+	/**
+	 * Refresh skills list (reload from all sources)
+	 * This method forces a reload of skills from filesystem
+	 */
+	private async _refreshSkills(): Promise<void> {
+		try {
+			const skillManager = SkillManager.getInstance();
+			// Get workspace path for loading project-level skills
+			const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+			skillManager.setWorkspacePath(workspaceFolder?.uri.fsPath);
+			// Clear cache and force reload
+			skillManager.clearCache();
+			const skills = await skillManager.loadInstalledSkills(true);
+
+			debugLog('SkillManager', `Skills refreshed: ${skills.length} skill(s) loaded`);
+
+			// Send refreshed skill list to webview
+			this._panel?.webview.postMessage({
+				type: 'installedSkillsUpdated',
+				skills: skills
+			});
+		} catch (error: any) {
+			debugError('SkillManager', 'Failed to refresh skills', error);
+			this._panel?.webview.postMessage({
+				type: 'installedSkillsUpdated',
+				skills: [],
+				error: 'Failed to refresh skills'
 			});
 		}
 	}
