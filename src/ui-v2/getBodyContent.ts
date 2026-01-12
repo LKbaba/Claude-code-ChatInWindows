@@ -626,11 +626,17 @@ export function getBodyContent(): string {
 	<!-- Language selection modal -->
 	<div id="languageModal" class="tools-modal" style="display: none;">
 		<div class="tools-modal-content" style="width: 400px;">
-			<div class="tools-modal-header">
-				<span>Select Language</span>
+			<div class="tools-modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+				<div style="display: flex; align-items: center; gap: 12px;">
+					<span>Select Language</span>
+					<label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--vscode-descriptionForeground);">
+						<input type="checkbox" id="onlyCommunicateCheckbox" onchange="toggleOnlyCommunicate()" style="cursor: pointer;">
+						<span>Only communicate</span>
+					</label>
+				</div>
 				<button class="tools-close-btn" onclick="hideLanguageModal()">✕</button>
 			</div>
-			<div class="language-modal-description">
+			<div class="language-modal-description" id="languageModalDescription">
 				The language for CC to communicate & write code-comments.
 			</div>
 			<div class="tools-list">
