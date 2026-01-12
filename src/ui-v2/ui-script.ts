@@ -807,14 +807,21 @@ export const uiScript = `
 			const toggleLabel = document.getElementById('thinkingModeLabel');
 			if (thinkingModeEnabled) {
 				switchElement.classList.add('active');
-				// Show thinking intensity modal when thinking mode is enabled
+				// Show thinking intensity selection modal
 				showThinkingIntensityModal();
 			} else {
 				switchElement.classList.remove('active');
-				// Reset to default "Thinking Mode" when turned off
+				// Reset to default "Thinking Mode" label
 				if (toggleLabel) {
 					toggleLabel.textContent = 'Thinking Mode';
 				}
+				// Save disabled state to settings
+				vscode.postMessage({
+					type: 'updateSettings',
+					settings: {
+						'thinking.enabled': false
+					}
+				});
 			}
 		}
 
@@ -1782,17 +1789,25 @@ export const uiScript = `
 		// Toggle "communicate only" mode
 		function toggleOnlyCommunicate() {
 			const checkbox = document.getElementById('onlyCommunicateCheckbox');
-			onlyCommunicateEnabled = checkbox?.checked || false;
+			if (!checkbox) return;
 
-			// Update description text
+			// Toggle checkbox state (because clicking the label container)
+			checkbox.checked = !checkbox.checked;
+			onlyCommunicateEnabled = checkbox.checked;
+
+			// Update description text with fade in/out effect
 			const descriptionEl = document.getElementById('languageModalDescription');
 			if (descriptionEl) {
-				descriptionEl.textContent = onlyCommunicateEnabled
-					? 'The language for CC to communicate only.'
-					: 'The language for CC to communicate & write code-comments.';
+				descriptionEl.style.opacity = '0.5';
+				setTimeout(() => {
+					descriptionEl.textContent = onlyCommunicateEnabled
+						? 'The language for CC to communicate only.'
+						: 'The language for CC to communicate & write code-comments.';
+					descriptionEl.style.opacity = '1';
+				}, 150);
 			}
 
-			// Save to settings
+			// Save settings to VS Code
 			vscode.postMessage({
 				type: 'updateSettings',
 				settings: {
@@ -1805,11 +1820,12 @@ export const uiScript = `
 			const thinkingSlider = document.getElementById('thinkingIntensitySlider');
 			const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
 			const thinkingIntensity = intensityValues[thinkingSlider.value] || 'think';
-			
-			// Send settings to VS Code
+
+			// Save thinking mode settings to VS Code
 			vscode.postMessage({
 				type: 'updateSettings',
 				settings: {
+					'thinking.enabled': true,
 					'thinking.intensity': thinkingIntensity
 				}
 			});
@@ -2670,22 +2686,34 @@ export const uiScript = `
 			}
 
 			if (message.type === 'settingsData') {
-				// Update UI with current settings
+				// Restore thinking mode settings
+				const savedThinkingMode = message.data['thinking.enabled'] || false;
 				const thinkingIntensity = message.data['thinking.intensity'] || 'think';
 				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
 				const sliderValue = intensityValues.indexOf(thinkingIntensity);
-				
-				// Update thinking intensity modal if it exists
+
+				// Restore thinking mode switch state
+				if (savedThinkingMode && !thinkingModeEnabled) {
+					thinkingModeEnabled = true;
+					const thinkingSwitchElement = document.getElementById('thinkingModeSwitch');
+					if (thinkingSwitchElement && !thinkingSwitchElement.classList.contains('active')) {
+						thinkingSwitchElement.classList.add('active');
+					}
+					// Update label to show current intensity
+					updateThinkingModeToggleName(sliderValue >= 0 ? sliderValue : 0);
+				}
+
+				// Update thinking intensity slider (if modal exists)
 				const thinkingIntensitySlider = document.getElementById('thinkingIntensitySlider');
 				if (thinkingIntensitySlider) {
 					thinkingIntensitySlider.value = sliderValue >= 0 ? sliderValue : 0;
 					updateThinkingIntensityDisplay(thinkingIntensitySlider.value);
-				} else {
-					// Update toggle name even if modal isn't open
+				} else if (!savedThinkingMode) {
+					// If disabled, update to default name
 					updateThinkingModeToggleName(sliderValue >= 0 ? sliderValue : 0);
 				}
-				
-				// Update language mode settings
+
+				// Restore language mode settings
 				const savedLanguageMode = message.data['language.enabled'] || false;
 				const savedLanguage = message.data['language.selected'] || null;
 				
@@ -2942,6 +2970,9 @@ export const uiScript = `
 
 		// Request operation history on load
 		vscode.postMessage({ type: 'getOperationHistory' });
+
+		// Request current project settings to restore Think Mode and Language Mode state
+		vscode.postMessage({ type: 'getSettings' });
 
 		/**
 		 * Convert file path patterns to clickable links
@@ -4349,19 +4380,31 @@ export const uiScript = `
 		
 		
 		function displayMcpTools(data) {
-			// Find which server this is for (data should include serverId)
-			const serverElements = document.querySelectorAll('.mcp-server-item');
-			let targetServerId = null;
-			
-			// Find the server by name
-			serverElements.forEach(serverEl => {
-				const nameInput = serverEl.querySelector('.mcp-server-name');
-				if (nameInput && nameInput.value === data.serverName) {
-					targetServerId = serverEl.id;
-				}
-			});
-			
-			if (!targetServerId) return;
+			console.log('[MCP Tools] Received data:', data);
+
+			// Prefer using serverId from backend for precise element targeting
+			// This correctly distinguishes same-named servers in global and workspace
+			let targetServerId = data.serverId || null;
+
+			// If no serverId, fall back to finding by name (backward compatibility)
+			if (!targetServerId) {
+				const serverElements = document.querySelectorAll('.mcp-server-item');
+				console.log('[MCP Tools] No serverId, looking for server by name:', data.serverName, 'among', serverElements.length, 'servers');
+
+				serverElements.forEach(serverEl => {
+					const nameInput = serverEl.querySelector('.mcp-server-name');
+					if (nameInput && nameInput.value === data.serverName) {
+						targetServerId = serverEl.id;
+					}
+				});
+			}
+
+			if (!targetServerId) {
+				console.warn('[MCP Tools] Could not find server element for:', data.serverName);
+				return;
+			}
+
+			console.log('[MCP Tools] Target server:', targetServerId);
 			
 			const toolsSection = document.getElementById(\`tools-\${targetServerId}\`);
 			if (!toolsSection) return;
@@ -4488,14 +4531,14 @@ export const uiScript = `
 					args: ['shadcn@latest', 'mcp'],
 					env: {}
 				},
-				// Gemini AI assistant - provides UI generation, multimodal analysis and other AI capabilities
+				// Gemini AI assistant - provides UI generation, multimodal analysis, etc.
 				'gemini-assistant': {
 					name: 'gemini-assistant',
 					command: 'npx',
-					args: ['-y', 'github:LKbaba/Gemini-mcp'],
+					args: ['-y', '@lkbaba/mcp-server-gemini@latest'],
 					env: {
-						// Placeholder, prompting user to configure actual API Key
-						// Can securely set real key in Gemini Integration section
+						// Placeholder to prompt user to configure actual API Key
+						// Real key can be securely set in Gemini Integration section
 						'GEMINI_API_KEY': 'xxxxxxx'
 					}
 				}
@@ -4769,22 +4812,34 @@ export const uiScript = `
 			const message = event.data;
 			
 			if (message.type === 'settingsData') {
-				// Update UI with current settings
+				// Restore thinking mode settings
+				const savedThinkingMode = message.data['thinking.enabled'] || false;
 				const thinkingIntensity = message.data['thinking.intensity'] || 'think';
 				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
 				const sliderValue = intensityValues.indexOf(thinkingIntensity);
-				
-				// Update thinking intensity modal if it exists
+
+				// Restore thinking mode switch state
+				if (savedThinkingMode && !thinkingModeEnabled) {
+					thinkingModeEnabled = true;
+					const thinkingSwitchElement = document.getElementById('thinkingModeSwitch');
+					if (thinkingSwitchElement && !thinkingSwitchElement.classList.contains('active')) {
+						thinkingSwitchElement.classList.add('active');
+					}
+					// Update label to show current intensity
+					updateThinkingModeToggleName(sliderValue >= 0 ? sliderValue : 0);
+				}
+
+				// Update thinking intensity slider (if modal exists)
 				const thinkingIntensitySlider = document.getElementById('thinkingIntensitySlider');
 				if (thinkingIntensitySlider) {
 					thinkingIntensitySlider.value = sliderValue >= 0 ? sliderValue : 0;
 					updateThinkingIntensityDisplay(thinkingIntensitySlider.value);
-				} else {
-					// Update toggle name even if modal isn't open
+				} else if (!savedThinkingMode) {
+					// If disabled, update to default name
 					updateThinkingModeToggleName(sliderValue >= 0 ? sliderValue : 0);
 				}
-				
-				// Update language mode settings
+
+				// Restore language mode settings
 				const savedLanguageMode = message.data['language.enabled'] || false;
 				const savedLanguage = message.data['language.selected'] || null;
 				

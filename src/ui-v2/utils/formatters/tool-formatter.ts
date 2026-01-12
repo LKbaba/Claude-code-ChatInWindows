@@ -18,8 +18,8 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * 规范化文件路径，将反斜杠替换为正斜杠
- * 这样可以避免在HTML onclick属性中反斜杠被解释为转义字符的问题
+ * Normalize file path, replacing backslashes with forward slashes
+ * This avoids backslashes being interpreted as escape characters in HTML onclick attributes
  */
 function normalizePathForHtml(filePath: string): string {
     return filePath.replace(/\\/g, '/');

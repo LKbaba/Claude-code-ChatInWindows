@@ -4,18 +4,18 @@ import * as os from 'os';
 import { debugLog, debugWarn, debugError } from './DebugLogger';
 
 /**
- * 已安装插件的数据结构
+ * Data structure for installed plugins
  */
 export interface InstalledPlugin {
-    name: string;           // 插件名称（格式化后）
-    description?: string;   // 插件描述
-    version?: string;       // 版本号
-    path?: string;          // 安装路径
-    rawName?: string;       // 原始名称（插件名@marketplace名）
+    name: string;           // Plugin name (formatted)
+    description?: string;   // Plugin description
+    version?: string;       // Version number
+    path?: string;          // Installation path
+    rawName?: string;       // Original name (plugin-name@marketplace-name)
 }
 
 /**
- * installed_plugins.json 文件的数据结构
+ * Data structure for installed_plugins.json file
  */
 interface InstalledPluginsJson {
     version: number;
@@ -32,7 +32,7 @@ interface InstalledPluginsJson {
 }
 
 /**
- * marketplace.json 文件的数据结构
+ * Data structure for marketplace.json file
  */
 interface MarketplaceJson {
     name: string;
@@ -50,7 +50,7 @@ interface MarketplaceJson {
 }
 
 /**
- * Marketplace 插件元数据缓存
+ * Marketplace plugin metadata cache
  */
 interface MarketplacePluginMetadata {
     [pluginName: string]: {
@@ -60,30 +60,30 @@ interface MarketplacePluginMetadata {
 }
 
 /**
- * 插件管理器
- * 负责读取和管理已安装的 Claude Code 插件
- * 使用单例模式，提供内存缓存以提高性能
+ * Plugin Manager
+ * Responsible for reading and managing installed Claude Code plugins
+ * Uses singleton pattern with in-memory caching for performance
  */
 export class PluginManager {
-    // 单例实例
+    // Singleton instance
     private static instance: PluginManager;
 
-    // 缓存的插件列表
+    // Cached plugin list
     private cachedPlugins: InstalledPlugin[] | null = null;
 
-    // Marketplace 元数据缓存
+    // Marketplace metadata cache
     private marketplaceMetadata: MarketplacePluginMetadata = {};
 
-    // 最后加载时间
+    // Last load time
     private lastLoadTime: number = 0;
 
     /**
-     * 私有构造函数，防止外部实例化
+     * Private constructor to prevent external instantiation
      */
     private constructor() {}
 
     /**
-     * 获取 PluginManager 单例实例
+     * Get PluginManager singleton instance
      */
     public static getInstance(): PluginManager {
         if (!PluginManager.instance) {
@@ -93,12 +93,12 @@ export class PluginManager {
     }
 
     /**
-     * 加载已安装的插件列表
-     * @param forceReload 是否强制重新加载（忽略缓存）
-     * @returns 插件列表
+     * Load installed plugins list
+     * @param forceReload Whether to force reload (ignore cache)
+     * @returns Plugin list
      */
     public async loadInstalledPlugins(forceReload: boolean = false): Promise<InstalledPlugin[]> {
-        // 如果有缓存且不强制刷新，直接返回缓存
+        // If cached and not forcing refresh, return cache directly
         if (this.cachedPlugins && !forceReload) {
             debugLog('PluginManager', 'Returning cached plugins');
             return this.cachedPlugins;
@@ -107,27 +107,27 @@ export class PluginManager {
         debugLog('PluginManager', 'Loading plugins from file');
 
         try {
-            // 获取插件配置文件路径
+            // Get plugin config file path
             const pluginsFilePath = this.getPluginsFilePath();
 
-            // 检查文件是否存在
+            // Check if file exists
             if (!fs.existsSync(pluginsFilePath)) {
                 debugWarn('PluginManager', `Plugin config file not found: ${pluginsFilePath}`);
                 this.cachedPlugins = [];
                 return [];
             }
 
-            // 读取文件内容
+            // Read file content
             const fileContent = fs.readFileSync(pluginsFilePath, 'utf-8');
             const pluginsData: InstalledPluginsJson = JSON.parse(fileContent);
 
-            // 加载 marketplace 元数据
+            // Load marketplace metadata
             await this.loadMarketplaceMetadata(pluginsData);
 
-            // 解析插件数据
+            // Parse plugin data
             const plugins = this.parsePluginsData(pluginsData);
 
-            // 更新缓存
+            // Update cache
             this.cachedPlugins = plugins;
             this.lastLoadTime = Date.now();
 
@@ -137,15 +137,15 @@ export class PluginManager {
         } catch (error) {
             debugError('PluginManager', 'Failed to load plugins', error);
 
-            // 错误情况下返回空数组，不影响扩展运行
+            // Return empty array on error, don't affect extension operation
             this.cachedPlugins = [];
             return [];
         }
     }
 
     /**
-     * 获取缓存的插件列表
-     * @returns 插件列表（如果未加载则返回空数组）
+     * Get cached plugins list
+     * @returns Plugin list (returns empty array if not loaded)
      */
     public getCachedPlugins(): InstalledPlugin[] {
         if (!this.cachedPlugins) {
@@ -156,8 +156,8 @@ export class PluginManager {
     }
 
     /**
-     * 获取插件配置文件路径
-     * @returns 配置文件的完整路径
+     * Get plugin config file path
+     * @returns Full path to config file
      */
     private getPluginsFilePath(): string {
         const homeDir = os.homedir();
@@ -165,9 +165,9 @@ export class PluginManager {
     }
 
     /**
-     * 解析插件数据
-     * @param pluginsData 从 JSON 文件读取的数据
-     * @returns 插件列表
+     * Parse plugin data
+     * @param pluginsData Data read from JSON file
+     * @returns Plugin list
      */
     private parsePluginsData(pluginsData: InstalledPluginsJson): InstalledPlugin[] {
         const plugins: InstalledPlugin[] = [];
@@ -177,15 +177,15 @@ export class PluginManager {
             return plugins;
         }
 
-        // 遍历插件对象
+        // Iterate through plugin objects
         for (const [key, value] of Object.entries(pluginsData.plugins)) {
             try {
-                // 从 key 中提取插件名称
-                // 格式：backend-development@claude-code-workflows
+                // Extract plugin name from key
+                // Format: backend-development@claude-code-workflows
                 const pluginName = this.extractPluginName(key);
                 const formattedName = this.formatPluginName(pluginName);
 
-                // 从 marketplace 元数据中获取描述和版本
+                // Get description and version from marketplace metadata
                 const metadata = this.marketplaceMetadata[pluginName];
                 const description = metadata?.description;
                 const version = metadata?.version || value.version;
@@ -204,31 +204,31 @@ export class PluginManager {
             }
         }
 
-        // 按名称排序
+        // Sort by name
         plugins.sort((a, b) => a.name.localeCompare(b.name));
 
         return plugins;
     }
 
     /**
-     * 从插件 key 中提取插件名称
-     * @param key 插件 key（格式：插件名@marketplace名）
-     * @returns 插件名称部分
+     * Extract plugin name from plugin key
+     * @param key Plugin key (format: plugin-name@marketplace-name)
+     * @returns Plugin name part
      */
     private extractPluginName(key: string): string {
-        // 分割 @ 符号
+        // Split by @ symbol
         const parts = key.split('@');
         return parts[0] || key;
     }
 
     /**
-     * 格式化插件名称
-     * 将 "backend-development" 转换为 "Backend Development"
-     * @param name 原始插件名称
-     * @returns 格式化后的名称
+     * Format plugin name
+     * Convert "backend-development" to "Backend Development"
+     * @param name Original plugin name
+     * @returns Formatted name
      */
     private formatPluginName(name: string): string {
-        // 将连字符替换为空格，然后首字母大写
+        // Replace hyphens with spaces, then capitalize first letter
         return name
             .split('-')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -236,7 +236,7 @@ export class PluginManager {
     }
 
     /**
-     * 清除缓存（用于测试或调试）
+     * Clear cache (for testing or debugging)
      */
     public clearCache(): void {
         this.cachedPlugins = null;
@@ -246,40 +246,40 @@ export class PluginManager {
     }
 
     /**
-     * 加载 marketplace 元数据
-     * @param pluginsData 已安装插件数据
+     * Load marketplace metadata
+     * @param pluginsData Installed plugins data
      */
     private async loadMarketplaceMetadata(pluginsData: InstalledPluginsJson): Promise<void> {
         try {
-            // 从第一个安装路径推断 marketplace 目录
+            // Infer marketplace directory from first installation path
             const firstPlugin = Object.values(pluginsData.plugins)[0];
             if (!firstPlugin || !firstPlugin.installPath) {
                 debugWarn('PluginManager', 'Cannot find plugin installation path');
                 return;
             }
 
-            // installPath 格式: C:\Users\..\.claude\plugins\marketplaces\claude-code-workflows\plugins\backend-development
-            // marketplace 目录: C:\Users\..\.claude\plugins\marketplaces\claude-code-workflows
+            // installPath format: C:\Users\..\.claude\plugins\marketplaces\claude-code-workflows\plugins\backend-development
+            // marketplace directory: C:\Users\..\.claude\plugins\marketplaces\claude-code-workflows
             const installPath = firstPlugin.installPath;
 
-            // 向上两级目录：去掉插件名和 plugins 目录
+            // Go up two directory levels: remove plugin name and plugins directory
             const marketplacePath = path.dirname(path.dirname(installPath));
             const marketplaceJsonPath = path.join(marketplacePath, '.claude-plugin', 'marketplace.json');
 
             debugLog('PluginManager', `Inferred marketplace path: ${marketplacePath}`);
             debugLog('PluginManager', `marketplace.json path: ${marketplaceJsonPath}`);
 
-            // 检查文件是否存在
+            // Check if file exists
             if (!fs.existsSync(marketplaceJsonPath)) {
                 debugWarn('PluginManager', `marketplace.json not found: ${marketplaceJsonPath}`);
                 return;
             }
 
-            // 读取并解析 marketplace.json
+            // Read and parse marketplace.json
             const content = fs.readFileSync(marketplaceJsonPath, 'utf-8');
             const marketplaceData: MarketplaceJson = JSON.parse(content);
 
-            // 构建元数据索引
+            // Build metadata index
             for (const plugin of marketplaceData.plugins) {
                 this.marketplaceMetadata[plugin.name] = {
                     description: plugin.description,
@@ -294,10 +294,10 @@ export class PluginManager {
     }
 
     /**
-     * 读取插件的描述信息
-     * 从插件目录的 agents、commands、skills 中提取描述
-     * @param installPath 插件安装路径
-     * @returns 插件描述（汇总所有子项的描述）
+     * Read plugin description information
+     * Extract description from plugin directory's agents, commands, skills
+     * @param installPath Plugin installation path
+     * @returns Plugin description (aggregated from all sub-items)
      */
     private readPluginDescription(installPath: string): string | undefined {
         try {
@@ -307,29 +307,29 @@ export class PluginManager {
 
             const descriptions: string[] = [];
 
-            // 检查 agents 目录
+            // Check agents directory
             const agentsDir = path.join(installPath, 'agents');
             if (fs.existsSync(agentsDir)) {
                 const agentDescs = this.readMarkdownDescriptions(agentsDir);
                 descriptions.push(...agentDescs);
             }
 
-            // 检查 commands 目录
+            // Check commands directory
             const commandsDir = path.join(installPath, 'commands');
             if (fs.existsSync(commandsDir)) {
                 const commandDescs = this.readMarkdownDescriptions(commandsDir);
                 descriptions.push(...commandDescs);
             }
 
-            // 检查 skills 目录
+            // Check skills directory
             const skillsDir = path.join(installPath, 'skills');
             if (fs.existsSync(skillsDir)) {
                 const skillDescs = this.readMarkdownDescriptions(skillsDir);
                 descriptions.push(...skillDescs);
             }
 
-            // 如果有描述，返回第一个（代表性描述）
-            // 或者可以返回所有描述的汇总
+            // If there are descriptions, return the first one (representative description)
+            // Or return a summary of all descriptions
             if (descriptions.length > 0) {
                 return descriptions.length === 1
                     ? descriptions[0]
@@ -344,9 +344,9 @@ export class PluginManager {
     }
 
     /**
-     * 从目录中读取所有 .md 文件的描述信息
-     * @param dirPath 目录路径
-     * @returns 描述信息数组
+     * Read description information from all .md files in a directory
+     * @param dirPath Directory path
+     * @returns Array of description information
      */
     private readMarkdownDescriptions(dirPath: string): string[] {
         const descriptions: string[] = [];
@@ -362,14 +362,14 @@ export class PluginManager {
                 const filePath = path.join(dirPath, file);
                 const content = fs.readFileSync(filePath, 'utf-8');
 
-                // 尝试从 frontmatter 中提取描述
+                // Try to extract description from frontmatter
                 const frontmatterDesc = this.extractFrontmatterDescription(content);
                 if (frontmatterDesc) {
                     descriptions.push(frontmatterDesc);
                     continue;
                 }
 
-                // 如果没有 frontmatter，尝试提取第一行标题
+                // If no frontmatter, try to extract the first heading
                 const titleDesc = this.extractTitleDescription(content);
                 if (titleDesc) {
                     descriptions.push(titleDesc);
@@ -383,12 +383,12 @@ export class PluginManager {
     }
 
     /**
-     * 从 Markdown 文件的 frontmatter 中提取描述
-     * @param content 文件内容
-     * @returns 描述信息
+     * Extract description from Markdown file's frontmatter
+     * @param content File content
+     * @returns Description information
      */
     private extractFrontmatterDescription(content: string): string | undefined {
-        // 匹配 frontmatter 格式: ---\n...description: ...\n---
+        // Match frontmatter format: ---\n...description: ...\n---
         const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
         if (!frontmatterMatch) {
             return undefined;
@@ -396,7 +396,7 @@ export class PluginManager {
 
         const frontmatter = frontmatterMatch[1];
 
-        // 提取 description 字段
+        // Extract description field
         const descMatch = frontmatter.match(/description:\s*(.+)/);
         if (descMatch) {
             return descMatch[1].trim();
@@ -406,12 +406,12 @@ export class PluginManager {
     }
 
     /**
-     * 从 Markdown 文件的第一行标题中提取描述
-     * @param content 文件内容
-     * @returns 描述信息
+     * Extract description from Markdown file's first heading
+     * @param content File content
+     * @returns Description information
      */
     private extractTitleDescription(content: string): string | undefined {
-        // 匹配第一行的 # 标题
+        // Match first line # heading
         const titleMatch = content.match(/^#\s+(.+)/m);
         if (titleMatch) {
             return titleMatch[1].trim();

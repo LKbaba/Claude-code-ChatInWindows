@@ -2032,35 +2032,55 @@ export class ClaudeChatProvider {
 	
 	private async _getMcpTools(serverId: string, serverName: string): Promise<void> {
 		try {
-			// Get MCP servers configuration
+			// Get MCP server configuration
 			const settings = this._configurationManager.getCurrentSettings();
-			const mcpServers = settings['mcp.servers'] || [];
-			
-			// Find the server with matching name
-			const server = mcpServers.find((s: any) => s.name === serverName);
-			
+
+			// Search in both global and workspace server lists
+			// VS Code's mcp.servers may only contain config from one level, not merged results
+			const globalServers = settings['mcp.globalServers'] || [];
+			const workspaceServers = settings['mcp.workspaceServers'] || [];
+			const mergedServers = settings['mcp.servers'] || [];
+
+			// Search for server in all lists
+			let server = mergedServers.find((s: any) => s.name === serverName);
+			if (!server) {
+				server = globalServers.find((s: any) => s.name === serverName);
+			}
+			if (!server) {
+				server = workspaceServers.find((s: any) => s.name === serverName);
+			}
+
+			debugLog('MCP', `Looking for server "${serverName}" - found: ${!!server}`, {
+				mergedCount: mergedServers.length,
+				globalCount: globalServers.length,
+				workspaceCount: workspaceServers.length
+			});
+
 			if (!server) {
 				this._panel?.webview.postMessage({
 					type: 'mcpToolsData',
 					data: {
+						serverId: serverId,  // Return original serverId for precise UI element targeting
+						serverName: serverName,
 						error: `Server "${serverName}" not found`
 					}
 				});
 				return;
 			}
-			
+
 			// Try to dynamically query MCP server tools
 			debugLog('MCP', `Attempting to dynamically query tools for ${serverName}`);
 			const dynamicTools = await this._queryMcpServerTools(server);
 
 			if (dynamicTools && dynamicTools.length > 0) {
-				// Successfully got tool list
+				// Successfully retrieved tool list
 				debugLog('MCP', `Successfully got ${dynamicTools.length} tools from ${serverName} via dynamic query`);
 				this._panel?.webview.postMessage({
 					type: 'mcpToolsData',
 					data: {
-						tools: dynamicTools,
-						serverName: serverName
+						serverId: serverId,  // Return original serverId
+						serverName: serverName,
+						tools: dynamicTools
 					}
 				});
 			} else {
@@ -2078,18 +2098,20 @@ export class ClaudeChatProvider {
 				this._panel?.webview.postMessage({
 					type: 'mcpToolsData',
 					data: {
-						error: `Failed to retrieve tools from ${serverName}. The MCP server might not be running, not installed, or doesn't support tool discovery.\n${errorDetails}`,
-						serverName: serverName
+						serverId: serverId,  // Return original serverId
+						serverName: serverName,
+						error: `Failed to retrieve tools from ${serverName}. The MCP server might not be running, not installed, or doesn't support tool discovery.\n${errorDetails}`
 					}
 				});
 			}
-			
+
 		} catch (error: any) {
 			this._panel?.webview.postMessage({
 				type: 'mcpToolsData',
 				data: {
-					error: `Failed to get tool list: ${error.message}`,
-					serverName: serverName
+					serverId: serverId,  // Return original serverId
+					serverName: serverName,
+					error: `Failed to get tool list: ${error.message}`
 				}
 			});
 		}
@@ -2239,9 +2261,16 @@ export class ClaudeChatProvider {
 				let responseData = '';
 				let errorData = '';
 
-				// Python MCP servers need longer startup time
-				const timeoutDuration = command === 'uvx' || command.includes('python') ? 15000 : 8000;
-				
+				// Set different timeout durations based on command type
+				// npx commands need longer time as they may need to download packages
+				// Python/uvx commands also need longer time
+				let timeoutDuration = 15000; // Default 15 seconds
+				if (command === 'uvx' || command.includes('python')) {
+					timeoutDuration = 30000; // Python server 30 seconds
+				} else if (command === 'npx' || command.includes('npx')) {
+					timeoutDuration = 45000; // npx commands need longer time (may need to download packages)
+				}
+
 				const timeout = setTimeout(() => {
 					if (!mcpProcess.killed) {
 						mcpProcess.kill();

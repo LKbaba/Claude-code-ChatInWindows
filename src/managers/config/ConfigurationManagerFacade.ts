@@ -1,6 +1,6 @@
 /**
  * Configuration Manager Facade
- * 提供向后兼容性，组合所有配置管理器
+ * Provides backward compatibility, combines all configuration managers
  */
 
 import * as cp from 'child_process';
@@ -125,15 +125,15 @@ export class ConfigurationManagerFacade {
     }
 
     /**
-     * 设置 MCP 配置保存目标
-     * @param target 'user' 或 'workspace'
+     * Set MCP configuration save target
+     * @param target 'user' or 'workspace'
      */
     public setMcpConfigTarget(target: McpConfigTarget): void {
         this.vsCodeManager.setMcpConfigTarget(target);
     }
 
     /**
-     * 获取 MCP 配置保存目标
+     * Get MCP configuration save target
      */
     public getMcpConfigTarget(): McpConfigTarget {
         return this.vsCodeManager.getMcpConfigTarget();

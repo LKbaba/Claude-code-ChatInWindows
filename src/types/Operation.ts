@@ -16,11 +16,11 @@ export enum OperationType {
  * Operation status
  */
 export enum OperationStatus {
-  ACTIVE = 'active',      // 正常执行的操作
-  UNDONE = 'undone',      // 已撤销
-  FAILED = 'failed',      // 执行失败
-  PARTIAL = 'partial',    // 部分成功
-  PENDING = 'pending'     // 等待执行
+  ACTIVE = 'active',      // Normal executed operation
+  UNDONE = 'undone',      // Undone
+  FAILED = 'failed',      // Execution failed
+  PARTIAL = 'partial',    // Partially successful
+  PENDING = 'pending'     // Waiting to execute
 }
 
 /**
@@ -75,7 +75,7 @@ export class Operation {
   timestamp: Date;
   status: OperationStatus;
   error?: string;
-  undone: boolean; // 保留用于向后兼容
+  undone: boolean; // Kept for backward compatibility
   messageId?: string;
   sessionId?: string;
   dependencies: string[]; // IDs of operations that depend on this one
@@ -210,15 +210,15 @@ export class Operation {
   getStatusColor(): string {
     switch (this.status) {
       case OperationStatus.ACTIVE:
-        return '#4CAF50'; // 绿色
+        return '#4CAF50'; // Green
       case OperationStatus.UNDONE:
-        return '#9E9E9E'; // 灰色
+        return '#9E9E9E'; // Gray
       case OperationStatus.FAILED:
-        return '#F44336'; // 红色
+        return '#F44336'; // Red
       case OperationStatus.PARTIAL:
-        return '#FF9800'; // 黄色
+        return '#FF9800'; // Yellow
       case OperationStatus.PENDING:
-        return '#2196F3'; // 蓝色
+        return '#2196F3'; // Blue
       default:
         return '#757575';
     }
