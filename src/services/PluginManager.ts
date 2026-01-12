@@ -15,19 +15,26 @@ export interface InstalledPlugin {
 }
 
 /**
+ * Data structure for a single plugin entry
+ */
+interface PluginEntry {
+    scope?: string;
+    version: string;
+    installedAt: string;
+    lastUpdated: string;
+    installPath: string;
+    gitCommitSha?: string;
+    isLocal?: boolean;
+}
+
+/**
  * Data structure for installed_plugins.json file
+ * Note: plugins value can be either an array or a single object (for backward compatibility)
  */
 interface InstalledPluginsJson {
     version: number;
     plugins: {
-        [key: string]: {
-            version: string;
-            installedAt: string;
-            lastUpdated: string;
-            installPath: string;
-            gitCommitSha?: string;
-            isLocal?: boolean;
-        };
+        [key: string]: PluginEntry | PluginEntry[];
     };
 }
 
@@ -185,16 +192,23 @@ export class PluginManager {
                 const pluginName = this.extractPluginName(key);
                 const formattedName = this.formatPluginName(pluginName);
 
+                // Handle both array and single object formats
+                const pluginEntry = Array.isArray(value) ? value[0] : value;
+                if (!pluginEntry) {
+                    debugWarn('PluginManager', `Empty plugin entry for: ${key}`);
+                    continue;
+                }
+
                 // Get description and version from marketplace metadata
                 const metadata = this.marketplaceMetadata[pluginName];
                 const description = metadata?.description;
-                const version = metadata?.version || value.version;
+                const version = metadata?.version || pluginEntry.version;
 
                 const plugin: InstalledPlugin = {
                     name: formattedName,
                     rawName: key,
                     version: version,
-                    path: value.installPath,
+                    path: pluginEntry.installPath,
                     description: description
                 };
 
@@ -251,43 +265,57 @@ export class PluginManager {
      */
     private async loadMarketplaceMetadata(pluginsData: InstalledPluginsJson): Promise<void> {
         try {
-            // Infer marketplace directory from first installation path
-            const firstPlugin = Object.values(pluginsData.plugins)[0];
-            if (!firstPlugin || !firstPlugin.installPath) {
-                debugWarn('PluginManager', 'Cannot find plugin installation path');
-                return;
+            // Extract marketplace names from plugin keys and load each marketplace.json
+            const marketplaceNames = new Set<string>();
+
+            for (const key of Object.keys(pluginsData.plugins)) {
+                // key format: plugin-name@marketplace-name
+                const parts = key.split('@');
+                if (parts.length >= 2) {
+                    marketplaceNames.add(parts[1]);
+                }
             }
 
-            // installPath format: C:\Users\..\.claude\plugins\marketplaces\claude-code-workflows\plugins\backend-development
-            // marketplace directory: C:\Users\..\.claude\plugins\marketplaces\claude-code-workflows
-            const installPath = firstPlugin.installPath;
+            debugLog('PluginManager', `Found ${marketplaceNames.size} marketplace(s): ${[...marketplaceNames].join(', ')}`);
 
-            // Go up two directory levels: remove plugin name and plugins directory
-            const marketplacePath = path.dirname(path.dirname(installPath));
-            const marketplaceJsonPath = path.join(marketplacePath, '.claude-plugin', 'marketplace.json');
+            // Load metadata from each marketplace
+            const homeDir = os.homedir();
+            for (const marketplaceName of marketplaceNames) {
+                // marketplace.json path: ~/.claude/plugins/marketplaces/{marketplace-name}/.claude-plugin/marketplace.json
+                const marketplaceJsonPath = path.join(
+                    homeDir,
+                    '.claude',
+                    'plugins',
+                    'marketplaces',
+                    marketplaceName,
+                    '.claude-plugin',
+                    'marketplace.json'
+                );
 
-            debugLog('PluginManager', `Inferred marketplace path: ${marketplacePath}`);
-            debugLog('PluginManager', `marketplace.json path: ${marketplaceJsonPath}`);
+                debugLog('PluginManager', `Checking marketplace.json at: ${marketplaceJsonPath}`);
 
-            // Check if file exists
-            if (!fs.existsSync(marketplaceJsonPath)) {
-                debugWarn('PluginManager', `marketplace.json not found: ${marketplaceJsonPath}`);
-                return;
+                // Check if file exists
+                if (!fs.existsSync(marketplaceJsonPath)) {
+                    debugWarn('PluginManager', `marketplace.json not found: ${marketplaceJsonPath}`);
+                    continue;
+                }
+
+                // Read and parse marketplace.json
+                const content = fs.readFileSync(marketplaceJsonPath, 'utf-8');
+                const marketplaceData: MarketplaceJson = JSON.parse(content);
+
+                // Build metadata index
+                for (const plugin of marketplaceData.plugins) {
+                    this.marketplaceMetadata[plugin.name] = {
+                        description: plugin.description,
+                        version: plugin.version
+                    };
+                }
+
+                debugLog('PluginManager', `Loaded ${marketplaceData.plugins.length} plugin(s) from marketplace: ${marketplaceName}`);
             }
 
-            // Read and parse marketplace.json
-            const content = fs.readFileSync(marketplaceJsonPath, 'utf-8');
-            const marketplaceData: MarketplaceJson = JSON.parse(content);
-
-            // Build metadata index
-            for (const plugin of marketplaceData.plugins) {
-                this.marketplaceMetadata[plugin.name] = {
-                    description: plugin.description,
-                    version: plugin.version
-                };
-            }
-
-            debugLog('PluginManager', `Successfully loaded marketplace metadata with ${Object.keys(this.marketplaceMetadata).length} plugin(s)`);
+            debugLog('PluginManager', `Successfully loaded marketplace metadata with ${Object.keys(this.marketplaceMetadata).length} plugin(s) total`);
         } catch (error) {
             debugError('PluginManager', 'Failed to load marketplace metadata', error);
         }
