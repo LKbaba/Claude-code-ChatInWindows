@@ -180,11 +180,19 @@ export function getBodyContent(): string {
 			<div id="toolsList" class="tools-list">
 				<div class="tool-item">
 					<input type="checkbox" id="tool-task" checked disabled>
-					<label for="tool-task">Task - Launch agent for search tasks</label>
+					<label for="tool-task">Task - Launch subagent for complex tasks</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-taskoutput" checked disabled>
+					<label for="tool-taskoutput">TaskOutput - Retrieve output from background tasks</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-bash" checked disabled>
 					<label for="tool-bash">Bash - Execute shell commands</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-killshell" checked disabled>
+					<label for="tool-killshell">KillShell - Terminate background shell processes</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-glob" checked disabled>
@@ -197,10 +205,6 @@ export function getBodyContent(): string {
 				<div class="tool-item">
 					<input type="checkbox" id="tool-ls" checked disabled>
 					<label for="tool-ls">LS - List directory contents</label>
-				</div>
-				<div class="tool-item">
-					<input type="checkbox" id="tool-exit-plan-mode" checked disabled>
-					<label for="tool-exit-plan-mode">Exit Plan Mode - Exit planning mode</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-read" checked disabled>
@@ -231,12 +235,28 @@ export function getBodyContent(): string {
 					<label for="tool-webfetch">WebFetch - Fetch web content</label>
 				</div>
 				<div class="tool-item">
+					<input type="checkbox" id="tool-websearch" checked disabled>
+					<label for="tool-websearch">WebSearch - Search the web</label>
+				</div>
+				<div class="tool-item">
 					<input type="checkbox" id="tool-todowrite" checked disabled>
 					<label for="tool-todowrite">TodoWrite - Manage task lists</label>
 				</div>
 				<div class="tool-item">
-					<input type="checkbox" id="tool-websearch" checked disabled>
-					<label for="tool-websearch">WebSearch - Search the web</label>
+					<input type="checkbox" id="tool-askuserquestion" checked disabled>
+					<label for="tool-askuserquestion">AskUserQuestion - Ask user for clarification</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-enter-plan-mode" checked disabled>
+					<label for="tool-enter-plan-mode">EnterPlanMode - Enter planning mode for task design</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-exit-plan-mode" checked disabled>
+					<label for="tool-exit-plan-mode">ExitPlanMode - Exit planning mode</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-skill" checked disabled>
+					<label for="tool-skill">Skill - Execute prompt templates with scripts</label>
 				</div>
 			</div>
 		</div>
