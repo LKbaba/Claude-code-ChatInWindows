@@ -1767,6 +1767,7 @@ export const uiScript = `
 
 	/**
 	 * Render individual skill items
+	 * Using two-line layout similar to plugins modal for better readability
 	 * @param {Array} skills - Skills to render
 	 * @param {boolean} showPluginBadge - Whether to show plugin badge
 	 * @returns {string} HTML string
@@ -1779,14 +1780,19 @@ export const uiScript = `
 			}
 
 			var html = '<div class="' + classes + '">';
-			html += '<span class="skill-name">' + escapeHtmlSkill(skill.name) + '</span>';
+
+			// Left side: name and description in two lines
+			html += '<div class="skill-content">';
+			html += '<div class="skill-name">' + escapeHtmlSkill(skill.name) + '</div>';
 
 			if (skill.description) {
-				html += '<span class="skill-description">' + escapeHtmlSkill(skill.description) + '</span>';
+				html += '<div class="skill-description">' + escapeHtmlSkill(skill.description) + '</div>';
 			} else {
-				html += '<span class="skill-description" style="opacity: 0.5;">No description</span>';
+				html += '<div class="skill-description" style="opacity: 0.5;">No description</div>';
 			}
+			html += '</div>';
 
+			// Right side: plugin badge (light gray, aligned to right)
 			if (showPluginBadge && skill.pluginName) {
 				html += '<span class="skill-plugin-badge">' + escapeHtmlSkill(skill.pluginName) + '</span>';
 			}
