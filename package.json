@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "3.0.8",
+  "version": "3.0.9",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -336,6 +336,7 @@
     "package": "vsce package"
   },
   "dependencies": {
+    "docx": "^9.5.1",
     "glob": "^10.3.10"
   },
   "devDependencies": {

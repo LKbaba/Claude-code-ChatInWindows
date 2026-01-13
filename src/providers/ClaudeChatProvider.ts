@@ -271,6 +271,10 @@ export class ClaudeChatProvider {
 						// Refresh skills list
 						this._refreshSkills();
 						return;
+					case 'toggleSkillState':
+						// Toggle skill enabled/disabled state
+						await this._toggleSkillState(message.skillName, message.scope);
+						return;
 					case 'getClipboardText':
 						const clipboardText = await this._fileOperationsManager.getClipboardText();
 						this._panel?.webview.postMessage({
@@ -2256,6 +2260,41 @@ export class ClaudeChatProvider {
 				skills: [],
 				error: 'Failed to refresh skills'
 			});
+		}
+	}
+
+	/**
+	 * Toggle skill enabled/disabled state
+	 * @param skillName Name of the skill to toggle
+	 * @param scope Scope of the skill (workspace, user, plugin)
+	 */
+	private async _toggleSkillState(skillName: string, scope: string): Promise<void> {
+		try {
+			const skillManager = SkillManager.getInstance();
+			const skills = skillManager.getCachedSkills();
+
+			// Find the skill by name and scope
+			const skill = skills.find(s => s.name === skillName && s.scope === scope);
+
+			if (!skill) {
+				debugWarn('SkillManager', `Skill not found: ${skillName} (${scope})`);
+				return;
+			}
+
+			// Toggle skill state
+			const newEnabledState = await skillManager.toggleSkillState(skill);
+
+			debugLog('SkillManager', `Toggled skill ${skillName}: enabled=${newEnabledState}`);
+
+			// Notify webview of state change
+			this._panel?.webview.postMessage({
+				type: 'skillStateChanged',
+				skillName: skillName,
+				scope: scope,
+				enabled: newEnabledState
+			});
+		} catch (error: any) {
+			debugError('SkillManager', `Failed to toggle skill state: ${skillName}`, error);
 		}
 	}
 

@@ -1,12 +1,13 @@
 import * as fs from 'fs';
+import * as fsp from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { debugLog, debugWarn, debugError } from './DebugLogger';
 
 /**
  * Skill scope type
- * - workspace: Project-level skills from ./.claude/commands/
- * - user: User-level skills from ~/.claude/commands/
+ * - workspace: Project-level skills from ./.claude/skills/
+ * - user: User-level skills from ~/.claude/skills/
  * - plugin: Plugin-bundled skills from ~/.claude/plugins/cache/
  */
 export type SkillScope = 'workspace' | 'user' | 'plugin';
@@ -96,6 +97,7 @@ export class SkillManager {
 
         try {
             // Load skills from all three sources in parallel
+            // Note: enabled state is determined by filename (SKILL.md vs SKILL.md.disabled)
             const [workspaceSkills, userSkills, pluginSkills] = await Promise.all([
                 this.loadWorkspaceSkills(),
                 this.loadUserSkills(),
@@ -107,6 +109,9 @@ export class SkillManager {
 
             // Detect and mark overridden skills
             allSkills = this.detectOverrides(allSkills);
+
+            // Sort skills alphabetically by name (case-insensitive)
+            allSkills.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
             // Update cache
             this.cachedSkills = allSkills;
@@ -156,8 +161,8 @@ export class SkillManager {
                 skills: workspaceSkills,
                 isReadOnly: false,
                 basePath: this.workspacePath
-                    ? path.join(this.workspacePath, '.claude', 'commands')
-                    : './.claude/commands/'
+                    ? path.join(this.workspacePath, '.claude', 'skills')
+                    : './.claude/skills/'
             });
         }
 
@@ -168,7 +173,7 @@ export class SkillManager {
             displayName: 'User Global',
             skills: userSkills,
             isReadOnly: false,
-            basePath: path.join(homeDir, '.claude', 'commands')
+            basePath: path.join(homeDir, '.claude', 'skills')
         });
 
         // Group all plugin skills into one category
@@ -194,7 +199,8 @@ export class SkillManager {
     }
 
     /**
-     * Load workspace-level skills from .claude/commands/
+     * Load workspace-level skills from .claude/skills/
+     * Skills are directories containing SKILL.md or SKILL.md.disabled files
      * @returns List of workspace skills
      */
     private async loadWorkspaceSkills(): Promise<InstalledSkill[]> {
@@ -205,104 +211,135 @@ export class SkillManager {
             return skills;
         }
 
-        const commandsDir = path.join(this.workspacePath, '.claude', 'commands');
+        const skillsDir = path.join(this.workspacePath, '.claude', 'skills');
 
-        if (!fs.existsSync(commandsDir)) {
-            debugLog('SkillManager', `Workspace commands directory not found: ${commandsDir}`);
+        if (!fs.existsSync(skillsDir)) {
+            debugLog('SkillManager', `Workspace skills directory not found: ${skillsDir}`);
             return skills;
         }
 
         try {
-            const files = fs.readdirSync(commandsDir);
+            const entries = fs.readdirSync(skillsDir);
 
-            for (const file of files) {
-                if (!file.endsWith('.md')) {
+            for (const entry of entries) {
+                const entryPath = path.join(skillsDir, entry);
+                const stat = fs.statSync(entryPath);
+
+                // Skills are directories containing SKILL.md or SKILL.md.disabled
+                if (!stat.isDirectory()) {
                     continue;
                 }
 
-                const filePath = path.join(commandsDir, file);
-                const stat = fs.statSync(filePath);
+                // Check for both enabled and disabled skill files
+                const enabledPath = path.join(entryPath, 'SKILL.md');
+                const disabledPath = path.join(entryPath, 'SKILL.md.disabled');
 
-                if (!stat.isFile()) {
+                let skillMdPath: string | null = null;
+                let isEnabled = true;
+
+                if (fs.existsSync(enabledPath)) {
+                    skillMdPath = enabledPath;
+                    isEnabled = true;
+                } else if (fs.existsSync(disabledPath)) {
+                    skillMdPath = disabledPath;
+                    isEnabled = false;
+                }
+
+                if (!skillMdPath) {
                     continue;
                 }
 
                 try {
-                    const content = fs.readFileSync(filePath, 'utf-8');
+                    const content = fs.readFileSync(skillMdPath, 'utf-8');
                     const frontmatter = this.parseSkillFrontmatter(content);
-                    const rawName = file.replace('.md', '');
 
                     skills.push({
-                        name: frontmatter.name || this.formatSkillName(rawName),
-                        rawName: rawName,
+                        name: frontmatter.name || this.formatSkillName(entry),
+                        rawName: entry,
                         description: frontmatter.description,
                         scope: 'workspace',
-                        path: filePath,
-                        enabled: true
+                        path: skillMdPath,
+                        enabled: isEnabled
                     });
 
-                    debugLog('SkillManager', `Loaded workspace skill: ${rawName}`);
+                    debugLog('SkillManager', `Loaded workspace skill: ${entry} (enabled: ${isEnabled})`);
                 } catch (error) {
-                    debugError('SkillManager', `Failed to parse workspace skill: ${file}`, error);
+                    debugError('SkillManager', `Failed to parse workspace skill: ${entry}`, error);
                 }
             }
         } catch (error) {
-            debugError('SkillManager', `Failed to read workspace commands directory: ${commandsDir}`, error);
+            debugError('SkillManager', `Failed to read workspace skills directory: ${skillsDir}`, error);
         }
 
         return skills;
     }
 
     /**
-     * Load user-level skills from ~/.claude/commands/
+     * Load user-level skills from ~/.claude/skills/
+     * Skills are directories containing SKILL.md or SKILL.md.disabled files
      * @returns List of user skills
      */
     private async loadUserSkills(): Promise<InstalledSkill[]> {
         const skills: InstalledSkill[] = [];
         const homeDir = os.homedir();
-        const commandsDir = path.join(homeDir, '.claude', 'commands');
+        const skillsDir = path.join(homeDir, '.claude', 'skills');
 
-        if (!fs.existsSync(commandsDir)) {
-            debugLog('SkillManager', `User commands directory not found: ${commandsDir}`);
+        if (!fs.existsSync(skillsDir)) {
+            debugLog('SkillManager', `User skills directory not found: ${skillsDir}`);
             return skills;
         }
 
         try {
-            const files = fs.readdirSync(commandsDir);
+            const entries = fs.readdirSync(skillsDir);
 
-            for (const file of files) {
-                if (!file.endsWith('.md')) {
+            for (const entry of entries) {
+                const entryPath = path.join(skillsDir, entry);
+                const stat = fs.statSync(entryPath);
+
+                // Skills are directories containing SKILL.md or SKILL.md.disabled
+                if (!stat.isDirectory()) {
                     continue;
                 }
 
-                const filePath = path.join(commandsDir, file);
-                const stat = fs.statSync(filePath);
+                // Check for both enabled and disabled skill files
+                const enabledPath = path.join(entryPath, 'SKILL.md');
+                const disabledPath = path.join(entryPath, 'SKILL.md.disabled');
 
-                if (!stat.isFile()) {
+                let skillMdPath: string | null = null;
+                let isEnabled = true;
+
+                if (fs.existsSync(enabledPath)) {
+                    skillMdPath = enabledPath;
+                    isEnabled = true;
+                } else if (fs.existsSync(disabledPath)) {
+                    skillMdPath = disabledPath;
+                    isEnabled = false;
+                }
+
+                if (!skillMdPath) {
                     continue;
                 }
 
                 try {
-                    const content = fs.readFileSync(filePath, 'utf-8');
+                    const content = fs.readFileSync(skillMdPath, 'utf-8');
                     const frontmatter = this.parseSkillFrontmatter(content);
-                    const rawName = file.replace('.md', '');
 
                     skills.push({
-                        name: frontmatter.name || this.formatSkillName(rawName),
-                        rawName: rawName,
+                        name: frontmatter.name || this.formatSkillName(entry),
+                        rawName: entry,
                         description: frontmatter.description,
                         scope: 'user',
-                        path: filePath,
-                        enabled: true
+                        path: skillMdPath,
+                        enabled: isEnabled
                     });
 
-                    debugLog('SkillManager', `Loaded user skill: ${rawName}`);
+                    debugLog('SkillManager', `Loaded user skill: ${entry} (enabled: ${isEnabled})`);
                 } catch (error) {
-                    debugError('SkillManager', `Failed to parse user skill: ${file}`, error);
+                    debugError('SkillManager', `Failed to parse user skill: ${entry}`, error);
                 }
             }
         } catch (error) {
-            debugError('SkillManager', `Failed to read user commands directory: ${commandsDir}`, error);
+            debugError('SkillManager', `Failed to read user skills directory: ${skillsDir}`, error);
         }
 
         return skills;
@@ -517,5 +554,69 @@ export class SkillManager {
         }
 
         return skills;
+    }
+
+    // ==================== Enable/Disable State Management ====================
+
+    /**
+     * Toggle skill enabled/disabled state
+     * Only works for workspace and user skills (not plugins)
+     * Renames SKILL.md <-> SKILL.md.disabled to hide from Claude CLI
+     * @param skill Skill to toggle
+     * @returns New enabled state (true = enabled, false = disabled)
+     */
+    public async toggleSkillState(skill: InstalledSkill): Promise<boolean> {
+        // Plugin skills cannot be toggled
+        if (skill.scope === 'plugin') {
+            debugWarn('SkillManager', `Cannot toggle plugin skill: ${skill.name}`);
+            return skill.enabled;
+        }
+
+        // Determine current state from skill.enabled (which was set during load based on filename)
+        const currentlyDisabled = !skill.enabled;
+
+        // Determine file paths
+        const skillDir = path.dirname(skill.path);
+        const enabledPath = path.join(skillDir, 'SKILL.md');
+        const disabledPath = path.join(skillDir, 'SKILL.md.disabled');
+
+        try {
+            if (currentlyDisabled) {
+                // Enable: rename SKILL.md.disabled -> SKILL.md
+                if (fs.existsSync(disabledPath)) {
+                    await fsp.rename(disabledPath, enabledPath);
+                    debugLog('SkillManager', `Renamed ${disabledPath} -> ${enabledPath}`);
+                }
+                skill.enabled = true;
+                skill.path = enabledPath;
+                debugLog('SkillManager', `Enabled skill: ${skill.name}`);
+            } else {
+                // Disable: rename SKILL.md -> SKILL.md.disabled
+                if (fs.existsSync(enabledPath)) {
+                    await fsp.rename(enabledPath, disabledPath);
+                    debugLog('SkillManager', `Renamed ${enabledPath} -> ${disabledPath}`);
+                }
+                skill.enabled = false;
+                skill.path = disabledPath;
+                debugLog('SkillManager', `Disabled skill: ${skill.name}`);
+            }
+        } catch (error) {
+            debugError('SkillManager', `Failed to rename skill file: ${skill.name}`, error);
+            // Return current state on error (no change)
+            return skill.enabled;
+        }
+
+        // Update cached skill if exists
+        if (this.cachedSkills) {
+            const cachedSkill = this.cachedSkills.find(
+                s => s.rawName === skill.rawName && s.scope === skill.scope
+            );
+            if (cachedSkill) {
+                cachedSkill.enabled = skill.enabled;
+                cachedSkill.path = skill.path;
+            }
+        }
+
+        return skill.enabled;
     }
 }

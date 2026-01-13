@@ -2,6 +2,15 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.0.9] - 2025-01-13
+
+### Fixed
+- **Skills Path Bug Fix**
+  - Fixed SkillManager reading from wrong directory (`.claude/commands/` → `.claude/skills/`)
+  - Workspace and User skills now correctly load from `.claude/skills/` directory
+  - Skills are properly recognized as directories containing `SKILL.md` files
+  - Updated UI path display to show correct `.claude/skills/` paths
+
 ## [3.0.8] - 2025-01-13
 
 ### Changed
