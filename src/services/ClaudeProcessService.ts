@@ -4,6 +4,7 @@
  */
 
 import * as cp from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { WindowsCompatibility, ExecutionEnvironment } from '../managers/WindowsCompatibility';
@@ -388,6 +389,92 @@ export class ClaudeProcessService {
                 debugError('ClaudeProcessService', 'Error killing process during dispose', error);
             }
             this._currentProcess = undefined;
+        }
+    }
+
+
+    /**
+     * Clean up Claude CLI temporary files (tmpclaude-*-cwd)
+     * These files are created by Claude CLI during execution and may be left behind
+     * Uses vscode.workspace.findFiles for fast recursive search (powered by Ripgrep)
+     * @param workspacePath The workspace directory to clean (used for single-dir cleanup)
+     */
+    public static cleanupTempFiles(workspacePath: string): void {
+        // First, clean the root directory synchronously (fast path)
+        ClaudeProcessService.cleanupTempFilesInDir(workspacePath);
+
+        // Then, trigger async recursive cleanup for subdirectories
+        ClaudeProcessService.cleanupTempFilesRecursive();
+    }
+
+    /**
+     * Clean temp files in a specific directory (synchronous, for known paths)
+     */
+    private static cleanupTempFilesInDir(dirPath: string): void {
+        try {
+            const files = fs.readdirSync(dirPath);
+            const tempFileRegex = /^tmpclaude-[a-f0-9]+-cwd$/;
+            const tempFiles = files.filter(f => tempFileRegex.test(f));
+
+            if (tempFiles.length > 0) {
+                debugLog('ClaudeProcessService', `Cleaning up ${tempFiles.length} Claude temp file(s) in ${dirPath}`, {
+                    files: tempFiles
+                });
+
+                for (const file of tempFiles) {
+                    try {
+                        const filePath = path.join(dirPath, file);
+                        fs.unlinkSync(filePath);
+                        debugLog('ClaudeProcessService', `Deleted temp file: ${file}`);
+                    } catch (err) {
+                        debugError('ClaudeProcessService', `Failed to delete temp file: ${file}`, err);
+                    }
+                }
+            }
+        } catch (error) {
+            debugError('ClaudeProcessService', `Error during temp file cleanup in ${dirPath}`, error);
+        }
+    }
+
+    /**
+     * Recursively clean temp files using VS Code's findFiles API (async, fast)
+     * Uses Ripgrep under the hood, automatically excludes node_modules
+     */
+    public static async cleanupTempFilesRecursive(): Promise<void> {
+        try {
+            // Use VS Code's findFiles API - it's fast (Ripgrep) and respects .gitignore
+            const pattern = '**/tmpclaude-*-cwd';
+            const exclude = '**/node_modules/**';
+
+            const files = await vscode.workspace.findFiles(pattern, exclude);
+
+            if (files.length === 0) {
+                return;
+            }
+
+            debugLog('ClaudeProcessService', `Found ${files.length} Claude temp file(s) recursively`, {
+                files: files.map(f => f.fsPath)
+            });
+
+            const tempFileRegex = /^tmpclaude-[a-f0-9]+-cwd$/;
+
+            // Delete files concurrently
+            await Promise.all(files.map(async (uri) => {
+                try {
+                    // Double-check filename with regex for safety
+                    const fileName = path.basename(uri.fsPath);
+                    if (tempFileRegex.test(fileName)) {
+                        await vscode.workspace.fs.delete(uri, { useTrash: false });
+                        debugLog('ClaudeProcessService', `Deleted temp file (recursive): ${uri.fsPath}`);
+                    }
+                } catch (err) {
+                    debugError('ClaudeProcessService', `Failed to delete temp file: ${uri.fsPath}`, err);
+                }
+            }));
+
+            debugLog('ClaudeProcessService', `Cleaned up ${files.length} temp file(s) recursively`);
+        } catch (error) {
+            debugError('ClaudeProcessService', 'Error during recursive temp file cleanup', error);
         }
     }
 }

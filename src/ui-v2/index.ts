@@ -216,7 +216,7 @@ function getStylesWithEnhancements(): string {
 
     /* Icon style adjustment - removed here, using definition below */
 
-    /* Tool message gradients */
+    /* Tool message gradients - use CSS variable for dynamic color */
     .message.tool::before {
       content: '';
       position: absolute;
@@ -224,7 +224,7 @@ function getStylesWithEnhancements(): string {
       top: 0;
       bottom: 0;
       width: 4px;
-      background: var(--grad-tool);
+      background: var(--tool-bar-gradient, var(--grad-tool));
     }
     
     .message.tool-result::before {
@@ -653,7 +653,8 @@ function getStylesOld(): string {
         top: 0;
         bottom: 0;
         width: 4px;
-        background: linear-gradient(180deg, #7c8bed 0%, #5d6fe1 100%);
+        /* Use CSS variable for dynamic tool color, fallback to default purple */
+        background: var(--tool-bar-gradient, linear-gradient(180deg, #7c8bed 0%, #5d6fe1 100%));
     }
 
     .message.tool-result {

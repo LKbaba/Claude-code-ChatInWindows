@@ -762,6 +762,13 @@ export class ClaudeChatProvider {
 				}
 
 				this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
+
+				// Clean up Claude CLI temp files after process ends
+				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+				if (workspacePath) {
+					ClaudeProcessService.cleanupTempFiles(workspacePath);
+				}
+
 				if (code !== 0) {
 					// Error handling is done through onError callback
 				}
