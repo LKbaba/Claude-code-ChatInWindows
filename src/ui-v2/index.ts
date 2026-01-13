@@ -1859,13 +1859,14 @@ function getStylesOld(): string {
 
     /* Individual skill item - two line layout like plugins modal */
     .skill-item {
+        position: relative;
         display: flex;
         align-items: flex-start;
         padding: 10px 12px;
         border-bottom: 1px solid var(--vscode-panel-border);
         gap: 12px;
-        cursor: pointer;
         transition: background-color 0.2s ease;
+        cursor: pointer;
     }
 
     .skill-item:last-child {
@@ -1876,13 +1877,50 @@ function getStylesOld(): string {
         background: var(--vscode-list-hoverBackground);
     }
 
+    .skill-item:active {
+        background: var(--vscode-list-activeSelectionBackground);
+    }
+
     /* Skill content container */
     .skill-content {
         flex: 1;
         min-width: 0;
     }
 
-    /* Skill name - larger font like plugin name */
+    /* Skill header row - first line with name, badges, buttons */
+    .skill-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        gap: 8px;
+    }
+
+    /* Left side of header: name + badge + toggle button */
+    .skill-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+
+    /* Right side of header: copy button or plugin badge */
+    .skill-header-right {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Skill name text */
+    .skill-name-text {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--vscode-foreground);
+        line-height: 1.4;
+    }
+
+    /* Legacy skill name class (for compatibility) */
     .skill-name {
         font-weight: 600;
         font-size: 14px;
@@ -1931,6 +1969,105 @@ function getStylesOld(): string {
         font-size: 10px;
         font-weight: normal;
         color: var(--vscode-descriptionForeground);
+    }
+
+    /* Copy button - clean icon button style */
+    .skill-copy-btn {
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        padding: 0;
+        border-radius: 4px;
+        color: var(--vscode-descriptionForeground);
+        transition: all 0.2s ease;
+        background: transparent;
+        border: 1px solid transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .skill-copy-btn:hover {
+        background-color: var(--vscode-toolbar-hoverBackground);
+        color: var(--vscode-foreground);
+        border-color: var(--vscode-toolbar-hoverOutline, transparent);
+    }
+
+    .skill-copy-btn:active {
+        transform: scale(0.92);
+    }
+
+    .skill-copy-btn svg {
+        width: 14px;
+        height: 14px;
+        pointer-events: none;
+    }
+
+    /* Default: show clipboard icon, hide check icon */
+    .skill-copy-btn .icon-check {
+        display: none;
+    }
+
+    /* Copied state: show check icon with green feedback */
+    .skill-copy-btn.copied {
+        color: var(--vscode-testing-iconPassed, #89d185);
+        background-color: rgba(137, 209, 133, 0.1);
+        border-color: var(--vscode-testing-iconPassed, #89d185);
+    }
+
+    .skill-copy-btn.copied .icon-clipboard {
+        display: none;
+    }
+
+    .skill-copy-btn.copied .icon-check {
+        display: block;
+        animation: copyCheckPop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes copyCheckPop {
+        from { transform: scale(0.5); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+
+    /* Disabled state for entire skill item */
+    .skill-item.is-disabled {
+        opacity: 0.6;
+    }
+
+    /* State button - shows Enabled/Disabled, click to toggle */
+    .skill-state-btn {
+        flex-shrink: 0;
+        padding: 2px 8px;
+        font-size: 10px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-weight: 500;
+    }
+
+    /* Enabled state - green pill */
+    .skill-state-btn.is-enabled {
+        background: rgba(137, 209, 133, 0.15);
+        color: var(--vscode-testing-iconPassed, #89d185);
+        border-color: rgba(137, 209, 133, 0.3);
+    }
+
+    .skill-state-btn.is-enabled:hover {
+        background: rgba(137, 209, 133, 0.25);
+        border-color: rgba(137, 209, 133, 0.5);
+    }
+
+    /* Disabled state - red pill */
+    .skill-state-btn.is-disabled {
+        background: rgba(255, 100, 100, 0.15);
+        color: #f48771;
+        border-color: rgba(255, 100, 100, 0.3);
+    }
+
+    .skill-state-btn.is-disabled:hover {
+        background: rgba(255, 100, 100, 0.25);
+        border-color: rgba(255, 100, 100, 0.5);
     }
 
     /* Model selection specific styles */

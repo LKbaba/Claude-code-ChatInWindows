@@ -1746,13 +1746,13 @@ export const uiScript = `
 		html += '<summary class="skill-category-header workspace">';
 		html += '<span class="collapse-indicator">▶</span>';
 		html += '<span class="category-title">Workspace</span>';
-		html += '<span class="category-path">./.claude/commands/</span>';
+		html += '<span class="category-path">this project only</span>';
 		html += '</summary>';
 		html += '<div class="skill-category-content">';
 		if (workspaceSkills.length === 0) {
 			html += '<div class="skill-empty-state">No workspace skills found</div>';
 		} else {
-			html += renderSkillItems(workspaceSkills, false);
+			html += renderSkillItems(workspaceSkills, false, false);
 		}
 		html += '</div></details>';
 
@@ -1761,13 +1761,13 @@ export const uiScript = `
 		html += '<summary class="skill-category-header user">';
 		html += '<span class="collapse-indicator">▶</span>';
 		html += '<span class="category-title">User Global</span>';
-		html += '<span class="category-path">~/.claude/commands/</span>';
+		html += '<span class="category-path">all projects</span>';
 		html += '</summary>';
 		html += '<div class="skill-category-content">';
 		if (userSkills.length === 0) {
 			html += '<div class="skill-empty-state">No user skills found</div>';
 		} else {
-			html += renderSkillItems(userSkills, false);
+			html += renderSkillItems(userSkills, false, false);
 		}
 		html += '</div></details>';
 
@@ -1782,7 +1782,7 @@ export const uiScript = `
 		if (pluginSkills.length === 0) {
 			html += '<div class="skill-empty-state">No plugin skills found</div>';
 		} else {
-			html += renderSkillItems(pluginSkills, true);
+			html += renderSkillItems(pluginSkills, true, true);
 		}
 		html += '</div></details>';
 
@@ -1790,40 +1790,155 @@ export const uiScript = `
 	}
 
 	/**
+	 * Handle copy skill button click
+	 * Copies "Use skills: {skillName}" to clipboard
+	 */
+	function handleCopySkill(event, skillName) {
+		event.stopPropagation();  // Prevent triggering skill item click
+
+		var text = 'Use skills: ' + skillName;
+		navigator.clipboard.writeText(text).then(function() {
+			showCopyFeedback(event.currentTarget);
+		}).catch(function(err) {
+			console.error('[Skills] Copy failed:', err);
+		});
+	}
+
+	/**
+	 * Show copy success feedback
+	 * Changes icon to checkmark, then reverts after 1.5s
+	 */
+	function showCopyFeedback(button) {
+		var icon = button.querySelector('.codicon');
+		if (!icon) return;
+
+		icon.classList.remove('codicon-copy');
+		icon.classList.add('codicon-check');
+
+		setTimeout(function() {
+			icon.classList.remove('codicon-check');
+			icon.classList.add('codicon-copy');
+		}, 1500);
+	}
+
+	/**
 	 * Render individual skill items
-	 * Using two-line layout similar to plugins modal for better readability
+	 * Click on item copies skill name, toggle button on right for enable/disable
 	 * @param {Array} skills - Skills to render
 	 * @param {boolean} showPluginBadge - Whether to show plugin badge
+	 * @param {boolean} isPlugin - Whether these are plugin skills (not toggleable)
 	 * @returns {string} HTML string
 	 */
-	function renderSkillItems(skills, showPluginBadge) {
+	function renderSkillItems(skills, showPluginBadge, isPlugin) {
 		return skills.map(function(skill) {
+			var isDisabled = skill.enabled === false;
 			var classes = 'skill-item';
 			if (skill.isOverridden) {
 				classes += ' skill-overridden';
 			}
+			if (isDisabled) {
+				classes += ' is-disabled';
+			}
 
-			var html = '<div class="' + classes + '">';
+			// Escape skill name for use in onclick handlers
+			var escapedSkillName = escapeHtmlSkill(skill.name).replace(/'/g, "\\\\'");
 
-			// Left side: name and description in two lines
+			// Container div - click on item also copies
+			var html = '<div class="' + classes + '" data-skill-name="' + escapeHtmlSkill(skill.name) + '" data-skill-scope="' + skill.scope + '" onclick="handleSkillCopy(event, \\\'' + escapedSkillName + '\\\')">';
+
+			// Main content area
 			html += '<div class="skill-content">';
-			html += '<div class="skill-name">' + escapeHtmlSkill(skill.name) + '</div>';
 
+			// First row: skill name + state button (left) | copy button + plugin badge (right)
+			html += '<div class="skill-header-row">';
+
+			// Left part: name + state button (merged Enabled/Disabled)
+			html += '<div class="skill-header-left">';
+			html += '<span class="skill-name-text">' + escapeHtmlSkill(skill.name) + '</span>';
+
+			// Single state toggle button for workspace/user skills (shows current state, click to toggle)
+			if (!isPlugin) {
+				var btnClass = isDisabled ? 'is-disabled' : 'is-enabled';
+				var btnText = isDisabled ? 'Disabled' : 'Enabled';
+				html += '<button class="skill-state-btn ' + btnClass + '" onclick="handleSkillToggle(event, \\\'' + escapedSkillName + '\\\')">' + btnText + '</button>';
+			}
+			html += '</div>';
+
+			// Right part: copy button + optional plugin badge
+			html += '<div class="skill-header-right">';
+
+			// Plugin badge (if applicable)
+			if (showPluginBadge && skill.pluginName) {
+				html += '<span class="skill-plugin-badge">' + escapeHtmlSkill(skill.pluginName) + '</span>';
+			}
+
+			// Copy button for ALL skills (including plugins)
+			html += '<button class="skill-copy-btn" onclick="handleSkillCopy(event, \\\'' + escapedSkillName + '\\\')" title="Copy: Use skills: ' + escapeHtmlSkill(skill.name) + '">';
+			html += '<svg class="icon-clipboard" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 4.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7zM4.5 3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 11.5 3h-7z"/><path d="M10 1h-4a2 2 0 0 0-2 2h1a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1h1a2 2 0 0 0-2-2z"/></svg>';
+			html += '<svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>';
+			html += '</button>';
+			html += '</div>';
+
+			html += '</div>'; // end skill-header-row
+
+			// Second row: description
 			if (skill.description) {
 				html += '<div class="skill-description">' + escapeHtmlSkill(skill.description) + '</div>';
 			} else {
 				html += '<div class="skill-description" style="opacity: 0.5;">No description</div>';
 			}
-			html += '</div>';
 
-			// Right side: plugin badge (light gray, aligned to right)
-			if (showPluginBadge && skill.pluginName) {
-				html += '<span class="skill-plugin-badge">' + escapeHtmlSkill(skill.pluginName) + '</span>';
-			}
+			html += '</div>'; // end skill-content
 
-			html += '</div>';
+			html += '</div>'; // end skill-item
 			return html;
 		}).join('');
+	}
+
+	/**
+	 * Handle copy - triggered by clicking item or copy button
+	 */
+	function handleSkillCopy(event, skillName) {
+		// Don't copy if state toggle button was clicked
+		if (event.target.closest('.skill-state-btn')) {
+			return;
+		}
+		event.stopPropagation();  // Prevent event bubbling
+
+		var text = 'Use skills: ' + skillName;
+		navigator.clipboard.writeText(text).then(function() {
+			// Find copy button in this skill item and show feedback
+			var skillItem = event.currentTarget.closest ? event.currentTarget.closest('.skill-item') : event.currentTarget;
+			var copyBtn = skillItem.querySelector('.skill-copy-btn');
+			if (copyBtn) {
+				copyBtn.classList.add('copied');
+				setTimeout(function() {
+					copyBtn.classList.remove('copied');
+				}, 1500);
+			}
+			console.log('[Skills] Copied:', text);
+		}).catch(function(err) {
+			console.error('[Skills] Copy failed:', err);
+		});
+	}
+
+	/**
+	 * Handle toggle button click - enable/disable skill
+	 * Only works for workspace and user skills (not plugins)
+	 */
+	function handleSkillToggle(event, skillName) {
+		event.stopPropagation();  // Prevent triggering skill item click (copy)
+
+		// Get skill scope from parent skill-item
+		var skillItem = event.target.closest('.skill-item');
+		var scope = skillItem.getAttribute('data-skill-scope');
+
+		console.log('[Skills] Toggle skill:', skillName, 'scope:', scope);
+		vscode.postMessage({
+			type: 'toggleSkillState',
+			skillName: skillName,
+			scope: scope
+		});
 	}
 
 	/**
@@ -2869,6 +2984,11 @@ export const uiScript = `
 				case 'installedSkillsUpdated':
 					// Receive skill list and update modal
 					updateSkillsList(message.skills || []);
+					break;
+				case 'skillStateChanged':
+					// Skill state was toggled, refresh the skills list
+					console.log('[Skills] State changed:', message.skillName, 'enabled:', message.enabled);
+					vscode.postMessage({ type: 'getInstalledSkills' });
 					break;
 				case 'operationHistory':
 					// Update operation history UI and sync currentOperations
