@@ -2,6 +2,39 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.1.0] - 2025-01-13
+
+### Added
+- **Skills Panel Enhancement**
+  - **Copy to Clipboard**: Click on any skill item to copy `Use skills: {skill-name}` to clipboard
+  - **Copy Button**: Dedicated copy button on the right side of each skill item with visual feedback (checkmark animation)
+  - **Enable/Disable Toggle**: Workspace and User Global skills can be enabled/disabled via status button
+    - Green "Enabled" button = skill is active
+    - Red "Disabled" button = skill is disabled
+  - **True Skill Disabling**: Disabled skills are renamed from `SKILL.md` to `SKILL.md.disabled`, making them invisible to Claude CLI
+  - **Plugin Skills Protection**: Plugin skills display a blue "Plugin" badge and cannot be toggled (read-only)
+  - **Visual Feedback**: Disabled skills show reduced opacity and red "Disabled" status
+
+### Changed
+- **SkillManager Refactored**
+  - Removed config file-based state management in favor of file renaming approach
+  - Skills now detect enabled/disabled state from filename suffix
+  - Simplified `toggleSkillState()` method to use file system operations
+  - Removed unused methods: `loadDisabledSkills()`, `saveDisabledSkills()`, `getConfigPath()`, `getSkillId()`, `isSkillDisabled()`, `setSkillEnabled()`
+
+### Fixed
+- **Template String Escaping Bug**
+  - Fixed JavaScript syntax error caused by incorrect single quote escaping in template strings
+  - Changed `\'` to `\\'` for proper escaping in backtick strings
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/ui-v2/index.ts` | Added CSS styles for copy-button, skill-status-btn, is-disabled states |
+| `src/ui-v2/ui-script.ts` | Added handleCopySkill(), showCopyFeedback(), handleSkillCopy(), handleSkillToggle() functions; redesigned renderSkillItems() |
+| `src/services/SkillManager.ts` | Added toggleSkillState() with file renaming; modified loadWorkspaceSkills() and loadUserSkills() to detect .disabled files |
+| `src/providers/ClaudeChatProvider.ts` | Added toggleSkillState message handler and _toggleSkillState() method |
+
 ## [3.0.9] - 2025-01-13
 
 ### Fixed
