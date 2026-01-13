@@ -1856,13 +1856,15 @@ function getStylesOld(): string {
         background: var(--vscode-editor-background);
     }
 
-    /* Individual skill item */
+    /* Individual skill item - two line layout like plugins modal */
     .skill-item {
         display: flex;
-        align-items: center;
-        padding: 8px 12px;
+        align-items: flex-start;
+        padding: 10px 12px;
         border-bottom: 1px solid var(--vscode-panel-border);
         gap: 12px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
     }
 
     .skill-item:last-child {
@@ -1873,32 +1875,41 @@ function getStylesOld(): string {
         background: var(--vscode-list-hoverBackground);
     }
 
-    /* Skill name */
-    .skill-name {
-        font-weight: 500;
-        font-size: 13px;
-        color: var(--vscode-foreground);
-        min-width: 150px;
-    }
-
-    /* Skill description */
-    .skill-description {
+    /* Skill content container */
+    .skill-content {
         flex: 1;
-        font-size: 12px;
-        color: var(--vscode-descriptionForeground);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        min-width: 0;
     }
 
-    /* Plugin source badge */
+    /* Skill name - larger font like plugin name */
+    .skill-name {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--vscode-foreground);
+        margin-bottom: 4px;
+        line-height: 1.4;
+    }
+
+    /* Skill description - multi-line allowed */
+    .skill-description {
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--vscode-descriptionForeground);
+        word-wrap: break-word;
+        white-space: normal;
+    }
+
+    /* Plugin source badge - aligned to right with light gray style */
     .skill-plugin-badge {
-        font-size: 10px;
-        padding: 2px 6px;
-        border-radius: 3px;
-        background: var(--vscode-badge-background);
-        color: var(--vscode-badge-foreground);
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        background: rgba(128, 128, 128, 0.15);
+        color: var(--vscode-descriptionForeground);
         white-space: nowrap;
+        align-self: flex-start;
+        margin-top: 2px;
+        flex-shrink: 0;
     }
 
     /* Empty state for skill categories */
