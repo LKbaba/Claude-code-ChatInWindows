@@ -6,6 +6,7 @@ import { ClaudeChatProvider } from './providers/ClaudeChatProvider';
 import { PluginManager } from './services/PluginManager';
 import { secretService } from './services/SecretService';
 import { DebugLogger } from './services/DebugLogger';
+import { ClaudeProcessService } from './services/ClaudeProcessService';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// DEBUG: console.log('Claude Code Chat extension is being activated!');
@@ -21,6 +22,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	if (debugEnabled) {
 		debugLogger.log('Extension', 'Extension activating...', { workspacePath, debugMaxLines });
+	}
+
+	// Clean up leftover Claude CLI temp files from previous sessions
+	if (workspacePath) {
+		ClaudeProcessService.cleanupTempFiles(workspacePath);
 	}
 
 	// Listen for configuration changes
@@ -118,4 +124,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// DEBUG: console.log('Claude Code Chat extension activation completed successfully!');
 }
 
-export function deactivate() { }
+export function deactivate() {
+	// Clean up Claude CLI temp files when extension deactivates
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	if (workspacePath) {
+		ClaudeProcessService.cleanupTempFiles(workspacePath);
+	}
+}

@@ -212,7 +212,13 @@ export const uiScript = `
 			// Get the correct icon for this tool
 			const toolIcon = getToolStatusIcon(data.toolName || toolName);
 			iconDiv.textContent = toolIcon;
-			
+
+			// Apply tool-specific gradient background color
+			iconDiv.style.background = getToolGradient(data.toolName || toolName);
+
+			// Apply tool-specific color bar gradient via CSS variable
+			messageDiv.style.setProperty('--tool-bar-gradient', getToolGradient(data.toolName || toolName));
+
 			// Replace TodoWrite with more user-friendly name
 			if (toolName === 'TodoWrite') {
 				toolName = 'Update Todos';
@@ -1094,7 +1100,7 @@ export const uiScript = `
 		function getToolStatusIcon(toolName) {
 			const iconMap = {
 				// Core tools
-				'Task': '🎯',            // Target icon for tasks/goals
+				'Task': '👻',            // Ghost icon for AI agent tasks
 				'Bash': '💻',            // Keep
 				'Read': '📖',            // Keep
 				'Edit': '✏️',            // Keep
@@ -1111,11 +1117,11 @@ export const uiScript = `
 				'NotebookEdit': '📔',    // Slightly different notebook icon
 				// Claude Code 2.1.2 new tools
 				'TaskOutput': '📤',      // Get task output
-				'KillShell': '🛑',       // Stop background task
-				'AskUserQuestion': '❓', // Wait for user input
-				'Skill': '⚡',           // Execute skill
-				'EnterPlanMode': '📋',   // Enter plan mode
-				'ExitPlanMode': '🚪',    // Exit plan mode
+				'KillShell': '💀',       // Skull icon for kill process
+				'AskUserQuestion': '🤔', // Thinking face for asking user
+				'Skill': '🛠️',           // Tools for skill/command
+				'EnterPlanMode': '📐',   // Ruler/design icon for planning
+				'ExitPlanMode': '🚀',    // Rocket for launch/execute
 				// MCP tools
 				'mcp__sequential-thinking__sequentialthinking': '🧠'  // Brain icon for thinking tool
 			};
@@ -1131,7 +1137,25 @@ export const uiScript = `
 			}
 			return iconMap[toolName] || '🔧';
 		}
-		
+
+		// Get tool-specific gradient color based on tool name
+		// Colors are intentionally darker/muted for dark mode UI
+		function getToolGradient(toolName) {
+			const colorMap = {
+				// Special tools with unique colors (darker/muted for dark mode)
+				'AskUserQuestion': 'linear-gradient(135deg, #be185d 0%, #9d174d 100%)',  // Dark pink - user interaction
+				'Task': 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',             // Muted violet - AI agent
+				'EnterPlanMode': 'linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%)',    // Darker blue - planning
+				'ExitPlanMode': 'linear-gradient(135deg, #64748b 0%, #475569 100%)',     // Darker gray - neutral
+				'KillShell': 'linear-gradient(135deg, #64748b 0%, #475569 100%)',        // Darker gray - utility cleanup
+				'TaskOutput': 'linear-gradient(135deg, #059669 0%, #047857 100%)',       // Darker green - output
+				'Skill': 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',            // Industrial orange - skill/tool
+				// Default purple gradient for other tools (slightly darker)
+				'default': 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
+			};
+			return colorMap[toolName] || colorMap['default'];
+		}
+
 		// Real-time token display
 		let tokenDisplayElement = null;
 		

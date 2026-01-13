@@ -2,6 +2,32 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.0.8] - 2025-01-13
+
+### Changed
+- **Tool Icons & Colors Redesign**
+  - Updated tool icons for better visual representation:
+    - `AskUserQuestion`: 🤷‍♂️ → 🤔 (Thinking face)
+    - `KillShell`: 🛑 → 💀 (Skull - "kill process")
+    - `Skill`: ⚡ → 🛠️ (Tools)
+  - Implemented dynamic color bar for tool messages (left border gradient)
+  - Each tool now has its own unique color scheme:
+    - `AskUserQuestion`: Dark pink (#be185d → #9d174d)
+    - `Task`: Muted violet (#a855f7 → #7c3aed)
+    - `EnterPlanMode`: Darker blue (#0284c7 → #1d4ed8)
+    - `ExitPlanMode`: Darker gray (#64748b → #475569)
+    - `KillShell`: Darker gray (#64748b → #475569)
+    - `TaskOutput`: Darker green (#059669 → #047857)
+    - `Skill`: Industrial orange (#ea580c → #c2410c)
+    - Default: Muted purple (#6366f1 → #4f46e5)
+  - Colors are intentionally darker/muted for better dark mode compatibility
+
+### Fixed
+- **Claude CLI Temp Files Cleanup**
+  - Added automatic cleanup of `tmpclaude-*-cwd` temporary files
+  - Cleanup runs on extension activate, deactivate, and after Claude process ends
+  - Prevents workspace pollution from leftover temp files
+
 ## [3.0.7] - 2025-01-13
 
 ### Added
