@@ -2,6 +2,27 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.0.7] - 2025-01-13
+
+### Added
+- **Skills Modal Feature**
+  - New "Skills: All" button next to "Plugins: All" button
+  - Skills modal displays all available Claude Code skills organized by scope
+  - Three-tier skill hierarchy: Workspace, User Global, and Plugin Skills
+  - Workspace skills: Project-specific skills from `./.claude/commands/`
+  - User skills: Global user skills from `~/.claude/commands/`
+  - Plugin skills: Read-only skills bundled with installed plugins
+  - Collapsible accordion UI with scope-specific border colors
+  - Plugin badge displayed on right side for plugin skills
+  - Refresh button to reload skills from all sources
+  - Skill override detection (higher priority scopes override lower ones)
+
+### New Files
+- `src/services/SkillManager.ts` - Skill discovery and management service
+  - Singleton pattern with in-memory caching
+  - Parses YAML frontmatter from SKILL.md files
+  - Supports workspace, user, and plugin skill scopes
+
 ## [3.0.6] - 2025-01-12
 
 ### Added
