@@ -17,7 +17,7 @@ export class WindowsCompatibility {
 
     /**
      * Get CLI command name
-     * If custom API is enabled, use configured command name (e.g. sssclaude); otherwise use default 'claude'
+     * If custom API is enabled, use configured command name (e.g., xxxxclaude); otherwise use default 'claude'
      */
     private getCliCommand(): string {
         const apiConfig = this._configurationManager.getApiConfig();
@@ -45,7 +45,7 @@ export class WindowsCompatibility {
             searchPaths.push(npmPrefix);
         }
 
-        // 2. Bun bin path (for Bun installed packages like sssclaude)
+        // 2. Bun bin path (for Bun installed packages like xxxxclaude)
         const bunBinPath = this.getBunBinPath();
         if (fs.existsSync(bunBinPath)) {
             searchPaths.push(bunBinPath);
@@ -113,7 +113,7 @@ export class WindowsCompatibility {
                 if (npmPrefix) {
                     pathAdditions = npmPrefix;
                 }
-                // Add Bun bin path for Bun-installed packages (like sssclaude)
+                // Add Bun bin path for Bun-installed packages (like xxxxclaude)
                 const bunBinPath = this.getBunBinPath();
                 if (fs.existsSync(bunBinPath)) {
                     pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${bunBinPath}` : bunBinPath;
@@ -208,13 +208,13 @@ export class WindowsCompatibility {
             fullCommand = `${command} --session ${sessionId}`;
         }
 
-        // Use configured CLI command name (supports relay service custom commands like sssclaude)
+        // Use configured CLI command name (supports mirror service custom commands like xxxxclaude)
         const cliCommand = this.getCliCommand();
         return `${cliCommand} ${fullCommand}`;
     }
 
     getLoginCommand(): string {
-        // Use configured CLI command name (supports relay service custom commands like sssclaude)
+        // Use configured CLI command name (supports mirror service custom commands like xxxxclaude)
         return this.getCliCommand();
     }
 

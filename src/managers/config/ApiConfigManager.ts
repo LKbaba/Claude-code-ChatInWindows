@@ -9,7 +9,7 @@ export interface ApiConfig {
     useCustomAPI: boolean;
     key: string;
     baseUrl: string;
-    cliCommand: string;  // CLI command name, default 'claude', relay service users can set to 'sssclaude'
+    cliCommand: string;  // CLI command name, default 'claude', mirror service users can set to 'xxxxclaude'
 }
 
 export interface WindowsConfig {

@@ -13,320 +13,209 @@
 
 ---
 
-## 🎯 Core Advantages
-
-* ✅ **Zero WSL Dependency**: Runs with just Git Bash and Node.js.
-* ✅ **Real-time Cost Tracking**: Instantly see token counts and costs.
-* ✅ **MCP Adaptation**: Adapts to various MCPs with support for dynamic MCP tool queries.
-* ✅ **Third-party API Adaptation**: Supports various third-party APIs including anyrouter/tuziapi, as well as Kimi K2.
-* ✅ **Image Copy-Paste/File Retrieval Support**: Maximize the use of multimodal models - image pasting is essential!
-* ✅ **Multi-language Support**: Multi-language communication and code comments.
-* ✅ **Perfect for "Vibe Coding"**: Smooth UI interface for an ultra-comfortable coding environment.
-* 🔄 **Operation History**: Real-time display of all file operations with one-click undo/redo
-
-Updated 2025.11.05: Updated latest models and corresponding pricing, added Auto/Max button to solve Anthropic's official backend Haiku dilution issue.
-
----
-
-## 🚩 Why You Need This Project
-
-* **No More WSL Hassle**:
-    Finally, run Claude Code with **100% native Windows support**. It just works!
-* **Say Goodbye to Path Errors**:
-    Seamlessly converts between `C:\` and `/usr/` paths to avoid wasting time and tokens.
-* **Ditch the Terminal**:
-    A full-featured GUI chat interface for easy copy-pasting and image insertion. No more window switching!
-
----
-
-## 📸 Features at a Glance
-
-### **Main Chat Interface**
+## 📸 Preview
 
 [![Main Interface](docs/assets/ui.png)](docs/assets/ui.png)
 
-### **Real-time Token Stats**
+## 🚀 Quick Start
 
-[![Token HUD](docs/assets/token.png)](docs/assets/token.png)
+### Step 1: Environment Setup
 
-### **Model Context Protocol (MCP)**
+1. Install [Git for Windows](https://git-scm.com/) (includes Git Bash)
+2. Install [Node.js](https://nodejs.org/) (LTS version recommended, ≥ 18)
+3. Open PowerShell as **Administrator** and set environment variable:
 
-[![MCP](docs/assets/mcp.png)](docs/assets/mcp.png)
+```powershell
+setx SHELL "C:\Program Files\Git\bin\bash.exe"
+```
+
+4. **Restart your computer** (required for changes to take effect)
 
 ---
 
-## 🚀 Installation and Usage
+### Step 2: Install Claude Code CLI
 
-> **🎉 Now Available on VS Code Marketplace!** Install with just one click.
->
-> This guide covers **Environment Setup**, **Extension Installation**, and **Packaging Instructions**.
-
-## Version Compatibility Notice
-
-> ⚠️ **Important Version Notice (Updated 2025.11.05)**:
->
-> Claude Code official has released v2.0.33, which can be directly installed using methods compatible with v1.0.48. We recommend using v2.0.33 with plugin version 2.0.2.
->
-> **⚠️ If you encounter bash tool invocation issues:**
->
-> 1. Add `C:\Program Files\Git\bin` and `C:\Program Files\Git\bin\bash.exe` to system environment variables
-> 2. Delete the `shell-snapshots` folder in `C:\Users\<yourname>\.claude` folder
-> 3. Uninstall the current version and reinstall v2.0.33
->
-
-### 🔹 Step 1: Set Up Your Environment (One-Time Only)
-
-This core step resolves the `No suitable shell found` error on Windows.
+After restarting, open a new terminal window:
 
 ```powershell
-# 1. Install Git for Windows (includes Git Bash, which is required)
-# Download here: https://git-scm.com/
-
-# 2. Install Node.js (LTS version recommended, ≥ 18)
-# Download here: https://nodejs.org/
-
-# 3. Open PowerShell or CMD as an [Administrator] and run the following commands to set environment variables
-
-setx NPM_CONFIG_IGNORE_SCRIPTS true
-
-# ⚠️ Important: All versions need to set SHELL environment variable
-setx SHELL "C:\\Program Files\\Git\\bin\\bash.exe"
-# Note: If you installed Git in a different directory, update the path accordingly.
-
-# 4. ⚠️ IMPORTANT: You must RESTART YOUR COMPUTER after modifying system environment variables!
-# Simply closing PowerShell/CMD window is NOT enough
-
-# 5. After restart, verify your environment setup
+npm install -g @anthropic-ai/claude-code
 ```
 
-> ⚡ **Claude Code v1.0.51-54 users notice**:
->
-> * Ensure your system PATH does NOT contain `Git\bin`, or you'll encounter startup errors
-> * You must **restart your computer** after modifying system environment variables
-> * See [Environment Setup](#-step-1-set-up-your-environment-one-time-only) for details
->
-> ⚠️ **Note**: If you encounter issues, please contact the author.
+---
 
-### 🔹 Step 2: Install and Verify Claude Code CLI
+> ⚠️ **VPN Users**: Please ensure **TUN mode** is enabled throughout the installation and usage process, otherwise you may not be able to connect to Claude services.
+
+### Step 3: Log in to Claude Code
+
+#### Using Official Account
 
 ```powershell
-# 1. In a [new] terminal window, globally install the Claude Code CLI, recommend v2.0.33
-npm install -g @anthropic-ai/claude-code@2.0.33
-
-# ⚠️ If you encounter PowerShell script execution policy errors, try these solutions:
-# Error example: "cannot be loaded because running scripts is disabled on this system"
-# Solution: Temporarily relax the execution policy for the current session (more secure)
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-# Or use CMD instead of PowerShell to run npm commands
-
-# 2. Ensure the npm global directory is in your system's Path environment variable
-#    The default path is usually: C:\Users\YourUsername\AppData\Roaming\npm
-#    If you're unsure, add it manually to your system's "Path" variable.
-
-# 3. Log in to Claude Code for the first time (if using official account)
-claude code
-#    A browser window will open for authorization → Log in and copy the token → Paste it back into the terminal.
-#    💡 Tip: If you plan to use third-party APIs, see the API setup examples below.
-
-# 4. Quickly verify the installation
-claude chat -m sonnet -p "hello"
-#    If you see a reply from Claude, your environment is ready!
+claude
 ```
 
-**Version notes:**
-* Claude Code v2.0.33 has excellent Windows support overall
-* Claude Code v1.0.51 added native Windows support, requires PATH to only contain Git\cmd
-* Claude Code v1.0.48 changed the shell snapshot location from `/tmp` to `~/.claude`
+A browser window will open for authorization. Log in and copy the token back to the terminal.
 
-### 🔹 Step 3: Install This Extension
+#### Using 🔑 Third-Party API
 
-#### ✨ Method 1: Install from VS Code Marketplace (Recommended)
+If you're using a third-party API, configure it in the extension:
 
-**The extension is now available on the VS Code Marketplace!** 🎉
+1. Press `Ctrl+Shift+C` to open the chat interface
+2. Click the settings button ⚙️ in the top right corner
+3. Check **"Use Custom API Endpoint"**
+4. Enter your API key in the **API Key** field (e.g., `sk-ant-xxxxxxxxxx`)
+5. Enter the API address in the **Base URL** field (e.g., `https://v3.codesome.cn`)
+6. Settings are saved automatically. "Settings updated successfully" confirms the configuration
 
-**Quick Install:**
+[![API Configuration](docs/assets/api.png)](docs/assets/api.png)
+
+**Switch back to official account**: Uncheck "Use Custom API Endpoint".
+
+> 💡 **Tips**:
+>
+> - If the API key is incorrect, chat will show "processing" until timeout
+> - You can switch between official account and third-party API anytime via the toggle
+
+---
+
+> 💡 This extension supports various third-party API services (e.g., [v3.codesome.cn](https://v3.codesome.cn), [openrouter.ai](https://openrouter.ai)). Please consult your API provider for the specific URL.
+
+---
+
+### Step 4: Install the Extension
+
+#### ✨ Method 1: VS Code Marketplace (Recommended)
 
 1. Open VS Code or Cursor
 2. Press `Ctrl+Shift+X` to open Extensions
 3. Search for `Claude-Code ChatUI` or `lkbaba`
 4. Click **Install**
 
-**Direct Link:** [**➡️ Install from VS Code Marketplace**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui)
+**Direct Link:** [**➡️ VS Code Marketplace**](https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui)
 
----
+#### 📦 Method 2: GitHub Release Download
 
-#### 📦 Method 2: Download from GitHub Release (Offline Installation)
+1. [**🔗 Go to Releases page**](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)
+2. Download the `.vsix` file
+3. In VS Code, press `Ctrl+Shift+P`, select **"Extensions: Install from VSIX..."**
 
-If you can't access VS Code Marketplace, download the pre-packaged extension file:
-
-1. **[🔗 Go to Releases page](https://github.com/LKbaba/Claude-code-ChatInWindows/releases/latest)** to download the latest version
-2. Download the `claude-code-chatinwindows-1.x.x.zip` package
-3. Extract and find the `claude-code-chatinwindows-x.x.vsix` file
-4. In VS Code/Cursor, press `Ctrl+Shift+P`, type `Install from VSIX` and select **"Extensions: Install from VSIX..."**
-5. Select the extracted `.vsix` file to install
-
-> **💡 Tip**: This method is suitable for offline installation.
-
----
-
-#### Method 3: Advanced Installation (for Developers)
-
-If you want to run from source or package the extension manually, follow these steps.
-
-##### Run from Source
+#### 🛠️ Method 3: Build from Source
 
 ```powershell
-# Clone the project locally
 git clone https://github.com/LKbaba/Claude-code-ChatInWindows.git
 cd Claude-code-ChatInWindows
-npm install  # Install dependencies
-
-# Press F5 in VS Code or Cursor to start debugging
-```
-
-##### Package as VSIX and Install
-
-```powershell
-# 1. Make sure you are in the project root and have run npm install
-
-# 2. Compile and package the extension
+npm install
 npm run package
-
-#    This command will automatically compile and package the extension into a .vsix file.
+# The generated .vsix file is in the project root, install using Method 2
 ```
-
-**To install the `.vsix` file:**
-
-1. In VS Code or Cursor, press `Ctrl+Shift+P` to open the Command Palette.
-2. Type `Install from VSIX` and select **"Extensions: Install from VSIX..."**.
-3. Select the generated `.vsix` file from the project root to install.
 
 ---
 
-### 🎉 Getting Started
+### Step 5: Start Using
 
-> **💡 Important**: If using a VPN, ensure **TUN mode** is enabled, otherwise Claude Code may fail to connect.
+- **Open Chat Interface**: Press `Ctrl+Shift+C`
+- **File Explorer Icon**: Click the icon next to the new folder button
 
-* **Open Chat Panel**: Press `Ctrl+Shift+C`
-* **File Explorer Icon**: There's an icon next to the new folder button, click it to open
+## ❓ FAQ
 
-### 🔑 Using Third-Party APIs
+<details>
+<summary><strong>Q: Getting "No suitable shell found" error?</strong></summary>
 
-This extension supports third-party API services (e.g., tu-zi.com, openrouter.ai). Here's how to use them:
+1. Make sure Git for Windows is installed
+2. Run as administrator: `setx SHELL "C:\Program Files\Git\bin\bash.exe"`
+3. **Restart your computer** (required for changes to take effect)
 
-#### Usage Steps
+If the problem persists, try:
 
-A. Extension Configuration
+1. Open system environment variables (Win + X → System → Advanced system settings → Environment Variables)
+2. Ensure PATH contains `C:\Program Files\Git\cmd`
+3. Restart your computer
 
-1. **Open Settings**: Click the settings button ⚙️ in the chat interface
-2. **Enable Custom API**: Check "Use Custom API Endpoint"
-3. **Configure API**:
-   * **API Key**: Enter your API key (e.g., `sk-ant-xxxxxxxxxx`)
-   * **Base URL**: Enter the API endpoint (e.g., `https://api.tu-zi.com`)
-4. **Save Confirmation**: Settings are saved automatically with a "Settings updated successfully" notification
+</details>
 
-[![API Configuration](docs/assets/api.png)](docs/assets/api.png)
+<details>
+<summary><strong>Q: Third-party API configured but chat not responding?</strong></summary>
 
-5. **First-time Initialization** (Important)
-
-> ⚠️ **Note**: First-time custom API use requires command line initialization. After that, it works normally in the extension.
-
-B. First-time Initialization
-
-**Windows PowerShell Users:**
+Claude Code CLI sometimes needs to be initialized in the command line first. Run in PowerShell:
 
 ```powershell
-# Open a new PowerShell session
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # Bypass script restrictions
-
-$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"   # Enter your API key, note the quotes are required
-$Env:ANTHROPIC_BASE_URL = "https://api.tu-zi.com"  # Consult your API provider for the URL, quotes are required
-
-claude code  # Run CLI to read environment variables
-
-Follow the prompts to confirm third-party API can return messages.
-
-claude chat -m opus "hello"  # Test if configuration works
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+$Env:ANTHROPIC_API_KEY  = "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+$Env:ANTHROPIC_BASE_URL = "https://v3.codesome.cn"
+claude
 ```
 
-> 💡 **Tips**:
->
-> * **Important**: Initialization is required again after system restart 💡
-> * Third-party APIs are usually more affordable for budget-conscious users. Common services: [api.tu-zi.com](https://api.tu-zi.com/), [openrouter.ai](https://openrouter.ai), [anyrouter.top](https://anyrouter.top)
-> * Toggle between official account and custom API anytime via the switch
-> * Wrong API key will show "processing" until timeout
+If the problem persists, try updating Claude Code CLI:
 
-### ❓ FAQ
+```powershell
+npm install -g @anthropic-ai/claude-code@latest
+```
 
-**Q: Getting "No suitable shell found" error after upgrading to Claude Code v1.0.51?**
+</details>
 
-* A: Claude Code v1.0.51's native Windows support requires specific environment setup:
-  1. Open system environment variables (Win + X → System → Advanced system settings → Environment Variables)
-  2. Edit PATH variable, remove all entries containing `Git\bin`
-  3. Ensure PATH contains `C:\Program Files\Git\cmd`
-  4. **Important: You must restart your computer for changes to take effect**
-  
-  Temporary test method (PowerShell, no restart needed):
+<details>
+<summary><strong>Q: Third-party API stops working after computer restart?</strong></summary>
 
-  ```powershell
-  # Temporarily remove Git\bin (current session only)
-  $env:PATH = $env:PATH -replace 'C:\\Program Files\\Git\\bin;?', ''
-  claude --version
-  claude code
-  ```
-  
-  If the temporary test works, follow the steps above to permanently modify environment variables and restart.
+Environment variables `$Env:ANTHROPIC_API_KEY` and `$Env:ANTHROPIC_BASE_URL` are temporary and will be lost after restart.
 
-**Q: Why doesn't chat respond after configuring API?**
+Two solutions:
 
-* A: First-time custom API use requires command line initialization to ensure messages can be returned.
+**Option 1**: Reset after each restart
 
-**Q: How to switch back to official account?**
+```powershell
+$Env:ANTHROPIC_API_KEY  = "your API Key"
+$Env:ANTHROPIC_BASE_URL = "https://v3.codesome.cn"
+claude
+```
 
-* A: Uncheck "Use Custom API Endpoint" in settings
+**Option 2**: Set as permanent environment variables (run as administrator)
 
-**Q: Getting "rg: command not found" error?**
+```powershell
+setx ANTHROPIC_API_KEY "your API Key"
+setx ANTHROPIC_BASE_URL "https://v3.codesome.cn"
+# Restart computer for changes to take effect
+```
 
-* A: This is optional. If you want to install ripgrep for better search performance:
+</details>
 
-  ```bash
-  # In Git Bash:
-  curl -L https://github.com/BurntSushi/ripgrep/releases/download/14.1.0/ripgrep-14.1.0-x86_64-pc-windows-msvc.zip -o ripgrep.zip
-  unzip ripgrep.zip && mkdir -p ~/bin
-  cp ripgrep-14.1.0-x86_64-pc-windows-msvc/rg.exe ~/bin/
-  echo 'alias rg="~/bin/rg"' >> ~/.bashrc && source ~/.bashrc
-  ```
+<details>
+<summary><strong>Q: Getting "rg: command not found" error?</strong></summary>
 
-  * Note: The extension's built-in Grep tool works fine without ripgrep.
+This is optional and doesn't affect normal usage. If you want to install ripgrep for better search performance:
+
+```bash
+# In Git Bash:
+curl -L https://github.com/BurntSushi/ripgrep/releases/download/14.1.0/ripgrep-14.1.0-x86_64-pc-windows-msvc.zip -o ripgrep.zip
+unzip ripgrep.zip && mkdir -p ~/bin
+cp ripgrep-14.1.0-x86_64-pc-windows-msvc/rg.exe ~/bin/
+echo 'alias rg="~/bin/rg"' >> ~/.bashrc && source ~/.bashrc
+```
+
+Note: The extension's built-in Grep tool works fine without ripgrep.
+
+</details>
 
 ---
 
 ## 🤝 How to Contribute
 
-1. Fork the project and create a feature branch.
-2. Focus on a single new feature or pain point.
-3. Test thoroughly on a real Windows machine.
-4. Run `npm test` before submitting (if tests are available).
-5. Open a Pull Request with a clear description and screenshots.
+1. Fork the project and create a feature branch
+2. Focus on a single new feature or improvement
+3. Test thoroughly on a real Windows environment
+4. Submit a Pull Request with clear description
 
-We welcome all AI engineers, developers, geeks, and vibe-coders on Windows to join in!
+Welcome all AI engineers, developers, and geeks on Windows!
 
 ---
 
 ## 📝 License
 
-This project is licensed under the **MIT License**, consistent with the upstream project. See [LICENSE](LICENSE) for details.
+This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
 
 ---
 
-## 🙏 Acknowledgments and Inspiration
+## 🙏 Acknowledgments
 
-Special thanks to:
-
-* **andrepimenta** – for the original [claude-code-chat](https://github.com/andrepimenta/claude-code-chat) project
-* **CCUsage** – for the inspiration on real-time token tracking
-* **Mrasxieyang (from linux.do community)** – for providing the core solution for the native Windows installation
-* **Anthropic** – for creating the powerful Claude and Claude Code
-* **All developers contributing to the Claude Code application ecosystem ❤️**
-
----
+- **andrepimenta** – Original project [claude-code-chat](https://github.com/andrepimenta/claude-code-chat)
+- **Mrasxieyang (linux.do community)** – Provided the core solution for native Windows installation
+- **Anthropic** – For creating the powerful Claude and Claude Code
+- **All developers contributing to the Claude Code ecosystem ❤️**
