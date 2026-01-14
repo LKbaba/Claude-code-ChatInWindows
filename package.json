@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude-Code ChatUI for Windows",
   "description": "Claude Code – ChatUI – Windows (No WSL)",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -174,11 +174,12 @@
             "think",
             "think-hard",
             "think-harder",
-            "ultrathink"
+            "ultrathink",
+            "sequential-thinking"
           ],
           "default": "think",
           "scope": "resource",
-          "description": "Thinking mode intensity level. Higher levels provide more detailed reasoning but consume more tokens."
+          "description": "Thinking mode intensity level. Higher levels provide more detailed reasoning but consume more tokens. Sequential thinking uses MCP-based reasoning."
         },
         "claudeCodeChatUI.mcp.enabled": {
           "type": "boolean",
