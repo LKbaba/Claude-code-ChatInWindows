@@ -299,13 +299,13 @@
         "claudeCodeChatUI.api.baseUrl": {
           "type": "string",
           "default": "https://api.anthropic.com",
-          "description": "Base URL for custom API endpoint (e.g., https://api.tu-zi.com)",
+          "description": "Base URL for custom API endpoint (e.g., https://v3.codesome.cn)",
           "format": "uri"
         },
         "claudeCodeChatUI.api.cliCommand": {
           "type": "string",
           "default": "claude",
-          "description": "CLI command name (set to 'sssclaude' if using relay service subscription)"
+          "description": "CLI command name (e.g., 'xxxxclaude' if using a mirror service)"
         },
         "claudeCodeChatUI.geminiIntegrationEnabled": {
           "type": "boolean",

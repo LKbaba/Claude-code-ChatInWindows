@@ -473,7 +473,7 @@ export function getBodyContent(): string {
 						</div>
 						<div style="margin-bottom: 12px;">
 							<label for="api-baseUrl" style="display: block; font-size: 12px; margin-bottom: 4px;">Base URL</label>
-							<input type="text" id="api-baseUrl" placeholder="https://api.tu-zi.com" value="https://api.anthropic.com" style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;" onchange="updateSettings()">
+							<input type="text" id="api-baseUrl" placeholder="https://v3.codesome.cn" value="https://api.anthropic.com" style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;" onchange="updateSettings()">
 						</div>
 						<div style="margin-bottom: 12px;">
 							<label for="api-cliCommand" style="display: block; font-size: 12px; margin-bottom: 4px;">CLI Command Name</label>
@@ -484,7 +484,7 @@ export function getBodyContent(): string {
 								🔒 Your API key will be stored securely in VS Code settings.
 							</p>
 							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
-								💡 If using a relay service subscription (e.g. @sssaicode/claude), set CLI Command Name to 'sssclaude'
+								💡 If using a mirror service, set CLI Command Name accordingly (e.g., 'xxxxclaude')
 							</p>
 						</div>
 					</div>

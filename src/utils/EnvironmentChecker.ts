@@ -42,7 +42,7 @@ export class EnvironmentChecker {
             };
         }
 
-        // 2. Get configured CLI command name (supports relay service custom commands like sssclaude)
+        // 2. Get configured CLI command name (supports mirror service custom commands like xxxxclaude)
         const configManager = new ApiConfigManager();
         const apiConfig = configManager.getApiConfig();
         // If custom API is enabled, use configured command name; otherwise use default 'claude'
@@ -75,7 +75,7 @@ export class EnvironmentChecker {
             const installHint = cliCommand === 'claude'
                 ? `Please install it globally via 'npm install -g @anthropic-ai/claude-cli'.`
                 : `Please ensure '${cliCommand}' is installed correctly.\n` +
-                  `If using a relay service (like sssaicode), the command may be installed via Bun.\n` +
+                  `If using a mirror service, the command may be installed via Bun.\n` +
                   `Searched paths:\n` +
                   `  - npm: ${npmPrefix}\n` +
                   `  - Bun: ${bunBinPath}`;
