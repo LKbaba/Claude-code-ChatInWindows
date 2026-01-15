@@ -194,6 +194,42 @@ Note: The extension's built-in Grep tool works fine without ripgrep.
 
 </details>
 
+<details>
+<summary><strong>Q: Getting "File has been unexpectedly modified" error when Claude edits files?</strong></summary>
+
+This error occurs when VS Code/Cursor's **auto-save** feature modifies files between Claude's Read and Edit operations.
+
+**Solution: Disable auto-save**
+
+Add this to your VS Code/Cursor settings (`settings.json`):
+
+```json
+"files.autoSave": "off"
+```
+
+Or use a less aggressive option:
+
+```json
+"files.autoSave": "onWindowChange"
+```
+
+**Why this happens:**
+
+1. Claude reads a file and stores its content hash
+2. Auto-save triggers and modifies the file on disk
+3. Claude tries to edit the file, but the hash no longer matches
+4. Claude reports "File has been unexpectedly modified"
+
+**Other settings that can cause this issue:**
+
+- `editor.formatOnSave: true` - Formatters modify file content on save
+- `files.trimTrailingWhitespace: true` - Removes trailing spaces on save
+- `files.insertFinalNewline: true` - Adds newline at end of file
+
+If you need these features, consider disabling them temporarily when using Claude Code.
+
+</details>
+
 ---
 
 ## 🤝 How to Contribute
