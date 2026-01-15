@@ -193,6 +193,42 @@ echo 'alias rg="~/bin/rg"' >> ~/.bashrc && source ~/.bashrc
 注意：扩展内置的 Grep 工具即使没有 ripgrep 也能正常工作。
 </details>
 
+<details>
+<summary><strong>Q: Claude 编辑文件时遇到 "File has been unexpectedly modified" 错误？</strong></summary>
+
+这个错误通常是因为 VS Code/Cursor 的**自动保存**功能在 Claude 读取和编辑文件之间修改了文件。
+
+**解决方案：关闭自动保存**
+
+在 VS Code/Cursor 设置 (`settings.json`) 中添加：
+
+```json
+"files.autoSave": "off"
+```
+
+或者使用更温和的选项：
+
+```json
+"files.autoSave": "onWindowChange"
+```
+
+**为什么会发生这个问题：**
+
+1. Claude 读取文件并存储内容哈希值
+2. 自动保存触发，修改了磁盘上的文件
+3. Claude 尝试编辑文件，但哈希值不再匹配
+4. Claude 报告 "File has been unexpectedly modified"
+
+**其他可能导致此问题的设置：**
+
+- `editor.formatOnSave: true` - 保存时格式化会修改文件内容
+- `files.trimTrailingWhitespace: true` - 保存时删除行尾空格
+- `files.insertFinalNewline: true` - 保存时在文件末尾添加换行符
+
+如果你需要这些功能，可以考虑在使用 Claude Code 时临时禁用它们。
+
+</details>
+
 ---
 
 ## 🤝 如何参与贡献
