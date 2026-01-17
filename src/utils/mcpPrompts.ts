@@ -31,9 +31,9 @@ export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
     'playwright': `
 ## Playwright
 **Purpose**: Browser automation - web scraping, form filling, UI testing
-**Core**: navigate, screenshot, click, fill, evaluate, save_as_pdf
+**Core**: navigate, screenshot, click, fill, evaluate, save_as_pdf, resize (143+ device presets)
 **File paths**: Screenshots→./CCimages/screenshots/ PDFs→./CCimages/pdfs/
-**Installation**: See browser install guide in CLAUDE.md`,
+**Browser fix**: If chromium error, run: npx playwright@latest install chromium`,
 
     'n8n': `
 ## n8n
