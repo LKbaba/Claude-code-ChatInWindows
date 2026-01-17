@@ -2,6 +2,29 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.1.2] - 2025-01-17
+
+### Fixed
+- **Claude Output Angle Brackets Display**
+  - Fixed `<example>`, `<tag>` and other angle bracket content in Claude's output being treated as HTML tags and disappearing
+  - Added `escapeHtml()` processing for Claude output, compact summary, and thinking mode content
+  - Now matches the same escaping behavior as user input messages
+
+### Changed
+- **Playwright MCP Browser Guide Updated**
+  - Updated browser version fix instructions for Playwright MCP v1.0.12+
+  - New fix command: `npx playwright@latest install chromium`
+  - Added version info: Playwright 1.57.0 requires chromium-1200 with `chrome-win64/` structure
+  - Updated in: `CLAUDE.md`, `utils.ts` (auto-inject template), `mcpPrompts.ts`
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/ui-v2/ui-script.ts` | Added escapeHtml() for Claude output (line 2559), compact summary (line 2625), thinking mode (line 2736) |
+| `src/utils/utils.ts` | Updated playwrightSection template with new browser fix instructions |
+| `src/utils/mcpPrompts.ts` | Updated Playwright prompt with browser fix command and device presets info |
+| `CLAUDE.md` | Updated Playwright MCP Guide section |
+
 ## [3.1.0] - 2025-01-13
 
 ### Added

@@ -2556,7 +2556,9 @@ export const uiScript = `
 					
 				case 'output':
 					if (message.data.trim()) {
-						addMessage(parseSimpleMarkdown(message.data, imagePathMap), 'claude');
+						// Escape HTML in Claude output to prevent angle brackets from being treated as tags (e.g., <example> would disappear)
+						const escapedClaudeOutput = escapeHtml(message.data);
+						addMessage(parseSimpleMarkdown(escapedClaudeOutput, imagePathMap), 'claude');
 						// Removed token display per user request
 					}
 					updateStatusWithTotals();
@@ -2619,7 +2621,9 @@ export const uiScript = `
 
 					// Show compact summary
 					if (message.summary) {
-						addMessage(parseSimpleMarkdown(message.summary, imagePathMap), 'claude');
+						// Escape HTML to prevent angle brackets from being treated as tags
+						const escapedSummary = escapeHtml(message.summary);
+						addMessage(parseSimpleMarkdown(escapedSummary, imagePathMap), 'claude');
 					}
 
 					// Reset statistics
@@ -2728,7 +2732,9 @@ export const uiScript = `
 					
 				case 'thinking':
 					if (message.data.trim()) {
-						addMessage('💡 Thinking...' + parseSimpleMarkdown(message.data), 'thinking');
+						// Escape HTML to prevent angle brackets from being treated as tags
+						const escapedThinking = escapeHtml(message.data);
+						addMessage('💡 Thinking...' + parseSimpleMarkdown(escapedThinking), 'thinking');
 					}
 					break;
 					

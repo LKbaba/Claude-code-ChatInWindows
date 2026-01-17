@@ -210,9 +210,10 @@ File paths:
 - PDFs: \`./CCimages/pdfs/\`
 
 Browser version fix:
-- Error: "Executable doesn't exist at chromium-1179" → Version mismatch
-- Quick fix: \`cd ~/AppData/Local/ms-playwright && cmd //c "mklink /J chromium-1179 chromium-1181"\`
-- Or install: \`npx playwright@1.40.0 install chromium\``;
+- Error: "Executable doesn't exist at chromium-XXXX" → Version mismatch
+- v1.0.12+ uses Playwright 1.57.0, requires chromium-1200 with \`chrome-win64/\` structure
+- Quick fix: \`npx playwright@latest install chromium\`
+- Manual symlink (if needed): \`cd ~/AppData/Local/ms-playwright && cmd //c "mklink /J chromium-1200 chromium-1181"\``;
 
     // n8n MCP 
     const n8nSection = `## n8n MCP Guide 🔧
