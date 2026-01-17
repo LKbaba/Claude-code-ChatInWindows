@@ -17,6 +17,14 @@
 
 [![主界面](docs/assets/ui.png)](docs/assets/ui.png)
 
+## 📚 推荐教程
+
+> 🔥 **小白必看！** 如果你是第一次接触 Claude Code，强烈推荐阅读这篇保姆级教程：
+>
+> **[写给小白的 Claude Code 安装教程（国内直用，Windows 可用）](https://x.com/Gorden_Sun/status/2011837126263112117)** - by [@Gorden_Sun](https://x.com/Gorden_Sun)
+>
+> 这篇教程详细讲解了从零开始安装 Claude Code 的全过程，包括环境配置、第三方 API 使用等，全程约 30 分钟即可上手。
+
 ## 🚀 快速开始
 
 ### 第 1 步：环境准备
