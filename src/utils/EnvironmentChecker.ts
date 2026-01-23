@@ -26,21 +26,16 @@ export class EnvironmentChecker {
             return { success: true, message: 'WSL enabled, skipping native Windows check.' };
         }
 
-        // 1. Use smart npm finder to check npm prefix
+        // 1. 尝试获取 npm prefix（可选，原生安装器不需要 npm）
         let npmPrefix: string | undefined;
-        npmPrefix = await getNpmPrefix();
-
-        if (!npmPrefix) {
-            // Provide detailed error information and solutions
-            return {
-                success: false,
-                message: 'Cannot find npm. Please ensure Node.js/npm is installed.\n' +
-                        'Solutions:\n' +
-                        '1. Start VS Code from command line (run "code" in Git Bash)\n' +
-                        '2. Or add Node.js path to system PATH environment variable and restart computer\n' +
-                        '3. If you just installed Node.js, please restart VS Code'
-            };
+        try {
+            npmPrefix = await getNpmPrefix();
+        } catch (e) {
+            // npm 不存在也没关系，原生安装器不需要 npm
+            npmPrefix = undefined;
         }
+        // 注意：不再因为 npm 不存在而直接返回错误
+        // 继续检查其他安装路径（原生安装器、Bun 等）
 
         // 2. Get configured CLI command name (supports mirror service custom commands like xxxxclaude)
         const configManager = new ApiConfigManager();
@@ -48,14 +43,26 @@ export class EnvironmentChecker {
         // If custom API is enabled, use configured command name; otherwise use default 'claude'
         const cliCommand = apiConfig.useCustomAPI ? (apiConfig.cliCommand || 'claude') : 'claude';
 
-        // 3. Check for CLI command in multiple locations (npm prefix and Bun bin)
+        // 3. 在多个位置检查 CLI 命令（原生安装路径 > npm > Bun）
         const homeDir = require('os').homedir();
+        const nativeLocalBin = path.join(homeDir, '.local', 'bin');
+        const nativeClaudeBin = path.join(homeDir, '.claude', 'bin');
         const bunBinPath = path.join(homeDir, '.bun', 'bin');
 
-        // Search paths for the CLI executable
+        // 按优先级排列的搜索路径
         const searchPaths: { path: string, exists: boolean }[] = [
-            { path: path.join(npmPrefix, `${cliCommand}.cmd`), exists: false },
-            { path: path.join(npmPrefix, `${cliCommand}.exe`), exists: false },
+            // 1. 原生安装路径 (最高优先级) - PowerShell/WinGet 安装位置
+            { path: path.join(nativeLocalBin, `${cliCommand}.exe`), exists: false },
+            { path: path.join(nativeLocalBin, cliCommand), exists: false },
+            // 2. 备用原生路径
+            { path: path.join(nativeClaudeBin, `${cliCommand}.exe`), exists: false },
+            { path: path.join(nativeClaudeBin, cliCommand), exists: false },
+            // 3. npm 路径 (传统方式，可选)
+            ...(npmPrefix ? [
+                { path: path.join(npmPrefix, `${cliCommand}.cmd`), exists: false },
+                { path: path.join(npmPrefix, `${cliCommand}.exe`), exists: false },
+            ] : []),
+            // 4. Bun 路径
             { path: path.join(bunBinPath, `${cliCommand}.cmd`), exists: false },
             { path: path.join(bunBinPath, `${cliCommand}.exe`), exists: false },
             { path: path.join(bunBinPath, cliCommand), exists: false }
@@ -71,15 +78,19 @@ export class EnvironmentChecker {
         }
 
         if (!cliFound) {
-            // Provide different error hints based on command name
+            // 根据命令名称提供不同的错误提示
             const installHint = cliCommand === 'claude'
-                ? `Please install it globally via 'npm install -g @anthropic-ai/claude-cli'.`
-                : `Please ensure '${cliCommand}' is installed correctly.\n` +
-                  `If using a mirror service, the command may be installed via Bun.\n` +
-                  `Searched paths:\n` +
-                  `  - npm: ${npmPrefix}\n` +
+                ? `请安装 Claude Code:\n` +
+                  `  • 推荐方式: irm https://claude.ai/install.ps1 | iex\n` +
+                  `  • 或 WinGet: winget install Anthropic.ClaudeCode\n` +
+                  `  • 或 npm (已弃用): npm install -g @anthropic-ai/claude-code`
+                : `请确保 '${cliCommand}' 已正确安装。\n` +
+                  `如果使用镜像服务，命令可能通过 Bun 安装。\n` +
+                  `已搜索路径:\n` +
+                  `  - 原生: ${nativeLocalBin}\n` +
+                  `  - npm: ${npmPrefix || '(未安装)'}\n` +
                   `  - Bun: ${bunBinPath}`;
-            return { success: false, message: `CLI '${cliCommand}' not found. ${installHint}` };
+            return { success: false, message: `找不到 CLI '${cliCommand}'。${installHint}` };
         }
 
         // 4. Check for Git Bash
