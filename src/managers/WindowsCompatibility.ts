@@ -34,18 +34,28 @@ export class WindowsCompatibility {
     }
 
     /**
-     * Find CLI executable path
-     * Searches in multiple locations: npm prefix, Bun bin, and PATH
+     * 查找 CLI 可执行文件路径
+     * 按优先级在多个位置搜索：原生安装路径 > npm > Bun
      */
     private findCliExecutable(cliCommand: string, npmPrefix: string | undefined): string | undefined {
         const searchPaths: string[] = [];
+        const homeDir = require('os').homedir();
 
-        // 1. npm prefix (for npm/yarn installed packages)
+        // 1. 官方原生安装器路径 (最高优先级)
+        // PowerShell 脚本 (irm install.ps1) 和 WinGet 安装到此位置
+        const nativeLocalBin = path.join(homeDir, '.local', 'bin');
+        searchPaths.push(nativeLocalBin);
+
+        // 2. 备用原生路径 (某些版本可能使用)
+        const nativeClaudeBin = path.join(homeDir, '.claude', 'bin');
+        searchPaths.push(nativeClaudeBin);
+
+        // 3. npm prefix (传统方式，向后兼容)
         if (npmPrefix) {
             searchPaths.push(npmPrefix);
         }
 
-        // 2. Bun bin path (for Bun installed packages like xxxxclaude)
+        // 4. Bun bin path (用于 Bun 安装的包，如第三方镜像服务)
         const bunBinPath = this.getBunBinPath();
         if (fs.existsSync(bunBinPath)) {
             searchPaths.push(bunBinPath);
@@ -107,17 +117,33 @@ export class WindowsCompatibility {
             const npmPrefix = await this._npmPrefixPromise;
             const cliCommand = this.getCliCommand();
 
-            // For terminal commands, we need to add both npm and Bun paths to PATH
+            // 为终端命令添加所有可能的 CLI 路径到 PATH
             if (forTerminal) {
                 let pathAdditions = '';
-                if (npmPrefix) {
-                    pathAdditions = npmPrefix;
+
+                // 1. 添加原生安装路径 (最高优先级)
+                const nativeLocalBin = path.join(homeDir, '.local', 'bin');
+                if (fs.existsSync(nativeLocalBin)) {
+                    pathAdditions = nativeLocalBin;
                 }
-                // Add Bun bin path for Bun-installed packages (like xxxxclaude)
+
+                // 2. 添加备用原生路径
+                const nativeClaudeBin = path.join(homeDir, '.claude', 'bin');
+                if (fs.existsSync(nativeClaudeBin)) {
+                    pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${nativeClaudeBin}` : nativeClaudeBin;
+                }
+
+                // 3. 添加 npm 路径 (传统方式)
+                if (npmPrefix) {
+                    pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${npmPrefix}` : npmPrefix;
+                }
+
+                // 4. 添加 Bun bin 路径 (用于 Bun 安装的包)
                 const bunBinPath = this.getBunBinPath();
                 if (fs.existsSync(bunBinPath)) {
                     pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${bunBinPath}` : bunBinPath;
                 }
+
                 if (pathAdditions) {
                     spawnOptions.env!.PATH = `${pathAdditions}${path.delimiter}${spawnOptions.env!.PATH}`;
                 }
@@ -128,9 +154,11 @@ export class WindowsCompatibility {
                 if (executablePath) {
                     claudeExecutablePath = executablePath;
                 } else {
-                    // Log searched paths for debugging
-                    const searchedPaths = [npmPrefix, this.getBunBinPath()].filter(Boolean);
-                    console.error(`${cliCommand} not found in any of these paths: ${searchedPaths.join(', ')}`);
+                    // 记录搜索过的路径，便于调试
+                    const nativeLocalBin = path.join(homeDir, '.local', 'bin');
+                    const nativeClaudeBin = path.join(homeDir, '.claude', 'bin');
+                    const searchedPaths = [nativeLocalBin, nativeClaudeBin, npmPrefix, this.getBunBinPath()].filter(Boolean);
+                    console.error(`${cliCommand} 未在以下路径找到: ${searchedPaths.join(', ')}`);
                     return { spawnOptions, claudeExecutablePath: undefined };
                 }
             }
@@ -220,23 +248,29 @@ export class WindowsCompatibility {
 
     providePlatformSpecificError(error: any): string {
         let errorMessage = error.message;
-        
+
         if (process.platform === 'win32') {
             if (error.message.includes('ENOENT') || error.message.includes('not found')) {
-                errorMessage = `Failed to start Claude. Please ensure:\n` +
-                    `1. Claude CLI is installed globally: npm install -g @anthropic-ai/claude-cli\n` +
-                    `2. Git Bash is installed and configured in settings\n` +
-                    `3. You've logged in to Claude by running 'claude' in a terminal\n\n` +
-                    `Original error: ${error.message}`;
+                // 更新错误提示，推荐新的安装方式
+                errorMessage = `无法启动 Claude。请确保：\n` +
+                    `1. 已安装 Claude Code:\n` +
+                    `   • 推荐: irm https://claude.ai/install.ps1 | iex\n` +
+                    `   • 或 WinGet: winget install Anthropic.ClaudeCode\n` +
+                    `   • 或 npm (已弃用): npm install -g @anthropic-ai/claude-code\n` +
+                    `2. Git Bash 已安装并在设置中配置路径\n` +
+                    `3. 已在终端中运行 'claude' 完成登录\n\n` +
+                    `原始错误: ${error.message}`;
             } else if (error.message.includes('npm')) {
-                errorMessage = `NPM configuration error. Please ensure Node.js and npm are properly installed.\n\n` +
-                    `Original error: ${error.message}`;
+                // npm 错误现在是可选的，不再是必需
+                errorMessage = `npm 配置错误。如果使用原生安装器，可以忽略此错误。\n` +
+                    `如需使用 npm 安装，请确保 Node.js 和 npm 已正确安装。\n\n` +
+                    `原始错误: ${error.message}`;
             } else if (error.message.includes('Git Bash') || error.message.includes('bash.exe')) {
-                errorMessage = `Git Bash not found. Please install Git for Windows and ensure the path to bash.exe is configured in settings.\n\n` +
-                    `Original error: ${error.message}`;
+                errorMessage = `找不到 Git Bash。请安装 Git for Windows 并在设置中配置 bash.exe 路径。\n\n` +
+                    `原始错误: ${error.message}`;
             }
         }
-        
+
         return errorMessage;
     }
 

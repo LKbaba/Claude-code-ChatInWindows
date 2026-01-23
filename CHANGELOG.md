@@ -2,6 +2,33 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.1.3] - 2025-01-23
+
+### Added
+- **支持 Claude Code 原生安装器路径**
+  - 新增 `~/.local/bin/` 搜索路径（官方 PowerShell/WinGet 安装位置）
+  - 新增 `~/.claude/bin/` 备用搜索路径
+  - 搜索优先级：原生安装器 > npm > Bun
+
+### Changed
+- **npm 依赖改为可选**
+  - 未安装 npm 时不再报错，继续检查其他安装路径
+  - 支持无 Node.js 环境使用原生安装器安装的 Claude Code
+- **错误提示更新为中文**
+  - 推荐使用官方原生安装方式
+  - 标注 npm 安装方式已弃用
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/managers/WindowsCompatibility.ts` | 添加原生路径搜索、PATH 注入、更新错误提示 |
+| `src/utils/EnvironmentChecker.ts` | npm 改为可选、扩展搜索路径、更新安装提示 |
+
+### Background
+Anthropic 官方在 Claude Code 2.1.15 版本后弃用了 npm 安装方式，推荐使用原生安装器：
+- PowerShell: `irm https://claude.ai/install.ps1 | iex`
+- WinGet: `winget install Anthropic.ClaudeCode`
+
 ## [3.1.2] - 2025-01-17
 
 ### Fixed
