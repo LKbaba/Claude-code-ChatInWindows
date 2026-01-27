@@ -15,7 +15,7 @@ const exec = util.promisify(cp.exec);
 
 /**
  * Resolves the npm global installation prefix
- * This is used to find the location of globally installed npm packages on Windows
+ * This is used to find the location of globally installed npm packages
  * Uses smart npm finder to resolve VS Code environment variable issues
  */
 export async function resolveNpmPrefix(): Promise<string | undefined> {
@@ -23,10 +23,10 @@ export async function resolveNpmPrefix(): Promise<string | undefined> {
 
     if (!prefix) {
         debugError('utils', 'Could not get npm prefix');
-        vscode.window.showErrorMessage(
-            'Could not find npm global path. Please ensure Node.js and npm are properly installed.\n' +
-            'Tip: Try starting VS Code from command line (run "code" command)'
-        );
+        // Mac: npm 不是必需的（官方安装方式不依赖 npm）
+        // Windows: npm 也不是必需的（原生安装器不依赖 npm）
+        // 只记录警告，不显示错误弹窗
+        console.warn('[Claude Code] npm not found - this is OK if Claude CLI was installed via official installer');
         return undefined;
     }
 
@@ -182,25 +182,34 @@ export function optimizeToolInput(
 }
 
 /**
- * Updates CLAUDE.md file with Windows environment information and MCP usage guides
+ * Updates CLAUDE.md file with platform environment information and MCP usage guides
  * @param workspaceFolder The current workspace folder
  * @param mcpServers Optional array of enabled MCP servers
  */
-export async function updateClaudeMdWithWindowsInfo(
-    workspaceFolder: vscode.WorkspaceFolder | undefined, 
+export async function updateClaudeMdWithPlatformInfo(
+    workspaceFolder: vscode.WorkspaceFolder | undefined,
     mcpServers?: Array<{ name: string }>
 ): Promise<void> {
     if (!workspaceFolder) {return;}
 
     const claudeMdPath = path.join(workspaceFolder.uri.fsPath, 'CLAUDE.md');
-    
-    // Windows environment information
-    const windowsSection = `## Development Environment
+
+    // Platform environment information
+    const platformSection = process.platform === 'win32'
+        ? `## Development Environment
 - OS: Windows ${require('os').release()}
 - Shell: Git Bash
 - Path format: Windows (use forward slashes in Git Bash)
 - File system: Case-insensitive
-- Line endings: CRLF (configure Git autocrlf)`;
+- Line endings: CRLF (configure Git autocrlf)`
+        : process.platform === 'darwin'
+        ? `## Development Environment
+- OS: macOS ${require('os').release()}
+- Shell: ${process.env.SHELL || 'zsh'}
+- Path format: Unix
+- File system: Case-sensitive (default)
+- Line endings: LF`
+        : '';
 
     // Playwright MCP
     const playwrightSection = `## Playwright MCP Guide
@@ -341,15 +350,16 @@ n8n_update_partial_workflow({
 
     try {
         let content = '';
-        let hasWindowsInfo = false;
+        let hasPlatformInfo = false;
         let hasPlaywrightInfo = false;
         let hasN8nInfo = false;
 
         // Check if CLAUDE.md exists
         if (fs.existsSync(claudeMdPath)) {
             content = fs.readFileSync(claudeMdPath, 'utf8');
-            // Check if it already has Windows environment info
-            hasWindowsInfo = content.includes('Development Environment') && content.includes('Windows');
+            // Check if it already has platform environment info
+            hasPlatformInfo = content.includes('Development Environment') &&
+                (content.includes('Windows') || content.includes('macOS'));
             // Check if it already has Playwright MCP info
             hasPlaywrightInfo = content.includes('Playwright MCP');
             // Check if it already has n8n MCP info
@@ -358,18 +368,18 @@ n8n_update_partial_workflow({
 
         let needsUpdate = false;
         let updatedSections: string[] = [];
-        
-        // Add Windows information (if not present)
-        if (!hasWindowsInfo) {
+
+        // Add platform information (if not present and platformSection is not empty)
+        if (!hasPlatformInfo && platformSection) {
             if (content.length > 0 && !content.endsWith('\n')) {
                 content += '\n';
             }
             if (content.length > 0) {
                 content += '\n';
             }
-            content += windowsSection + '\n';
+            content += platformSection + '\n';
             needsUpdate = true;
-            updatedSections.push('Windows info');
+            updatedSections.push('Platform info');
         }
         
         // Add Playwright MCP information (if not present)

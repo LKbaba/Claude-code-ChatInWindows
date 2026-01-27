@@ -35,20 +35,38 @@ export class WindowsCompatibility {
 
     /**
      * 查找 CLI 可执行文件路径
-     * 按优先级在多个位置搜索：原生安装路径 > npm > Bun
+     * 按优先级在多个位置搜索：原生安装路径 > npm > Bun (Windows) / Homebrew (Mac)
      */
     private findCliExecutable(cliCommand: string, npmPrefix: string | undefined): string | undefined {
         const searchPaths: string[] = [];
         const homeDir = require('os').homedir();
 
-        // 1. 官方原生安装器路径 (最高优先级)
-        // PowerShell 脚本 (irm install.ps1) 和 WinGet 安装到此位置
-        const nativeLocalBin = path.join(homeDir, '.local', 'bin');
-        searchPaths.push(nativeLocalBin);
+        // 1. 官方安装器路径 (最高优先级)
+        const localBin = path.join(homeDir, '.local', 'bin');
+        searchPaths.push(localBin);
 
-        // 2. 备用原生路径 (某些版本可能使用)
-        const nativeClaudeBin = path.join(homeDir, '.claude', 'bin');
-        searchPaths.push(nativeClaudeBin);
+        // 2. 备用路径
+        const claudeBin = path.join(homeDir, '.claude', 'bin');
+        searchPaths.push(claudeBin);
+
+        if (process.platform === 'darwin') {
+            // Mac: Homebrew 路径
+            searchPaths.push('/opt/homebrew/bin');  // Apple Silicon
+            searchPaths.push('/usr/local/bin');     // Intel Mac
+
+            // Mac: nvm 路径 - 动态查找所有安装的 node 版本
+            const nvmDir = path.join(homeDir, '.nvm', 'versions', 'node');
+            if (fs.existsSync(nvmDir)) {
+                try {
+                    const versions = fs.readdirSync(nvmDir);
+                    for (const version of versions) {
+                        searchPaths.push(path.join(nvmDir, version, 'bin'));
+                    }
+                } catch (e) {
+                    // 忽略读取错误
+                }
+            }
+        }
 
         // 3. npm prefix (传统方式，向后兼容)
         if (npmPrefix) {
@@ -63,18 +81,27 @@ export class WindowsCompatibility {
 
         // Search for the executable in all paths
         for (const searchPath of searchPaths) {
-            const cmdPath = path.join(searchPath, `${cliCommand}.cmd`);
-            const exePath = path.join(searchPath, `${cliCommand}.exe`);
-            const noExtPath = path.join(searchPath, cliCommand);
+            if (process.platform === 'win32') {
+                // Windows: 检查 .cmd, .exe, 无扩展名
+                const cmdPath = path.join(searchPath, `${cliCommand}.cmd`);
+                const exePath = path.join(searchPath, `${cliCommand}.exe`);
+                const noExtPath = path.join(searchPath, cliCommand);
 
-            if (fs.existsSync(cmdPath)) {
-                return cmdPath;
-            }
-            if (fs.existsSync(exePath)) {
-                return exePath;
-            }
-            if (fs.existsSync(noExtPath)) {
-                return noExtPath;
+                if (fs.existsSync(cmdPath)) {
+                    return cmdPath;
+                }
+                if (fs.existsSync(exePath)) {
+                    return exePath;
+                }
+                if (fs.existsSync(noExtPath)) {
+                    return noExtPath;
+                }
+            } else {
+                // Mac/Linux: 只检查无扩展名
+                const noExtPath = path.join(searchPath, cliCommand);
+                if (fs.existsSync(noExtPath)) {
+                    return noExtPath;
+                }
             }
         }
 
@@ -174,6 +201,72 @@ export class WindowsCompatibility {
                 console.warn(`Git Bash path configured but not found at: ${gitBashPath}`);
             }
             // If no Git Bash path configured, Claude will use the default shell
+        } else if (platform === 'darwin') {
+            // Mac: 查找 CLI 路径，设置 PATH 确保 node 可用
+            const npmPrefix = await this._npmPrefixPromise;
+            const cliCommand = this.getCliCommand();
+
+            // Mac 上始终需要设置 PATH（因为 Claude CLI 是 node 脚本，需要 node 在 PATH 中）
+            let pathAdditions = '';
+
+            // 1. 添加官方安装路径 (最高优先级)
+            const localBin = path.join(homeDir, '.local', 'bin');
+            if (fs.existsSync(localBin)) {
+                pathAdditions = localBin;
+            }
+
+            // 2. 添加备用路径
+            const claudeBin = path.join(homeDir, '.claude', 'bin');
+            if (fs.existsSync(claudeBin)) {
+                pathAdditions = pathAdditions ? `${pathAdditions}:${claudeBin}` : claudeBin;
+            }
+
+            // 3. 添加 Homebrew 路径
+            const homebrewPaths = ['/opt/homebrew/bin', '/usr/local/bin'];
+            for (const hbPath of homebrewPaths) {
+                if (fs.existsSync(hbPath)) {
+                    pathAdditions = pathAdditions ? `${pathAdditions}:${hbPath}` : hbPath;
+                }
+            }
+
+            // 4. 添加 nvm 路径（关键：node 脚本需要 node 在 PATH 中）
+            const nvmDir = path.join(homeDir, '.nvm', 'versions', 'node');
+            if (fs.existsSync(nvmDir)) {
+                try {
+                    const versions = fs.readdirSync(nvmDir);
+                    for (const version of versions) {
+                        const nvmBinPath = path.join(nvmDir, version, 'bin');
+                        if (fs.existsSync(nvmBinPath)) {
+                            pathAdditions = pathAdditions ? `${pathAdditions}:${nvmBinPath}` : nvmBinPath;
+                        }
+                    }
+                } catch (e) {
+                    // 忽略读取错误
+                }
+            }
+
+            // 5. 添加 npm 路径
+            if (npmPrefix) {
+                pathAdditions = pathAdditions ? `${pathAdditions}:${npmPrefix}` : npmPrefix;
+            }
+
+            if (pathAdditions) {
+                spawnOptions.env!.PATH = `${pathAdditions}:${spawnOptions.env!.PATH}`;
+            }
+
+            if (forTerminal) {
+                spawnOptions.shell = true;
+            } else {
+                // For direct spawn, search for executable
+                const executablePath = this.findCliExecutable(cliCommand, npmPrefix);
+                if (executablePath) {
+                    claudeExecutablePath = executablePath;
+                } else {
+                    // Fallback: 如果找不到，使用默认的 'claude'（依赖 PATH）
+                    console.warn(`Claude CLI not found in standard paths, falling back to 'claude'`);
+                }
+            }
+            // Mac 使用系统默认 shell，不需要额外配置
         }
 
         if (!spawnOptions.shell) {
@@ -192,11 +285,14 @@ export class WindowsCompatibility {
         return cwd;
     }
 
-    getWindowsEnvironmentInfo(): string {
+    getEnvironmentInfo(): string {
+        const osRelease = require('os').release();
+        const shell = process.env.SHELL || 'default';
+
         if (process.platform === 'win32') {
-            const osRelease = require('os').release();
-            const shell = process.env.SHELL || 'Git Bash';
-            return `[SYSTEM INFO: You are running on Windows ${osRelease}. Shell: ${shell}. Use Windows-compatible commands and paths. File system is case-insensitive.]\n\n`;
+            return `[SYSTEM INFO: You are running on Windows ${osRelease}. Shell: Git Bash. Use Windows-compatible commands and paths. File system is case-insensitive.]\n\n`;
+        } else if (process.platform === 'darwin') {
+            return `[SYSTEM INFO: You are running on macOS ${osRelease}. Shell: ${shell}. Use Unix-style paths and commands.]\n\n`;
         }
         return '';
     }
@@ -267,6 +363,15 @@ export class WindowsCompatibility {
                     `原始错误: ${error.message}`;
             } else if (error.message.includes('Git Bash') || error.message.includes('bash.exe')) {
                 errorMessage = `找不到 Git Bash。请安装 Git for Windows 并在设置中配置 bash.exe 路径。\n\n` +
+                    `原始错误: ${error.message}`;
+            }
+        }
+
+        if (process.platform === 'darwin') {
+            if (error.message.includes('ENOENT') || error.message.includes('not found')) {
+                errorMessage = `无法启动 Claude。请确保已安装 Claude Code:\n` +
+                    `  • 推荐: curl -fsSL https://claude.ai/install.sh | bash\n` +
+                    `  • 或 Homebrew: brew install --cask claude-code\n\n` +
                     `原始错误: ${error.message}`;
             }
         }
