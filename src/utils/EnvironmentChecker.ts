@@ -16,10 +16,59 @@ const exec = util.promisify(cp.exec);
 export class EnvironmentChecker {
     public static async check(context: vscode.ExtensionContext): Promise<{ success: boolean, message: string }> {
         const platform = process.platform;
-        if (platform !== 'win32') {
-            return { success: true, message: 'Check only applicable on Windows.' };
+
+        // Get configured CLI command name
+        const configManager = new ApiConfigManager();
+        const apiConfig = configManager.getApiConfig();
+        const cliCommand = apiConfig.useCustomAPI ? (apiConfig.cliCommand || 'claude') : 'claude';
+
+        // Mac: 检查 Claude CLI，不检查 Git Bash
+        if (platform === 'darwin') {
+            const homeDir = require('os').homedir();
+            const searchPaths = [
+                path.join(homeDir, '.local', 'bin', cliCommand),      // 官方安装
+                path.join(homeDir, '.claude', 'bin', cliCommand),     // 备用路径
+                '/usr/local/bin/' + cliCommand,                        // Homebrew Intel
+                '/opt/homebrew/bin/' + cliCommand,                     // Homebrew Apple Silicon
+            ];
+
+            // 添加 nvm 路径（动态查找当前使用的 node 版本）
+            const nvmDir = path.join(homeDir, '.nvm', 'versions', 'node');
+            if (fs.existsSync(nvmDir)) {
+                try {
+                    const versions = fs.readdirSync(nvmDir);
+                    for (const version of versions) {
+                        searchPaths.push(path.join(nvmDir, version, 'bin', cliCommand));
+                    }
+                } catch (e) {
+                    // 忽略读取错误
+                }
+            }
+
+            let cliFound = false;
+            for (const p of searchPaths) {
+                if (fs.existsSync(p)) {
+                    cliFound = true;
+                    break;
+                }
+            }
+
+            if (!cliFound) {
+                return {
+                    success: false,
+                    message: `Claude CLI 未找到。请安装:\n` +
+                        `  • 推荐: curl -fsSL https://claude.ai/install.sh | bash\n` +
+                        `  • 或 Homebrew: brew install --cask claude-code`
+                };
+            }
+            return { success: true, message: 'Environment check successful.' };
         }
 
+        if (platform !== 'win32') {
+            return { success: true, message: 'Platform not supported.' };
+        }
+
+        // Windows: 继续原有检查逻辑
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         const wslEnabled = config.get('wsl.enabled', false);
         if (wslEnabled) {
@@ -37,11 +86,7 @@ export class EnvironmentChecker {
         // 注意：不再因为 npm 不存在而直接返回错误
         // 继续检查其他安装路径（原生安装器、Bun 等）
 
-        // 2. Get configured CLI command name (supports mirror service custom commands like xxxxclaude)
-        const configManager = new ApiConfigManager();
-        const apiConfig = configManager.getApiConfig();
-        // If custom API is enabled, use configured command name; otherwise use default 'claude'
-        const cliCommand = apiConfig.useCustomAPI ? (apiConfig.cliCommand || 'claude') : 'claude';
+        // 2. cliCommand 已在函数开头定义
 
         // 3. 在多个位置检查 CLI 命令（原生安装路径 > npm > Bun）
         const homeDir = require('os').homedir();

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import { loadUIHtml } from '../ui-loader';
-import { resolveNpmPrefix, updateClaudeMdWithWindowsInfo } from '../utils/utils';
+import { resolveNpmPrefix, updateClaudeMdWithPlatformInfo } from '../utils/utils';
 import { FileOperationsManager } from '../managers/FileOperationsManager';
 import { ConfigurationManagerFacade } from '../managers/config/ConfigurationManagerFacade';
 import { CustomCommandsManager } from '../managers/CustomCommandsManager';
@@ -166,12 +166,12 @@ export class ClaudeChatProvider {
 		// Ensure backup repository is initialized
 		await this._backupManager.initializeBackupRepo();
 		
-		// Update CLAUDE.md file (add Windows environment info and MCP usage guide)
+		// Update CLAUDE.md file (add platform environment info and MCP usage guide)
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 		if (workspaceFolder) {
 			// Get currently enabled MCP servers
 			const mcpStatus = this._configurationManager.getMcpStatus();
-			await updateClaudeMdWithWindowsInfo(workspaceFolder, mcpStatus.servers);
+			await updateClaudeMdWithPlatformInfo(workspaceFolder, mcpStatus.servers);
 		}
 
 		this._panel = vscode.window.createWebviewPanel(
@@ -453,17 +453,15 @@ export class ClaudeChatProvider {
 
 		// Check if this is the first message of a new session and we're on Windows
 		const isFirstMessage = !this._currentSessionId || this._conversationManager.currentConversation.length === 0;
-		const isWindows = process.platform === 'win32';
-		let windowsEnvironmentInfo = '';
+		let platformEnvironmentInfo = '';
 
-		if (isFirstMessage && isWindows) {
-			// Inject Windows environment information
-			windowsEnvironmentInfo = this._windowsCompatibility.getWindowsEnvironmentInfo();
-			
-			// Also update or create CLAUDE.md in the project root if it doesn't have Windows info
-			// Get currently enabled MCP servers
+		if (isFirstMessage) {
+			// Inject platform environment information (Windows/Mac)
+			platformEnvironmentInfo = this._windowsCompatibility.getEnvironmentInfo();
+
+			// Update or create CLAUDE.md with platform info
 			const mcpStatus = this._configurationManager.getMcpStatus();
-			await updateClaudeMdWithWindowsInfo(workspaceFolder, mcpStatus.servers);
+			await updateClaudeMdWithPlatformInfo(workspaceFolder, mcpStatus.servers);
 		}
 		
 		// Ensure conversationId is set before processing
@@ -474,11 +472,11 @@ export class ClaudeChatProvider {
 		}
 
 		// Prepend mode instructions if enabled
-		let actualMessage = windowsEnvironmentInfo + message;
+		let actualMessage = platformEnvironmentInfo + message;
 		if (planMode) {
 			// Plan First mode: guide Claude to use EnterPlanMode tool to enter planning mode
 			// New prompt explicitly instructs tool usage, not just a message prefix
-			actualMessage = windowsEnvironmentInfo + 'ENTER PLAN MODE: Use the EnterPlanMode tool to enter planning mode. Create a detailed implementation plan and wait for my explicit approval before making any changes. Do not implement anything until I confirm by selecting \'Yes\' in the ExitPlanMode dialog. This planning requirement applies ONLY to this current message.\n\n' + message;
+			actualMessage = platformEnvironmentInfo + 'ENTER PLAN MODE: Use the EnterPlanMode tool to enter planning mode. Create a detailed implementation plan and wait for my explicit approval before making any changes. Do not implement anything until I confirm by selecting \'Yes\' in the ExitPlanMode dialog. This planning requirement applies ONLY to this current message.\n\n' + message;
 		}
 		if (thinkingMode) {
 			// Thinking Mode: Claude will show its step-by-step reasoning process
@@ -505,7 +503,7 @@ export class ClaudeChatProvider {
 				default:
 					thinkingPrompt = 'THINK';
 			}
-			actualMessage = windowsEnvironmentInfo + thinkingPrompt + thinkingMessage + actualMessage;
+			actualMessage = platformEnvironmentInfo + thinkingPrompt + thinkingMessage + actualMessage;
 		}
 		
 		// Language Mode: Set language via prompt injection
@@ -594,7 +592,7 @@ export class ClaudeChatProvider {
 			cwd: cwd,
 			sessionId: this._currentSessionId,
 			model: this._selectedModel,
-			windowsEnvironmentInfo: windowsEnvironmentInfo
+			platformEnvironmentInfo: platformEnvironmentInfo
 			// Note: planMode and thinkingMode are handled through message prefixes above,
 			// not passed to ProcessService
 		};

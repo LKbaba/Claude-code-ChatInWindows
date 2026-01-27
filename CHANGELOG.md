@@ -2,6 +2,49 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.1.4] - 2025-01-26
+
+### Added
+- **macOS 平台支持** 🎉
+  - 扩展现在可以在 macOS 上运行
+  - 支持三种 Claude CLI 安装方式：官方安装器、Homebrew、npm
+  - 支持 nvm 安装的 Node.js/npm 环境
+
+### Changed
+- **平台兼容性重构**
+  - `package.json` 添加 `darwin` 平台支持
+  - `EnvironmentChecker.ts` 添加 Mac 环境检查（不检查 Git Bash）
+  - `WindowsCompatibility.ts` 添加 Mac 执行环境配置
+  - `utils.ts` 函数重命名：`updateClaudeMdWithWindowsInfo` → `updateClaudeMdWithPlatformInfo`
+  - `ClaudeChatProvider.ts` 更新调用以支持跨平台
+
+- **CLAUDE.md 平台信息**
+  - Mac: 显示 macOS 版本和当前 shell
+  - Windows: 保持原有 Windows + Git Bash 信息
+
+- **CLI 路径查找优化**
+  - Mac: 支持 `~/.local/bin`、Homebrew、nvm 路径
+  - Mac: 只查找无扩展名可执行文件（不查找 .cmd/.exe）
+
+- **npm 查找优化**
+  - Mac: 支持 Homebrew 和 nvm 安装的 npm
+  - 找不到 npm 时不再弹窗报错（改为 console.warn）
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `package.json` | 添加 `darwin` 到 `os` 字段 |
+| `src/extension.ts` | `~/.claude` 目录创建改为跨平台 |
+| `src/utils/EnvironmentChecker.ts` | 添加 Mac CLI 检查 + nvm 支持 |
+| `src/utils/utils.ts` | 平台信息函数重构 |
+| `src/utils/npmFinder.ts` | 添加 Mac npm 路径 + nvm 支持 |
+| `src/managers/WindowsCompatibility.ts` | 添加 Mac 执行环境、错误提示、PATH 设置 |
+| `src/providers/ClaudeChatProvider.ts` | 更新函数调用和变量名 |
+
+### Notes
+- Windows 功能保持不变（回归兼容）
+- 可选修改（类名重命名、Mac shell 配置项）未实现
+
 ## [3.1.3] - 2025-01-23
 
 ### Added

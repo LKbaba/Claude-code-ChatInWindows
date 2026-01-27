@@ -59,19 +59,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 	
 	// Create ~/.claude directory for Claude Code v1.0.48+
-	if (process.platform === 'win32') {
-		try {
-			const homeDir = require('os').homedir();
-			const claudeDir = require('path').join(homeDir, '.claude');
-			
-			// Create directory if it doesn't exist
-			if (!fs.existsSync(claudeDir)) {
-				fs.mkdirSync(claudeDir, { recursive: true });
-				console.log('[Extension] Successfully created ~/.claude directory at:', claudeDir);
-			}
-		} catch (error) {
-			console.error('[Extension] Error creating ~/.claude directory:', error);
+	try {
+		const homeDir = require('os').homedir();
+		const claudeDir = require('path').join(homeDir, '.claude');
+
+		// Create directory if it doesn't exist
+		if (!fs.existsSync(claudeDir)) {
+			fs.mkdirSync(claudeDir, { recursive: true });
+			console.log('[Extension] Successfully created ~/.claude directory at:', claudeDir);
 		}
+	} catch (error) {
+		console.error('[Extension] Error creating ~/.claude directory:', error);
 	}
 
 	// Initialize plugin manager

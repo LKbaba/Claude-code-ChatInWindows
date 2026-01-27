@@ -16,36 +16,73 @@ const exec = util.promisify(cp.exec);
  * Try multiple possible locations including system path and common installation locations
  */
 export async function findNpmExecutable(): Promise<string | null> {
-    const possiblePaths: string[] = [
-        // 1. Try direct execution (if in PATH)
-        'npm',
+    const homeDir = require('os').homedir();
+    let possiblePaths: string[];
 
-        // 2. User-level npm installation location
-        path.join(process.env.APPDATA || '', 'npm', 'npm.cmd'),
-        path.join(process.env.APPDATA || '', 'npm', 'npm'),
+    if (process.platform === 'darwin') {
+        // Mac 路径
+        possiblePaths = [
+            // 1. Try direct execution (if in PATH)
+            'npm',
 
-        // 3. System-level Node.js installation location
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm'),
+            // 2. Homebrew Intel Mac
+            '/usr/local/bin/npm',
 
-        // 4. x86 version of Node.js
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm'),
+            // 3. Homebrew Apple Silicon
+            '/opt/homebrew/bin/npm',
 
-        // 5. Common custom installation locations
-        'C:\\nodejs\\npm.cmd',
-        'C:\\nodejs\\npm',
-        'D:\\nodejs\\npm.cmd',
-        'D:\\nodejs\\npm',
+            // 4. User global npm
+            path.join(homeDir, '.npm-global', 'bin', 'npm'),
 
-        // 6. Additional Scoop installation location (popular Windows package manager)
-        path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'npm.cmd'),
-        path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'npm'),
+            // 5. System npm
+            '/usr/bin/npm',
+        ];
 
-        // 7. Chocolatey installation location
-        'C:\\ProgramData\\chocolatey\\bin\\npm.cmd',
-        'C:\\ProgramData\\chocolatey\\bin\\npm',
-    ];
+        // 6. nvm installation - 动态查找所有安装的 node 版本
+        const nvmDir = path.join(homeDir, '.nvm', 'versions', 'node');
+        if (fs.existsSync(nvmDir)) {
+            try {
+                const versions = fs.readdirSync(nvmDir);
+                for (const version of versions) {
+                    possiblePaths.push(path.join(nvmDir, version, 'bin', 'npm'));
+                }
+            } catch (e) {
+                // 忽略读取错误
+            }
+        }
+    } else {
+        // Windows 路径
+        possiblePaths = [
+            // 1. Try direct execution (if in PATH)
+            'npm',
+
+            // 2. User-level npm installation location
+            path.join(process.env.APPDATA || '', 'npm', 'npm.cmd'),
+            path.join(process.env.APPDATA || '', 'npm', 'npm'),
+
+            // 3. System-level Node.js installation location
+            path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
+            path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm'),
+
+            // 4. x86 version of Node.js
+            path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
+            path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm'),
+
+            // 5. Common custom installation locations
+            'C:\\nodejs\\npm.cmd',
+            'C:\\nodejs\\npm',
+            'D:\\nodejs\\npm.cmd',
+            'D:\\nodejs\\npm',
+
+            // 6. Additional Scoop installation location (popular Windows package manager)
+            path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'npm.cmd'),
+            path.join(process.env.USERPROFILE || '', 'scoop', 'shims', 'npm'),
+
+            // 7. Chocolatey installation location
+            'C:\\ProgramData\\chocolatey\\bin\\npm.cmd',
+            'C:\\ProgramData\\chocolatey\\bin\\npm',
+        ];
+    }
 
     debugLog('npmFinder', 'Starting to find npm executable...');
 
