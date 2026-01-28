@@ -34,27 +34,27 @@ export class WindowsCompatibility {
     }
 
     /**
-     * 查找 CLI 可执行文件路径
-     * 按优先级在多个位置搜索：原生安装路径 > npm > Bun (Windows) / Homebrew (Mac)
+     * Find CLI executable path
+     * Search priority: native installer path > npm > Bun (Windows) / Homebrew (Mac)
      */
     private findCliExecutable(cliCommand: string, npmPrefix: string | undefined): string | undefined {
         const searchPaths: string[] = [];
         const homeDir = require('os').homedir();
 
-        // 1. 官方安装器路径 (最高优先级)
+        // 1. Official installer path (highest priority)
         const localBin = path.join(homeDir, '.local', 'bin');
         searchPaths.push(localBin);
 
-        // 2. 备用路径
+        // 2. Fallback path
         const claudeBin = path.join(homeDir, '.claude', 'bin');
         searchPaths.push(claudeBin);
 
         if (process.platform === 'darwin') {
-            // Mac: Homebrew 路径
+            // Mac: Homebrew paths
             searchPaths.push('/opt/homebrew/bin');  // Apple Silicon
             searchPaths.push('/usr/local/bin');     // Intel Mac
 
-            // Mac: nvm 路径 - 动态查找所有安装的 node 版本
+            // Mac: nvm paths - dynamically find all installed node versions
             const nvmDir = path.join(homeDir, '.nvm', 'versions', 'node');
             if (fs.existsSync(nvmDir)) {
                 try {
@@ -63,17 +63,17 @@ export class WindowsCompatibility {
                         searchPaths.push(path.join(nvmDir, version, 'bin'));
                     }
                 } catch (e) {
-                    // 忽略读取错误
+                    // Ignore read errors
                 }
             }
         }
 
-        // 3. npm prefix (传统方式，向后兼容)
+        // 3. npm prefix (legacy method, for backward compatibility)
         if (npmPrefix) {
             searchPaths.push(npmPrefix);
         }
 
-        // 4. Bun bin path (用于 Bun 安装的包，如第三方镜像服务)
+        // 4. Bun bin path (for Bun-installed packages, e.g., third-party mirror services)
         const bunBinPath = this.getBunBinPath();
         if (fs.existsSync(bunBinPath)) {
             searchPaths.push(bunBinPath);
@@ -82,7 +82,7 @@ export class WindowsCompatibility {
         // Search for the executable in all paths
         for (const searchPath of searchPaths) {
             if (process.platform === 'win32') {
-                // Windows: 检查 .cmd, .exe, 无扩展名
+                // Windows: check .cmd, .exe, and no extension
                 const cmdPath = path.join(searchPath, `${cliCommand}.cmd`);
                 const exePath = path.join(searchPath, `${cliCommand}.exe`);
                 const noExtPath = path.join(searchPath, cliCommand);
@@ -97,7 +97,7 @@ export class WindowsCompatibility {
                     return noExtPath;
                 }
             } else {
-                // Mac/Linux: 只检查无扩展名
+                // Mac/Linux: only check no extension
                 const noExtPath = path.join(searchPath, cliCommand);
                 if (fs.existsSync(noExtPath)) {
                     return noExtPath;
@@ -144,28 +144,28 @@ export class WindowsCompatibility {
             const npmPrefix = await this._npmPrefixPromise;
             const cliCommand = this.getCliCommand();
 
-            // 为终端命令添加所有可能的 CLI 路径到 PATH
+            // Add all possible CLI paths to PATH for terminal commands
             if (forTerminal) {
                 let pathAdditions = '';
 
-                // 1. 添加原生安装路径 (最高优先级)
+                // 1. Add native installer path (highest priority)
                 const nativeLocalBin = path.join(homeDir, '.local', 'bin');
                 if (fs.existsSync(nativeLocalBin)) {
                     pathAdditions = nativeLocalBin;
                 }
 
-                // 2. 添加备用原生路径
+                // 2. Add fallback native path
                 const nativeClaudeBin = path.join(homeDir, '.claude', 'bin');
                 if (fs.existsSync(nativeClaudeBin)) {
                     pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${nativeClaudeBin}` : nativeClaudeBin;
                 }
 
-                // 3. 添加 npm 路径 (传统方式)
+                // 3. Add npm path (legacy method)
                 if (npmPrefix) {
                     pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${npmPrefix}` : npmPrefix;
                 }
 
-                // 4. 添加 Bun bin 路径 (用于 Bun 安装的包)
+                // 4. Add Bun bin path (for Bun-installed packages)
                 const bunBinPath = this.getBunBinPath();
                 if (fs.existsSync(bunBinPath)) {
                     pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${bunBinPath}` : bunBinPath;
@@ -181,11 +181,11 @@ export class WindowsCompatibility {
                 if (executablePath) {
                     claudeExecutablePath = executablePath;
                 } else {
-                    // 记录搜索过的路径，便于调试
+                    // Log searched paths for debugging
                     const nativeLocalBin = path.join(homeDir, '.local', 'bin');
                     const nativeClaudeBin = path.join(homeDir, '.claude', 'bin');
                     const searchedPaths = [nativeLocalBin, nativeClaudeBin, npmPrefix, this.getBunBinPath()].filter(Boolean);
-                    console.error(`${cliCommand} 未在以下路径找到: ${searchedPaths.join(', ')}`);
+                    console.error(`${cliCommand} not found in paths: ${searchedPaths.join(', ')}`);
                     return { spawnOptions, claudeExecutablePath: undefined };
                 }
             }
@@ -202,34 +202,34 @@ export class WindowsCompatibility {
             }
             // If no Git Bash path configured, Claude will use the default shell
         } else if (platform === 'darwin') {
-            // Mac: 查找 CLI 路径，设置 PATH 确保 node 可用
+            // Mac: Find CLI path and set PATH to ensure node is available
             const npmPrefix = await this._npmPrefixPromise;
             const cliCommand = this.getCliCommand();
 
-            // Mac 上始终需要设置 PATH（因为 Claude CLI 是 node 脚本，需要 node 在 PATH 中）
+            // Mac always needs PATH setup (Claude CLI is a node script, requires node in PATH)
             let pathAdditions = '';
 
-            // 1. 添加官方安装路径 (最高优先级)
+            // 1. Add official installer path (highest priority)
             const localBin = path.join(homeDir, '.local', 'bin');
             if (fs.existsSync(localBin)) {
                 pathAdditions = localBin;
             }
 
-            // 2. 添加备用路径
+            // 2. Add fallback path
             const claudeBin = path.join(homeDir, '.claude', 'bin');
             if (fs.existsSync(claudeBin)) {
-                pathAdditions = pathAdditions ? `${pathAdditions}:${claudeBin}` : claudeBin;
+                pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${claudeBin}` : claudeBin;
             }
 
-            // 3. 添加 Homebrew 路径
+            // 3. Add Homebrew paths
             const homebrewPaths = ['/opt/homebrew/bin', '/usr/local/bin'];
             for (const hbPath of homebrewPaths) {
                 if (fs.existsSync(hbPath)) {
-                    pathAdditions = pathAdditions ? `${pathAdditions}:${hbPath}` : hbPath;
+                    pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${hbPath}` : hbPath;
                 }
             }
 
-            // 4. 添加 nvm 路径（关键：node 脚本需要 node 在 PATH 中）
+            // 4. Add nvm paths (critical: node scripts need node in PATH)
             const nvmDir = path.join(homeDir, '.nvm', 'versions', 'node');
             if (fs.existsSync(nvmDir)) {
                 try {
@@ -237,21 +237,21 @@ export class WindowsCompatibility {
                     for (const version of versions) {
                         const nvmBinPath = path.join(nvmDir, version, 'bin');
                         if (fs.existsSync(nvmBinPath)) {
-                            pathAdditions = pathAdditions ? `${pathAdditions}:${nvmBinPath}` : nvmBinPath;
+                            pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${nvmBinPath}` : nvmBinPath;
                         }
                     }
                 } catch (e) {
-                    // 忽略读取错误
+                    // Ignore read errors
                 }
             }
 
-            // 5. 添加 npm 路径
+            // 5. Add npm path
             if (npmPrefix) {
-                pathAdditions = pathAdditions ? `${pathAdditions}:${npmPrefix}` : npmPrefix;
+                pathAdditions = pathAdditions ? `${pathAdditions}${path.delimiter}${npmPrefix}` : npmPrefix;
             }
 
             if (pathAdditions) {
-                spawnOptions.env!.PATH = `${pathAdditions}:${spawnOptions.env!.PATH}`;
+                spawnOptions.env!.PATH = `${pathAdditions}${path.delimiter}${spawnOptions.env!.PATH}`;
             }
 
             if (forTerminal) {
@@ -262,14 +262,20 @@ export class WindowsCompatibility {
                 if (executablePath) {
                     claudeExecutablePath = executablePath;
                 } else {
-                    // Fallback: 如果找不到，使用默认的 'claude'（依赖 PATH）
+                    // Fallback: if not found, use default 'claude' (relies on PATH)
                     console.warn(`Claude CLI not found in standard paths, falling back to 'claude'`);
                 }
             }
-            // Mac 使用系统默认 shell，不需要额外配置
+            // Mac: Don't use shell in non-terminal mode to avoid special characters being parsed by shell
+            // This is important for --append-system-prompt and other arguments containing newlines
+            if (!forTerminal) {
+                spawnOptions.shell = false;
+            }
         }
 
-        if (!spawnOptions.shell) {
+        // Windows must use shell (Git Bash) to execute .cmd files
+        // Mac non-terminal mode doesn't use shell, can directly execute binary files
+        if (platform === 'win32' && !spawnOptions.shell) {
             spawnOptions.shell = true;
         }
 
@@ -347,32 +353,32 @@ export class WindowsCompatibility {
 
         if (process.platform === 'win32') {
             if (error.message.includes('ENOENT') || error.message.includes('not found')) {
-                // 更新错误提示，推荐新的安装方式
-                errorMessage = `无法启动 Claude。请确保：\n` +
-                    `1. 已安装 Claude Code:\n` +
-                    `   • 推荐: irm https://claude.ai/install.ps1 | iex\n` +
-                    `   • 或 WinGet: winget install Anthropic.ClaudeCode\n` +
-                    `   • 或 npm (已弃用): npm install -g @anthropic-ai/claude-code\n` +
-                    `2. Git Bash 已安装并在设置中配置路径\n` +
-                    `3. 已在终端中运行 'claude' 完成登录\n\n` +
-                    `原始错误: ${error.message}`;
+                // Updated error message with recommended installation methods
+                errorMessage = `Failed to start Claude. Please ensure:\n` +
+                    `1. Claude Code is installed:\n` +
+                    `   • Recommended: irm https://claude.ai/install.ps1 | iex\n` +
+                    `   • Or WinGet: winget install Anthropic.ClaudeCode\n` +
+                    `   • Or npm (deprecated): npm install -g @anthropic-ai/claude-code\n` +
+                    `2. Git Bash is installed and configured in settings\n` +
+                    `3. Run 'claude' in terminal to complete login\n\n` +
+                    `Original error: ${error.message}`;
             } else if (error.message.includes('npm')) {
-                // npm 错误现在是可选的，不再是必需
-                errorMessage = `npm 配置错误。如果使用原生安装器，可以忽略此错误。\n` +
-                    `如需使用 npm 安装，请确保 Node.js 和 npm 已正确安装。\n\n` +
-                    `原始错误: ${error.message}`;
+                // npm error is optional now, not required
+                errorMessage = `npm configuration error. This can be ignored if using native installer.\n` +
+                    `If you need npm installation, ensure Node.js and npm are properly installed.\n\n` +
+                    `Original error: ${error.message}`;
             } else if (error.message.includes('Git Bash') || error.message.includes('bash.exe')) {
-                errorMessage = `找不到 Git Bash。请安装 Git for Windows 并在设置中配置 bash.exe 路径。\n\n` +
-                    `原始错误: ${error.message}`;
+                errorMessage = `Git Bash not found. Please install Git for Windows and configure bash.exe path in settings.\n\n` +
+                    `Original error: ${error.message}`;
             }
         }
 
         if (process.platform === 'darwin') {
             if (error.message.includes('ENOENT') || error.message.includes('not found')) {
-                errorMessage = `无法启动 Claude。请确保已安装 Claude Code:\n` +
-                    `  • 推荐: curl -fsSL https://claude.ai/install.sh | bash\n` +
-                    `  • 或 Homebrew: brew install --cask claude-code\n\n` +
-                    `原始错误: ${error.message}`;
+                errorMessage = `Failed to start Claude. Please ensure Claude Code is installed:\n` +
+                    `  • Recommended: curl -fsSL https://claude.ai/install.sh | bash\n` +
+                    `  • Or Homebrew: brew install --cask claude-code\n\n` +
+                    `Original error: ${error.message}`;
             }
         }
 

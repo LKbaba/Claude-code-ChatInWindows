@@ -23,9 +23,9 @@ export async function resolveNpmPrefix(): Promise<string | undefined> {
 
     if (!prefix) {
         debugError('utils', 'Could not get npm prefix');
-        // Mac: npm 不是必需的（官方安装方式不依赖 npm）
-        // Windows: npm 也不是必需的（原生安装器不依赖 npm）
-        // 只记录警告，不显示错误弹窗
+        // Mac: npm is not required (official installation method doesn't depend on npm)
+        // Windows: npm is also not required (native installer doesn't depend on npm)
+        // Only log warning, don't show error popup
         console.warn('[Claude Code] npm not found - this is OK if Claude CLI was installed via official installer');
         return undefined;
     }
