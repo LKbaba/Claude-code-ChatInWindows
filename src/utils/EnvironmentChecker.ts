@@ -22,17 +22,17 @@ export class EnvironmentChecker {
         const apiConfig = configManager.getApiConfig();
         const cliCommand = apiConfig.useCustomAPI ? (apiConfig.cliCommand || 'claude') : 'claude';
 
-        // Mac: 检查 Claude CLI，不检查 Git Bash
+        // Mac: Check Claude CLI, skip Git Bash check
         if (platform === 'darwin') {
             const homeDir = require('os').homedir();
             const searchPaths = [
-                path.join(homeDir, '.local', 'bin', cliCommand),      // 官方安装
-                path.join(homeDir, '.claude', 'bin', cliCommand),     // 备用路径
+                path.join(homeDir, '.local', 'bin', cliCommand),      // Official installation
+                path.join(homeDir, '.claude', 'bin', cliCommand),     // Fallback path
                 '/usr/local/bin/' + cliCommand,                        // Homebrew Intel
                 '/opt/homebrew/bin/' + cliCommand,                     // Homebrew Apple Silicon
             ];
 
-            // 添加 nvm 路径（动态查找当前使用的 node 版本）
+            // Add nvm paths (dynamically find current node version)
             const nvmDir = path.join(homeDir, '.nvm', 'versions', 'node');
             if (fs.existsSync(nvmDir)) {
                 try {
@@ -41,7 +41,7 @@ export class EnvironmentChecker {
                         searchPaths.push(path.join(nvmDir, version, 'bin', cliCommand));
                     }
                 } catch (e) {
-                    // 忽略读取错误
+                    // Ignore read errors
                 }
             }
 
@@ -56,9 +56,9 @@ export class EnvironmentChecker {
             if (!cliFound) {
                 return {
                     success: false,
-                    message: `Claude CLI 未找到。请安装:\n` +
-                        `  • 推荐: curl -fsSL https://claude.ai/install.sh | bash\n` +
-                        `  • 或 Homebrew: brew install --cask claude-code`
+                    message: `Claude CLI not found. Please install:\n` +
+                        `  • Recommended: curl -fsSL https://claude.ai/install.sh | bash\n` +
+                        `  • Or Homebrew: brew install --cask claude-code`
                 };
             }
             return { success: true, message: 'Environment check successful.' };
@@ -68,46 +68,46 @@ export class EnvironmentChecker {
             return { success: true, message: 'Platform not supported.' };
         }
 
-        // Windows: 继续原有检查逻辑
+        // Windows: Continue with original check logic
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         const wslEnabled = config.get('wsl.enabled', false);
         if (wslEnabled) {
             return { success: true, message: 'WSL enabled, skipping native Windows check.' };
         }
 
-        // 1. 尝试获取 npm prefix（可选，原生安装器不需要 npm）
+        // 1. Try to get npm prefix (optional, native installer doesn't need npm)
         let npmPrefix: string | undefined;
         try {
             npmPrefix = await getNpmPrefix();
         } catch (e) {
-            // npm 不存在也没关系，原生安装器不需要 npm
+            // npm not existing is fine, native installer doesn't need npm
             npmPrefix = undefined;
         }
-        // 注意：不再因为 npm 不存在而直接返回错误
-        // 继续检查其他安装路径（原生安装器、Bun 等）
+        // Note: No longer return error if npm doesn't exist
+        // Continue checking other installation paths (native installer, Bun, etc.)
 
-        // 2. cliCommand 已在函数开头定义
+        // 2. cliCommand is already defined at the start of the function
 
-        // 3. 在多个位置检查 CLI 命令（原生安装路径 > npm > Bun）
+        // 3. Check CLI command in multiple locations (native path > npm > Bun)
         const homeDir = require('os').homedir();
         const nativeLocalBin = path.join(homeDir, '.local', 'bin');
         const nativeClaudeBin = path.join(homeDir, '.claude', 'bin');
         const bunBinPath = path.join(homeDir, '.bun', 'bin');
 
-        // 按优先级排列的搜索路径
+        // Search paths sorted by priority
         const searchPaths: { path: string, exists: boolean }[] = [
-            // 1. 原生安装路径 (最高优先级) - PowerShell/WinGet 安装位置
+            // 1. Native installation path (highest priority) - PowerShell/WinGet install location
             { path: path.join(nativeLocalBin, `${cliCommand}.exe`), exists: false },
             { path: path.join(nativeLocalBin, cliCommand), exists: false },
-            // 2. 备用原生路径
+            // 2. Fallback native path
             { path: path.join(nativeClaudeBin, `${cliCommand}.exe`), exists: false },
             { path: path.join(nativeClaudeBin, cliCommand), exists: false },
-            // 3. npm 路径 (传统方式，可选)
+            // 3. npm path (legacy method, optional)
             ...(npmPrefix ? [
                 { path: path.join(npmPrefix, `${cliCommand}.cmd`), exists: false },
                 { path: path.join(npmPrefix, `${cliCommand}.exe`), exists: false },
             ] : []),
-            // 4. Bun 路径
+            // 4. Bun path
             { path: path.join(bunBinPath, `${cliCommand}.cmd`), exists: false },
             { path: path.join(bunBinPath, `${cliCommand}.exe`), exists: false },
             { path: path.join(bunBinPath, cliCommand), exists: false }
@@ -123,19 +123,19 @@ export class EnvironmentChecker {
         }
 
         if (!cliFound) {
-            // 根据命令名称提供不同的错误提示
+            // Provide different error hints based on command name
             const installHint = cliCommand === 'claude'
-                ? `请安装 Claude Code:\n` +
-                  `  • 推荐方式: irm https://claude.ai/install.ps1 | iex\n` +
-                  `  • 或 WinGet: winget install Anthropic.ClaudeCode\n` +
-                  `  • 或 npm (已弃用): npm install -g @anthropic-ai/claude-code`
-                : `请确保 '${cliCommand}' 已正确安装。\n` +
-                  `如果使用镜像服务，命令可能通过 Bun 安装。\n` +
-                  `已搜索路径:\n` +
-                  `  - 原生: ${nativeLocalBin}\n` +
-                  `  - npm: ${npmPrefix || '(未安装)'}\n` +
+                ? `Please install Claude Code:\n` +
+                  `  • Recommended: irm https://claude.ai/install.ps1 | iex\n` +
+                  `  • Or WinGet: winget install Anthropic.ClaudeCode\n` +
+                  `  • Or npm (deprecated): npm install -g @anthropic-ai/claude-code`
+                : `Please ensure '${cliCommand}' is properly installed.\n` +
+                  `If using a mirror service, the command may be installed via Bun.\n` +
+                  `Searched paths:\n` +
+                  `  - Native: ${nativeLocalBin}\n` +
+                  `  - npm: ${npmPrefix || '(not installed)'}\n` +
                   `  - Bun: ${bunBinPath}`;
-            return { success: false, message: `找不到 CLI '${cliCommand}'。${installHint}` };
+            return { success: false, message: `CLI '${cliCommand}' not found. ${installHint}` };
         }
 
         // 4. Check for Git Bash

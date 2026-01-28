@@ -247,13 +247,13 @@ export class ClaudeProcessService {
         if (mcpStatus.status === 'configured' && mcpStatus.servers && mcpStatus.servers.length > 0) {
             const mcpPrompts = getMcpSystemPrompts(mcpStatus.servers);
             if (mcpPrompts && mcpPrompts.trim()) {
-                // On Windows, we need to properly escape the multi-line prompt
-                // The prompt should be passed as a single quoted argument
                 debugLog('ClaudeProcessService', 'MCP prompts content', {
                     length: mcpPrompts.length,
                     hasNewlines: mcpPrompts.includes('\n'),
                     preview: mcpPrompts.substring(0, 100) + '...'
                 });
+                // Mac uses shell: false, so multi-line arguments can be passed directly
+                // Windows keeps the original behavior
                 args.push('--append-system-prompt');
                 args.push(mcpPrompts.trim());
             }
@@ -373,6 +373,7 @@ export class ClaudeProcessService {
             if (this._currentProcess === process) {
                 this._currentProcess = undefined;
             }
+
         });
     }
 

@@ -20,7 +20,7 @@ export async function findNpmExecutable(): Promise<string | null> {
     let possiblePaths: string[];
 
     if (process.platform === 'darwin') {
-        // Mac 路径
+        // Mac paths
         possiblePaths = [
             // 1. Try direct execution (if in PATH)
             'npm',
@@ -38,7 +38,7 @@ export async function findNpmExecutable(): Promise<string | null> {
             '/usr/bin/npm',
         ];
 
-        // 6. nvm installation - 动态查找所有安装的 node 版本
+        // 6. nvm installation - dynamically find all installed node versions
         const nvmDir = path.join(homeDir, '.nvm', 'versions', 'node');
         if (fs.existsSync(nvmDir)) {
             try {
@@ -47,11 +47,11 @@ export async function findNpmExecutable(): Promise<string | null> {
                     possiblePaths.push(path.join(nvmDir, version, 'bin', 'npm'));
                 }
             } catch (e) {
-                // 忽略读取错误
+                // Ignore read errors
             }
         }
     } else {
-        // Windows 路径
+        // Windows paths
         possiblePaths = [
             // 1. Try direct execution (if in PATH)
             'npm',
