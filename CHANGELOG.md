@@ -2,7 +2,7 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
-## [3.1.4] - 2025-01-26
+## [3.1.4] - 2025-01-29
 
 ### Added
 - **macOS 平台支持** 🎉
@@ -30,6 +30,12 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
   - Mac: 支持 Homebrew 和 nvm 安装的 npm
   - 找不到 npm 时不再弹窗报错（改为 console.warn）
 
+### Fixed
+- **恢复调试自动编译**
+  - `launch.json` 恢复 `preLaunchTask`，F5 调试前自动编译 TypeScript
+- **打包体积优化**
+  - `.vscodeignore` 排除 `*.vsix` 和 `*.zip` 文件，避免旧版本打包产物被混入 VSIX
+
 ### Files Modified
 | File | Changes |
 |------|---------|
@@ -40,6 +46,8 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
 | `src/utils/npmFinder.ts` | 添加 Mac npm 路径 + nvm 支持 |
 | `src/managers/WindowsCompatibility.ts` | 添加 Mac 执行环境、错误提示、PATH 设置 |
 | `src/providers/ClaudeChatProvider.ts` | 更新函数调用和变量名 |
+| `.vscode/launch.json` | 恢复 `preLaunchTask` 自动编译 |
+| `.vscodeignore` | 排除 `*.vsix`、`*.zip` 打包产物 |
 
 ### Notes
 - Windows 功能保持不变（回归兼容）

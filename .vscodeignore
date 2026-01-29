@@ -44,6 +44,10 @@ pnpm-lock.yaml
 .github/**
 !.github/workflows/
 
+# 打包产物
+*.vsix
+*.zip
+
 # 临时文件
 *.tmp
 *.temp
