@@ -19,12 +19,43 @@ export class FileOperationsManager {
      */
     public async getWorkspaceFiles(searchTerm?: string): Promise<FileInfo[]> {
         try {
-            // Always get all files and filter on the backend for better search results
-            const files = await vscode.workspace.findFiles(
-                '**/*',
-                '{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.next/**,**/.nuxt/**,**/target/**,**/bin/**,**/obj/**}',
-                500 // Reasonable limit for filtering
-            );
+            const excludePattern = '{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.next/**,**/.nuxt/**,**/target/**,**/bin/**,**/obj/**,**/.DS_Store,**/coverage/**,**/*.min.js,**/*.min.css}';
+
+            let files: vscode.Uri[];
+
+            if (searchTerm && searchTerm.trim()) {
+                // Dynamic glob search - let VS Code do the filtering
+                const term = searchTerm.trim();
+                // Search for files containing the term in filename
+                files = await vscode.workspace.findFiles(
+                    `**/*${term}*`,
+                    excludePattern,
+                    200
+                );
+
+                // Also search in path segments if not enough results
+                if (files.length < 50) {
+                    const pathFiles = await vscode.workspace.findFiles(
+                        `**/${term}*/**/*`,
+                        excludePattern,
+                        100
+                    );
+                    // Merge and deduplicate
+                    const existingPaths = new Set(files.map(f => f.fsPath));
+                    for (const f of pathFiles) {
+                        if (!existingPaths.has(f.fsPath)) {
+                            files.push(f);
+                        }
+                    }
+                }
+            } else {
+                // Initial load - get more files for browsing
+                files = await vscode.workspace.findFiles(
+                    '**/*',
+                    excludePattern,
+                    2000
+                );
+            }
 
             let fileList = files.map(file => {
                 const relativePath = vscode.workspace.asRelativePath(file);
@@ -35,26 +66,30 @@ export class FileOperationsManager {
                 };
             });
 
-            // Filter results based on search term
+            // Sort by relevance: exact filename match first, then alphabetically
             if (searchTerm && searchTerm.trim()) {
                 const term = searchTerm.toLowerCase();
-                fileList = fileList.filter(file => {
-                    const fileName = file.name.toLowerCase();
-                    const filePath = file.path.toLowerCase();
-                    
-                    // Check if term matches filename or any part of the path
-                    return fileName.includes(term) || 
-                           filePath.includes(term) ||
-                           filePath.split('/').some(segment => segment.includes(term));
+                fileList.sort((a, b) => {
+                    const aNameLower = a.name.toLowerCase();
+                    const bNameLower = b.name.toLowerCase();
+                    // Exact match first
+                    const aExact = aNameLower === term;
+                    const bExact = bNameLower === term;
+                    if (aExact && !bExact) return -1;
+                    if (!aExact && bExact) return 1;
+                    // Starts with term second
+                    const aStarts = aNameLower.startsWith(term);
+                    const bStarts = bNameLower.startsWith(term);
+                    if (aStarts && !bStarts) return -1;
+                    if (!aStarts && bStarts) return 1;
+                    // Then alphabetically
+                    return a.name.localeCompare(b.name);
                 });
+            } else {
+                fileList.sort((a, b) => a.name.localeCompare(b.name));
             }
 
-            // Sort and limit results
-            fileList = fileList
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .slice(0, 50);
-
-            return fileList;
+            return fileList.slice(0, 100);
         } catch (error) {
             console.error('Error getting workspace files:', error);
             return [];

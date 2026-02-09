@@ -18,6 +18,8 @@ export const uiScript = `
 		let isProcessRunning = false;
 		let filteredFiles = [];
 		let selectedFileIndex = -1;
+		let fileSearchRequestId = 0;
+		let fileSearchDebounceTimer = null;
 		let planModeEnabled = false;
 		let thinkingModeEnabled = false;
 		let languageModeEnabled = false;
@@ -2919,9 +2921,12 @@ export const uiScript = `
 					break;
 					
 				case 'workspaceFiles':
-					filteredFiles = message.data;
-					selectedFileIndex = -1;
-					renderFileList();
+					// Only update if this is the latest request (ignore stale responses)
+					if (!message.requestId || message.requestId === fileSearchRequestId) {
+						filteredFiles = message.data;
+						selectedFileIndex = -1;
+						renderFileList();
+					}
 					break;
 					
 				case 'imagePath':
@@ -3640,11 +3645,21 @@ export const uiScript = `
 		}
 
 		function filterFiles(searchTerm) {
-			// Send search request to backend instead of filtering locally
-			vscode.postMessage({
-				type: 'getWorkspaceFiles',
-				searchTerm: searchTerm
-			});
+			// Clear previous debounce timer
+			if (fileSearchDebounceTimer) {
+				clearTimeout(fileSearchDebounceTimer);
+			}
+
+			// Debounce: wait 150ms before sending request
+			fileSearchDebounceTimer = setTimeout(() => {
+				fileSearchRequestId++;
+				vscode.postMessage({
+					type: 'getWorkspaceFiles',
+					searchTerm: searchTerm,
+					requestId: fileSearchRequestId
+				});
+			}, 150);
+
 			selectedFileIndex = -1;
 		}
 
