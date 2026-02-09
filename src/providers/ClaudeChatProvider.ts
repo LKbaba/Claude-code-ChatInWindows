@@ -61,6 +61,7 @@ export class ClaudeChatProvider {
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
 		// Opus model series pricing
+		['claude-opus-4-6', { input: 5.00, output: 25.00 }],               // Opus 4.6 latest flagship with Adaptive Thinking
 		['claude-opus-4-5-20251101', { input: 5.00, output: 25.00 }],    // Opus 4.5 latest flagship model (66% price cut)
 		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }],   // Opus 4.1 flagship model
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
@@ -1368,6 +1369,7 @@ export class ClaudeChatProvider {
 		const modelDisplayNames: { [key: string]: string } = {
 			// Opus series
 			'opus': 'Opus',
+			'claude-opus-4-6': 'Opus 4.6',
 			'claude-opus-4-5-20251101': 'Opus 4.5',
 			'claude-opus-4-1-20250805': 'Opus 4.1',
 			'claude-opus-4-20250514': 'Opus 4',
@@ -2768,13 +2770,17 @@ export class ClaudeChatProvider {
 			let message: string;
 
 			switch (model) {
+				case 'claude-opus-4-6':
+					displayName = 'Opus 4.6';
+					message = `Claude model switched to: ${displayName} (Latest flagship with Adaptive Thinking & 1M context)`;
+					break;
 				case 'claude-opus-4-5-20251101':
 					displayName = 'Opus 4.5';
-					message = `Claude model switched to: ${displayName} (Latest flagship model, 66% cheaper than Opus 4.1)`;
+					message = `Claude model switched to: ${displayName} (Previous flagship, 66% cheaper than Opus 4.1)`;
 					break;
 				case 'claude-opus-4-1-20250805':
 					displayName = 'Opus 4.1';
-					message = `Claude model switched to: ${displayName}`;
+					message = `Claude model switched to: ${displayName} (Classic flagship, proven performance)`;
 					break;
 				case 'opusplan':
 					displayName = 'Opus Plan';

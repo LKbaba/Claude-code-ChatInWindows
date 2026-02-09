@@ -10,6 +10,7 @@ export const VALID_MODELS = [
     'sonnet',
     'default',
     'opusplan',                       // Opus Plan hybrid mode
+    'claude-opus-4-6',                // Opus 4.6 - Latest flagship with Adaptive Thinking
     'claude-opus-4-5-20251101',       // Opus 4.5
     'claude-opus-4-1-20250805',       // Opus 4.1
     'claude-sonnet-4-5-20250929',     // Sonnet 4.5
