@@ -213,7 +213,7 @@ export class ClaudeChatProvider {
 						this._sendStatistics(message.statsType);
 						return;
 					case 'getWorkspaceFiles':
-						this._sendWorkspaceFiles(message.searchTerm);
+						this._sendWorkspaceFiles(message.searchTerm, message.requestId);
 						return;
 					case 'selectImageFile':
 						const imagePaths = await this._fileOperationsManager.selectImageFiles();
@@ -1750,11 +1750,12 @@ export class ClaudeChatProvider {
 		return { rows, totals };
 	}
 
-	private async _sendWorkspaceFiles(searchTerm?: string): Promise<void> {
+	private async _sendWorkspaceFiles(searchTerm?: string, requestId?: number): Promise<void> {
 		const fileList = await this._fileOperationsManager.getWorkspaceFiles(searchTerm);
 		this._panel?.webview.postMessage({
 			type: 'workspaceFiles',
-			data: fileList
+			data: fileList,
+			requestId: requestId
 		});
 	}
 
