@@ -3653,14 +3653,14 @@ export const uiScript = `
 			// Debounce: wait 150ms before sending request
 			fileSearchDebounceTimer = setTimeout(() => {
 				fileSearchRequestId++;
+				// Reset selection when starting new search
+				selectedFileIndex = -1;
 				vscode.postMessage({
 					type: 'getWorkspaceFiles',
 					searchTerm: searchTerm,
 					requestId: fileSearchRequestId
 				});
 			}, 150);
-
-			selectedFileIndex = -1;
 		}
 
 		// Image handling functions
