@@ -2,6 +2,51 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.1.6] - 2025-02-10
+
+### Fixed
+- **@ 文件引用功能 - 大小写不敏感搜索**
+  - 搜索 `readme` 现在可以匹配 `README.md`、`Readme.md` 等
+  - 通过将搜索词转换为大小写通配 glob 模式实现（如 `readme` → `[rR][eE][aA][dD][mM][eE]`）
+
+- **@ 文件引用功能 - 竞态条件修复**
+  - 修复初始文件列表请求无 `requestId` 导致的竞态条件
+  - 快速输入搜索词时，旧的全量文件列表不再覆盖过滤结果
+
+- **@ 文件引用功能 - 键盘导航滚动**
+  - 使用 ArrowUp/ArrowDown 导航时，选中项自动滚动到可视区域
+
+- **@ 文件引用功能 - 光标位置修复**
+  - 修复文件选择后插入位置不正确的问题
+  - 在打开文件选择器前保存光标位置，避免焦点切换导致位置丢失
+
+- **@ 文件引用功能 - 选择索引重置时机**
+  - 用户输入搜索词时立即重置选择索引，不再等待 150ms debounce
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/managers/FileOperationsManager.ts` | 添加大小写不敏感 glob 模式构建 |
+| `src/ui-v2/ui-script.ts` | 修复竞态条件、光标位置、键盘导航滚动、选择索引重置 |
+
+## [3.1.5] - 2025-02-10
+
+### Added
+- **Claude Opus 4.6 模型支持**
+  - 新增 `claude-opus-4-6` 到有效模型列表
+  - 添加定价配置（$5.00/$25.00 per M tokens）
+  - 模型选择器 UI 新增 Opus 4.6 选项
+  - 更新模型描述：4.6 Latest、4.5 Previous、4.1 Classic
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `package.json` | 版本号更新至 3.1.5 |
+| `src/providers/ClaudeChatProvider.ts` | 添加 Opus 4.6 定价和显示名称映射 |
+| `src/ui-v2/getBodyContent.ts` | 添加 Opus 4.6 模型选择器选项和描述 |
+| `src/ui-v2/ui-script.ts` | 添加 Opus 4.6 radio ID 映射和统计格式化 |
+| `src/utils/constants.ts` | 添加 `claude-opus-4-6` 到 VALID_MODELS |
+
 ## [3.1.4] - 2025-01-29
 
 ### Added

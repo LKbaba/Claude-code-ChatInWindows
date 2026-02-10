@@ -26,9 +26,15 @@ export class FileOperationsManager {
             if (searchTerm && searchTerm.trim()) {
                 // Dynamic glob search - let VS Code do the filtering
                 const term = searchTerm.trim();
+                // Build case-insensitive glob pattern: each letter becomes [aA]
+                const ciTerm = term.split('').map(ch => {
+                    const lower = ch.toLowerCase();
+                    const upper = ch.toUpperCase();
+                    return lower !== upper ? `[${lower}${upper}]` : ch;
+                }).join('');
                 // Search for files containing the term in filename
                 files = await vscode.workspace.findFiles(
-                    `**/*${term}*`,
+                    `**/*${ciTerm}*`,
                     excludePattern,
                     200
                 );
@@ -36,7 +42,7 @@ export class FileOperationsManager {
                 // Also search in path segments if not enough results
                 if (files.length < 50) {
                     const pathFiles = await vscode.workspace.findFiles(
-                        `**/${term}*/**/*`,
+                        `**/${ciTerm}*/**/*`,
                         excludePattern,
                         100
                     );

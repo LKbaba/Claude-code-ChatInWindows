@@ -20,6 +20,7 @@ export const uiScript = `
 		let selectedFileIndex = -1;
 		let fileSearchRequestId = 0;
 		let fileSearchDebounceTimer = null;
+		let savedCursorPos = 0; // Saved cursor position when file picker opens
 		let planModeEnabled = false;
 		let thinkingModeEnabled = false;
 		let languageModeEnabled = false;
@@ -2926,7 +2927,7 @@ export const uiScript = `
 					
 				case 'workspaceFiles':
 					// Only update if this is the latest request (ignore stale responses)
-					if (!message.requestId || message.requestId === fileSearchRequestId) {
+					if (message.requestId === fileSearchRequestId) {
 						filteredFiles = message.data;
 						selectedFileIndex = -1;
 						renderFileList();
@@ -3551,12 +3552,17 @@ export const uiScript = `
 
 		// File picker functions
 		function showFilePicker() {
+			// Save cursor position before focus switches away from messageInput
+			savedCursorPos = messageInput.selectionStart || 0;
+			// Increment requestId to invalidate any pending responses
+			fileSearchRequestId++;
 			// Request initial file list from VS Code
 			vscode.postMessage({
 				type: 'getWorkspaceFiles',
-				searchTerm: ''
+				searchTerm: '',
+				requestId: fileSearchRequestId
 			});
-			
+
 			// Show modal
 			filePickerModal.style.display = 'flex';
 			fileSearchInput.focus();
@@ -3589,14 +3595,14 @@ export const uiScript = `
 
 		function renderFileList() {
 			fileList.innerHTML = '';
-			
+
 			filteredFiles.forEach((file, index) => {
 				const fileItem = document.createElement('div');
 				fileItem.className = 'file-item';
 				if (index === selectedFileIndex) {
 					fileItem.classList.add('selected');
 				}
-				
+
 				fileItem.innerHTML = \`
 					<span class="file-icon">\${getFileIcon(file.name)}</span>
 					<div class="file-info">
@@ -3604,18 +3610,26 @@ export const uiScript = `
 						<div class="file-path">\${file.path}</div>
 					</div>
 				\`;
-				
+
 				fileItem.addEventListener('click', () => {
 					selectFile(file);
 				});
-				
+
 				fileList.appendChild(fileItem);
 			});
+
+			// Scroll selected item into view
+			if (selectedFileIndex >= 0) {
+				const selectedItem = fileList.children[selectedFileIndex];
+				if (selectedItem) {
+					selectedItem.scrollIntoView({ block: 'nearest' });
+				}
+			}
 		}
 
 		function selectFile(file) {
-			// Insert file path at cursor position
-			const cursorPos = messageInput.selectionStart;
+			// Use saved cursor position (focus is on fileSearchInput, so selectionStart is unreliable)
+			const cursorPos = savedCursorPos;
 			const textBefore = messageInput.value.substring(0, cursorPos);
 			const textAfter = messageInput.value.substring(cursorPos);
 			
@@ -3654,11 +3668,12 @@ export const uiScript = `
 				clearTimeout(fileSearchDebounceTimer);
 			}
 
+			// Reset selection immediately when user types
+			selectedFileIndex = -1;
+
 			// Debounce: wait 150ms before sending request
 			fileSearchDebounceTimer = setTimeout(() => {
 				fileSearchRequestId++;
-				// Reset selection when starting new search
-				selectedFileIndex = -1;
 				vscode.postMessage({
 					type: 'getWorkspaceFiles',
 					searchTerm: searchTerm,
