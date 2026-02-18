@@ -632,7 +632,7 @@ export function getBodyContent(): string {
 					<label for="mode-max">
 						<div class="model-title">Max - Maximum performance</div>
 						<div class="model-description">
-							Prevents system from auto-switching to Haiku, enforces Sonnet 4.5
+							Prevents system from auto-switching to Haiku, enforces Sonnet 4.6
 						</div>
 					</label>
 				</div>
@@ -646,7 +646,7 @@ export function getBodyContent(): string {
 						<label for="enhance-subagents">
 							<div class="model-title">Enhance Subagents</div>
 							<div class="model-description">
-								Use Sonnet 4.5 for all subagent operations (higher cost)
+								Use Sonnet 4.6 for all subagent operations (higher cost)
 							</div>
 						</label>
 					</div>
