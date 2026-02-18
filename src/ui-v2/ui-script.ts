@@ -2424,10 +2424,10 @@ export const uiScript = `
 			const displayNames = {
 				'opus': 'Opus',
 				'claude-opus-4-6': 'Opus 4.6',                   // Added Opus 4.6
-				'claude-opus-4-1-20250805': 'Opus 4.1',
 				'claude-opus-4-5-20251101': 'Opus 4.5',       // Added Opus 4.5
 				'opusplan': 'Opus Plan',                       // Added Opus Plan hybrid mode
 				'sonnet': 'Sonnet',
+				'claude-sonnet-4-6': 'Sonnet 4.6',
 				'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
 				'claude-haiku-4-5-20251001': 'Haiku 4.5',
 				'default': 'Model'
@@ -2450,10 +2450,10 @@ export const uiScript = `
 			let radioId = 'model-' + model;
 			if (model === 'claude-opus-4-6') {
 				radioId = 'model-opus-4-6';
-			} else if (model === 'claude-opus-4-1-20250805') {
-				radioId = 'model-opus-4-1';
 			} else if (model === 'claude-opus-4-5-20251101') {
 				radioId = 'model-opus-4-5';
+			} else if (model === 'claude-sonnet-4-6') {
+				radioId = 'model-sonnet-4-6';
 			} else if (model === 'claude-sonnet-4-5-20250929') {
 				radioId = 'model-sonnet-4-5';
 			} else if (model === 'claude-haiku-4-5-20251001') {
@@ -2472,10 +2472,10 @@ export const uiScript = `
 		const displayNames = {
 			'opus': 'Opus',
 			'claude-opus-4-6': 'Opus 4.6',                   // Added Opus 4.6
-			'claude-opus-4-1-20250805': 'Opus 4.1',
 			'claude-opus-4-5-20251101': 'Opus 4.5',       // Added Opus 4.5
 			'opusplan': 'Opus Plan',                       // Added Opus Plan hybrid mode
 			'sonnet': 'Sonnet',
+			'claude-sonnet-4-6': 'Sonnet 4.6',
 			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
 			'claude-haiku-4-5-20251001': 'Haiku 4.5',
 			'default': 'Default'
@@ -3820,6 +3820,11 @@ export const uiScript = `
 										}
 										return 'Opus 4'; // claude-opus-4 -> Opus 4
 									} else if (modelParts[1] === 'sonnet' && modelParts[2] === '4') {
+										if (modelParts[3] === '6') {
+											return 'Sonnet 4.6'; // claude-sonnet-4-6 -> Sonnet 4.6
+										} else if (modelParts[3] === '5') {
+											return 'Sonnet 4.5'; // claude-sonnet-4-5-20250929 -> Sonnet 4.5
+										}
 										return 'Sonnet 4'; // claude-sonnet-4 -> Sonnet 4
 									} else {
 										return modelParts[1]; // fallback
@@ -3871,6 +3876,11 @@ export const uiScript = `
 										}
 										return 'Opus 4'; // claude-opus-4 -> Opus 4
 									} else if (modelParts[1] === 'sonnet' && modelParts[2] === '4') {
+										if (modelParts[3] === '6') {
+											return 'Sonnet 4.6'; // claude-sonnet-4-6 -> Sonnet 4.6
+										} else if (modelParts[3] === '5') {
+											return 'Sonnet 4.5'; // claude-sonnet-4-5-20250929 -> Sonnet 4.5
+										}
 										return 'Sonnet 4'; // claude-sonnet-4 -> Sonnet 4
 									} else {
 										return modelParts[1]; // fallback

@@ -2,6 +2,33 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.1.7] - 2026-02-18
+
+### Added
+- **Claude Sonnet 4.6 模型支持**
+  - 新增 `claude-sonnet-4-6` 到有效模型列表和定价配置（$3.00/$15.00 per M tokens）
+  - 模型选择器 UI 新增 Sonnet 4.6 选项（Latest intelligent model）
+  - 统计格式化逻辑支持 Sonnet 4.6/4.5 版本号判断
+
+### Removed
+- **移除 Opus 4.1 模型（UI 层面）**
+  - 从模型选择器中移除 Opus 4.1 选项
+  - 从 displayNames 和 radioId 映射中移除
+  - 从 switch 语句中移除（MODEL_PRICING 保留用于历史数据计费）
+
+### Changed
+- Opus 4.5 描述更新为 "Previous flagship model, excellent for coding"
+- Sonnet 4.5 标题更新为 "Previous intelligent model"
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `package.json` | 版本号更新至 3.1.7 |
+| `src/providers/ClaudeChatProvider.ts` | 添加 Sonnet 4.6 定价/显示名称/switch，移除 Opus 4.1 |
+| `src/ui-v2/getBodyContent.ts` | 版本号、添加 Sonnet 4.6 选择器、移除 Opus 4.1 选择器 |
+| `src/ui-v2/ui-script.ts` | displayNames/radioId 映射更新、统计格式化逻辑添加版本判断 |
+| `src/utils/constants.ts` | 添加 `claude-sonnet-4-6`，移除 `claude-opus-4-1-20250805` |
+
 ## [3.1.6] - 2025-02-10
 
 ### Fixed
