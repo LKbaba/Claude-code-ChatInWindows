@@ -2813,12 +2813,12 @@ export class ClaudeChatProvider {
 	 * @param mode - 'auto' or 'max'
 	 */
 	private _handleModeSelection(mode: 'auto' | 'max'): void {
-		const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+		const SONNET_4_6 = 'claude-sonnet-4-6';
 
 		if (mode === 'max') {
 			// Max mode: set ANTHROPIC_DEFAULT_HAIKU_MODEL
-			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
-			debugLog('ComputeMode', 'Max mode enabled - Using Sonnet 4.5 for background tasks');
+			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_6;
+			debugLog('ComputeMode', 'Max mode enabled - Using Sonnet 4.6 for background tasks');
 			vscode.window.showInformationMessage('Max mode enabled - Maximum performance, higher cost');
 		} else {
 			// Auto mode: clear ANTHROPIC_DEFAULT_HAIKU_MODEL
@@ -2844,12 +2844,12 @@ export class ClaudeChatProvider {
 	 * @param enabled - Whether to enable subagent enhancement
 	 */
 	private _handleSubagentEnhancement(enabled: boolean): void {
-		const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+		const SONNET_4_6 = 'claude-sonnet-4-6';
 
 		if (enabled) {
 			// Enable enhancement: set CLAUDE_CODE_SUBAGENT_MODEL
-			process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_5;
-			debugLog('ComputeMode', 'Enhanced subagents enabled - Using Sonnet 4.5 for all subagent operations');
+			process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_6;
+			debugLog('ComputeMode', 'Enhanced subagents enabled - Using Sonnet 4.6 for all subagent operations');
 			vscode.window.showInformationMessage('Enhanced subagents enabled - Higher performance, increased cost');
 		} else {
 			// Disable enhancement: clear CLAUDE_CODE_SUBAGENT_MODEL

@@ -19,13 +19,17 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
 ### Changed
 - Opus 4.5 描述更新为 "Previous flagship model, excellent for coding"
 - Sonnet 4.5 标题更新为 "Previous intelligent model"
+- **Compute Mode 升级**：MAX 模式和 Enhance Subagents 强制模型从 Sonnet 4.5 升级为 Sonnet 4.6
+  - MAX 模式描述更新：`enforces Sonnet 4.6`
+  - Enhance Subagents 描述更新：`Use Sonnet 4.6 for all subagent operations`
+  - 后端 `_handleModeSelection` 和 `_handleSubagentEnhancement` 使用 `claude-sonnet-4-6`
 
 ### Files Modified
 | File | Changes |
 |------|---------|
 | `package.json` | 版本号更新至 3.1.7 |
-| `src/providers/ClaudeChatProvider.ts` | 添加 Sonnet 4.6 定价/显示名称/switch，移除 Opus 4.1 |
-| `src/ui-v2/getBodyContent.ts` | 版本号、添加 Sonnet 4.6 选择器、移除 Opus 4.1 选择器 |
+| `src/providers/ClaudeChatProvider.ts` | 添加 Sonnet 4.6 定价/显示名称/switch，移除 Opus 4.1；Compute Mode 强制模型升级为 Sonnet 4.6 |
+| `src/ui-v2/getBodyContent.ts` | 版本号、添加 Sonnet 4.6 选择器、移除 Opus 4.1 选择器；Compute Mode UI 描述更新 |
 | `src/ui-v2/ui-script.ts` | displayNames/radioId 映射更新、统计格式化逻辑添加版本判断 |
 | `src/utils/constants.ts` | 添加 `claude-sonnet-4-6`，移除 `claude-opus-4-1-20250805` |
 
