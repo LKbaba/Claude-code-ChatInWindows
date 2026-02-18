@@ -67,7 +67,8 @@ export class ClaudeChatProvider {
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
 		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],     // Claude 3 Opus
 		// Sonnet model series pricing
-		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 latest intelligent model
+		['claude-sonnet-4-6', { input: 3.00, output: 15.00 }],           // Sonnet 4.6 latest intelligent model
+		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 previous intelligent model
 		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }],    // Sonnet 4
 		['claude-3-5-sonnet-20241022', { input: 3.00, output: 15.00 }],  // Claude 3.5 Sonnet
 		['claude-3-5-sonnet-20240620', { input: 3.00, output: 15.00 }],
@@ -1371,11 +1372,11 @@ export class ClaudeChatProvider {
 			'opus': 'Opus',
 			'claude-opus-4-6': 'Opus 4.6',
 			'claude-opus-4-5-20251101': 'Opus 4.5',
-			'claude-opus-4-1-20250805': 'Opus 4.1',
 			'claude-opus-4-20250514': 'Opus 4',
 			'claude-3-opus-20240229': 'Claude 3 Opus',
 			// Sonnet series
 			'sonnet': 'Sonnet',
+			'claude-sonnet-4-6': 'Sonnet 4.6',
 			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
 			'claude-sonnet-4-20250514': 'Sonnet 4',
 			'claude-3-5-sonnet-20241022': 'Sonnet 3.5',
@@ -2776,15 +2777,15 @@ export class ClaudeChatProvider {
 					break;
 				case 'claude-opus-4-5-20251101':
 					displayName = 'Opus 4.5';
-					message = `Claude model switched to: ${displayName} (Previous flagship, 66% cheaper than Opus 4.1)`;
-					break;
-				case 'claude-opus-4-1-20250805':
-					displayName = 'Opus 4.1';
-					message = `Claude model switched to: ${displayName} (Classic flagship, proven performance)`;
+					message = `Claude model switched to: ${displayName} (Previous flagship model, excellent for coding)`;
 					break;
 				case 'opusplan':
 					displayName = 'Opus Plan';
 					message = `Claude model switched to: ${displayName}\n\n💡 Tip: Enable "Plan First" mode to use Opus for planning and Sonnet for execution. Without Plan First, it will use Sonnet for direct execution.`;
+					break;
+				case 'claude-sonnet-4-6':
+					displayName = 'Sonnet 4.6';
+					message = `Claude model switched to: ${displayName} (Latest intelligent model with Adaptive Thinking & 1M context)`;
 					break;
 				case 'claude-sonnet-4-5-20250929':
 					displayName = 'Sonnet 4.5';

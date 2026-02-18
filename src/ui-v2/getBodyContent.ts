@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.1.6</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.1.7</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -531,21 +531,12 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('claude-opus-4-1-20250805')">
-					<input type="radio" name="model" id="model-opus-4-1" value="claude-opus-4-1-20250805">
-					<label for="model-opus-4-1">
-						<div class="model-title">Opus 4.1 - Classic flagship model</div>
-						<div class="model-description">
-							Proven performance, stable and reliable
-						</div>
-					</label>
-				</div>
 				<div class="tool-item" onclick="selectModel('claude-opus-4-5-20251101')">
 					<input type="radio" name="model" id="model-opus-4-5" value="claude-opus-4-5-20251101">
 					<label for="model-opus-4-5">
 						<div class="model-title">Opus 4.5 - Previous flagship model</div>
 						<div class="model-description">
-							Best for coding, 66% cheaper than 4.1
+							Best for coding, previous flagship model
 						</div>
 					</label>
 				</div>
@@ -576,10 +567,19 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+				<div class="tool-item" onclick="selectModel('claude-sonnet-4-6')">
+					<input type="radio" name="model" id="model-sonnet-4-6" value="claude-sonnet-4-6">
+					<label for="model-sonnet-4-6">
+						<div class="model-title">Sonnet 4.6 - Latest intelligent model</div>
+						<div class="model-description">
+							Adaptive Thinking & 1M context window
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" onclick="selectModel('claude-sonnet-4-5-20250929')">
 					<input type="radio" name="model" id="model-sonnet-4-5" value="claude-sonnet-4-5-20250929">
 					<label for="model-sonnet-4-5">
-						<div class="model-title">Sonnet 4.5 - Latest intelligent model</div>
+						<div class="model-title">Sonnet 4.5 - Previous intelligent model</div>
 						<div class="model-description">
 							Best balance of intelligence, speed and cost
 						</div>
