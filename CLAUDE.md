@@ -5,6 +5,28 @@
 - File system: Case-insensitive
 - Line endings: CRLF (configure Git autocrlf)
 
+## Build & Package
+
+Compile:
+```bash
+npm run compile
+```
+
+Package VSIX (must use `cmd` wrapper, Git Bash swallows vsce output):
+```bash
+cmd //c "npx @vscode/vsce package --no-dependencies"
+```
+- Do NOT use `npx @vscode/vsce package` directly in Git Bash — it silently fails (exit 0 but no .vsix generated)
+- Output file: `claude-code-chatui-{version}.vsix`
+
+Install VSIX for testing:
+- VS Code: `Ctrl+Shift+P` → "Install from VSIX"
+- CLI: `code --install-extension claude-code-chatui-{version}.vsix`
+
+Debug (Extension Development Host):
+- `Ctrl+Shift+D` → select "Run Extension" → click green play button
+- Remote desktop: F5 may be intercepted, use the play button instead
+
 ## Playwright MCP Guide
 
 File paths:
