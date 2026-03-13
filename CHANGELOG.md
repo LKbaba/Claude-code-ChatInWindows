@@ -2,6 +2,53 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [3.1.8] - 2026-03-12
+
+### Fixed
+- **后台 Agent 任务导致 UI 状态撕裂 & 死锁**
+  - 修复 `onFinalResult` 中过早发送 `setProcessing(false)` 的问题
+  - 一次 CLI 进程可能产生多个 `type:"result"` 事件（后台 Agent 完成后触发新对话轮次），每次都会错误地将 UI 设为 Ready
+  - 现在 `setProcessing(false)` 仅在 `process.on('close')` 时发送，确保 UI 状态与进程生命周期一致
+  - 修复 Ready 状态下 Stop 按钮消失、用户无法停止残留进程的死锁问题
+
+- **多个💰结算气泡重复显示**
+  - 每个 `type:"result"` 都会插入一个💰气泡，导致一次对话出现 2~4 个结算信息
+  - 现在中间的 `updateTotals` 只更新状态栏累计统计，不生成💰气泡
+  - 最终💰气泡仅在进程关闭时显示一次，展示完整的费用和时长
+
+- **Compact Mode 下的💰泄漏**
+  - 修复 `onClose` 中 `_isCompactMode` 先被重置再被检查的逻辑顺序问题
+  - 使用 `wasCompactMode` 提前捕获状态，防止 Compact Mode 下错误显示💰气泡
+
+### Changed
+- **默认模型更新为 Sonnet 4.6**
+  - 属性初始值、workspaceState fallback、前端默认值统一改为 `claude-sonnet-4-6`
+  - 仅影响首次使用的用户，已保存偏好的用户不受影响
+
+### Added
+- **Grok Assistant MCP 模板**
+  - 新增 `grok-assistant` MCP 模板（`@lkbaba/grok-mcp`）
+  - 支持实时 Web & X (Twitter) 搜索（`grok_agent_search`）和创意头脑风暴（`grok_brainstorm`）
+  - Grok 工具调用显示 🛰️ 图标
+  - 需要配置 `XAI_API_KEY`（从 console.x.ai 获取）
+
+### Removed
+- **移除 Basic Memory MCP 模板**
+  - 移除模板定义、系统提示词、下拉菜单选项
+- **移除 n8n MCP 模板**
+  - 移除模板定义、系统提示词、下拉菜单选项
+  - 移除 CLAUDE.md 自动注入的 ~120 行 n8n 使用指南及相关检测逻辑
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `package.json` | 版本号更新至 3.1.8 |
+| `src/providers/ClaudeChatProvider.ts` | 修复 setProcessing 时机、💰去重、Compact Mode 逻辑、默认模型改为 Sonnet 4.6 |
+| `src/ui-v2/getBodyContent.ts` | 版本号更新；移除 Basic Memory/n8n 选项；添加 Grok Assistant 选项 |
+| `src/ui-v2/ui-script.ts` | 默认模型改为 Sonnet 4.6；移除 Basic Memory/n8n 模板；添加 Grok Assistant 模板和 🛰️ 图标 |
+| `src/utils/mcpPrompts.ts` | 移除 basic-memory/n8n 提示词；添加 grok-assistant 提示词 |
+| `src/utils/utils.ts` | 移除 n8n CLAUDE.md 注入逻辑（n8nSection 变量、hasN8nInfo 检查、写入代码） |
+
 ## [3.1.7] - 2026-02-18
 
 ### Added

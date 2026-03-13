@@ -21,27 +21,12 @@ export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
 **When**: Unclear APIs, version differences, need official examples
 **Note**: Call on-demand to save tokens`,
   
-    'basic-memory': `
-## Basic Memory
-**Purpose**: Persistent knowledge base with notes & search
-**Core**: write_note, read_note, search_notes, recent_activity, canvas
-**Organization**: Use folder structure (e.g. projects/my-app), supports tags
-**Best practice**: Create separate notes per topic, use descriptive titles`,
-
     'playwright': `
 ## Playwright
 **Purpose**: Browser automation - web scraping, form filling, UI testing
 **Core**: navigate, screenshot, click, fill, evaluate, save_as_pdf, resize (143+ device presets)
 **File paths**: Screenshots→./CCimages/screenshots/ PDFs→./CCimages/pdfs/
 **Browser fix**: If chromium error, run: npx playwright@latest install chromium`,
-
-    'n8n': `
-## n8n
-**Purpose**: n8n workflow automation - 532+ node documentation access
-**Core tools**: tools_documentation, list_nodes, get_node_info, search_nodes
-**Coverage**: 99% properties | 63% operations | 90% docs | 263 AI nodes
-**Workflow management**: Requires N8N_API_URL and N8N_API_KEY configuration
-**Important**: See detailed usage guide in CLAUDE.md's n8n MCP section`,
 
     'shadcn': `
 ## shadcn/ui MCP
@@ -57,6 +42,28 @@ export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
 - "Install the card component from shadcn registry"
 **Requirements**: Must run in a project with components.json file
 **Note**: Run 'npx shadcn@latest init' first if components.json doesn't exist`,
+
+    // Grok AI assistant - for real-time web/X search and brainstorming
+    'grok-assistant': `
+## Grok AI Assistant
+**Purpose**: Real-time web & X (Twitter) search + creative brainstorming
+**Powered by**: Grok 4.20 Multi-Agent (2M context, 4-agent collaboration)
+
+**Core Tools**:
+- \`grok_agent_search\` - Real-time web and X search with source citations
+  - search_type: web | x | mixed (default: mixed)
+  - Supports domain filtering and X date/account filtering
+- \`grok_brainstorm\` - Multi-perspective idea generation
+  - style: innovative | practical | radical | balanced
+  - Supports reading project files as context (up to 10 files)
+
+**When to use Grok**:
+- Real-time information lookup (news, trends, latest updates)
+- X/Twitter content search and analysis
+- Creative brainstorming with project context
+- Fact-checking with source citations
+
+**Note**: Requires XAI_API_KEY from console.x.ai`,
 
     // Gemini AI assistant - for UI generation, multimodal analysis, and creative coding
     'gemini-assistant': `
