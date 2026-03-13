@@ -1133,6 +1133,7 @@ export const uiScript = `
 				// Provide default icons for different types of MCP tools
 				if (toolName.includes('thinking')) return '🧠';
 				if (toolName.includes('gemini')) return '💫';  // Sparkle icon for Gemini AI tools
+				if (toolName.includes('grok')) return '🛰️';  // Satellite icon for Grok AI tools
 				if (toolName.includes('search')) return '🔍';
 				if (toolName.includes('database') || toolName.includes('sql')) return '🗄️';
 				if (toolName.includes('file')) return '📁';
@@ -2468,7 +2469,7 @@ export const uiScript = `
 		}
 
 		// Initialize model display (without sending message)
-		currentModel = 'claude-sonnet-4-5-20250929';  // Default to Sonnet 4.5
+		currentModel = 'claude-sonnet-4-6';  // Default to Sonnet 4.6
 		const displayNames = {
 			'opus': 'Opus',
 			'claude-opus-4-6': 'Opus 4.6',                   // Added Opus 4.6
@@ -4902,39 +4903,26 @@ export const uiScript = `
 					args: ['-y', '@upstash/context7-mcp@latest'],
 					env: {}
 				},
-				'basic-memory': {
-					name: 'basic-memory',
-					command: 'uvx',
-					args: ['basic-memory', 'mcp'],
-					env: {
-						'BASIC_MEMORY_HOME': '\${HOME}/.claude/memory'
-					}
-				},
 				'playwright': {
 					name: 'playwright',
 					command: 'npx',
 					args: ['-y', '@executeautomation/playwright-mcp-server'],
 					env: {}
 				},
-				'n8n': {
-					name: 'n8n',
-					command: 'npx',
-					args: ['n8n-mcp'],
-					env: {
-						// Required base configuration
-						'MCP_MODE': 'stdio',
-						'LOG_LEVEL': 'error',
-						'DISABLE_CONSOLE_OUTPUT': 'true',
-						// Optional: users can configure these two environment variables to connect to their n8n instance
-						'N8N_API_URL': '', // e.g.: https://your-n8n-instance.com or http://localhost:5678
-						'N8N_API_KEY': ''  // your n8n API key
-					}
-				},
 				'shadcn': {
 					name: 'shadcn',
 					command: 'npx',
 					args: ['shadcn@latest', 'mcp'],
 					env: {}
+				},
+				// Grok AI assistant - real-time web/X search and brainstorming
+				'grok-assistant': {
+					name: 'grok-assistant',
+					command: 'npx',
+					args: ['-y', '@lkbaba/grok-mcp@latest'],
+					env: {
+						'XAI_API_KEY': ''  // Get from https://console.x.ai/
+					}
 				},
 				// Gemini AI assistant - provides UI generation, multimodal analysis, etc.
 				'gemini-assistant': {

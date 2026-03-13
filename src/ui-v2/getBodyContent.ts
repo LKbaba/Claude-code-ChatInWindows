@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.1.7</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v3.1.8</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -369,10 +369,9 @@ export function getBodyContent(): string {
 									<option value="">Add from template...</option>
 									<option value="sequential-thinking">Sequential Thinking</option>
 									<option value="context7">Context7</option>
-									<option value="basic-memory">Basic Memory</option>
 									<option value="playwright">Playwright</option>
-									<option value="n8n">n8n</option>
 									<option value="shadcn">shadcn/ui</option>
+									<option value="grok-assistant">Grok Assistant</option>
 									<option value="gemini-assistant">Gemini Assistant</option>
 								</select>
 							</div>
@@ -398,10 +397,9 @@ export function getBodyContent(): string {
 									<option value="">Add from template...</option>
 									<option value="sequential-thinking">Sequential Thinking</option>
 									<option value="context7">Context7</option>
-									<option value="basic-memory">Basic Memory</option>
 									<option value="playwright">Playwright</option>
-									<option value="n8n">n8n</option>
 									<option value="shadcn">shadcn/ui</option>
+									<option value="grok-assistant">Grok Assistant</option>
 									<option value="gemini-assistant">Gemini Assistant</option>
 								</select>
 							</div>

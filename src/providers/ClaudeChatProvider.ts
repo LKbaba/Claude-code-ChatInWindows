@@ -41,7 +41,7 @@ export class ClaudeChatProvider {
 	private _currentSessionId: string | undefined;
 	private _conversationId: string | undefined;  // Main conversation ID that persists across sessions
 	private _treeProvider: ClaudeChatViewProvider | undefined;
-	private _selectedModel: string = 'claude-sonnet-4-5-20250929'; // Default to Sonnet 4.5
+	private _selectedModel: string = 'claude-sonnet-4-6'; // Default to Sonnet 4.6
 	private _npmPrefixPromise: Promise<string | undefined>;
 	private _fileOperationsManager: FileOperationsManager;
 	private _configurationManager: ConfigurationManagerFacade;
@@ -123,8 +123,8 @@ export class ClaudeChatProvider {
 			debugError('ClaudeChatProvider', 'Failed to initialize backup repo', error);
 		});
 
-		// Load saved model preference (default to Sonnet 4.5)
-		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'claude-sonnet-4-5-20250929');
+		// Load saved model preference (default to Sonnet 4.6)
+		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'claude-sonnet-4-6');
 
 		// Restore compute mode state
 		this._restoreComputeModeState();
@@ -599,6 +599,10 @@ export class ClaudeChatProvider {
 			// not passed to ProcessService
 		};
 
+		// Track the latest updateTotals data so we can send a single 💰 bubble on process close
+		// (A single CLI process can emit multiple type:"result" events when background agents are used)
+		let lastUpdateTotalsData: any = null;
+
 		// Prepare callbacks for process service
 		const callbacks = {
 			onData: (data: any) => {
@@ -670,11 +674,11 @@ export class ClaudeChatProvider {
 						this._totalTokensOutput = totals.totalTokensOutput;
 						this._requestCount = totals.requestCount;
 
-						// Update UI state to Ready immediately when final result is received
-						// Don't wait for process close event to avoid ~0.5s delay
-						if (!this._isCompactMode) {
-							this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
-						}
+						// NOTE: Do NOT send setProcessing(false) here!
+						// A single CLI process can produce multiple type:"result" events
+						// (e.g. when background agents complete after the main model finishes).
+						// Only onClose should set processing to false, since that's when
+						// the process actually terminates and _currentProcess is cleared.
 					},
 					onError: (error: string) => {
 						if (error.includes('login')) {
@@ -683,11 +687,13 @@ export class ClaudeChatProvider {
 						// Error messages are now handled by saveMessage to avoid duplication
 					},
 					sendToWebview: (message: any) => {
-						// In compact mode, filter out current* fields from updateTotals messages
-						// Prevents displaying cost statistics (the yellow message) in chat area
-						if (this._isCompactMode && message.type === 'updateTotals' && message.data) {
-							// Only send cumulative statistics, not current request statistics
-							const filteredMessage = {
+						if (message.type === 'updateTotals' && message.data) {
+							// Cache the latest cost data for the final 💰 bubble on process close
+							lastUpdateTotalsData = message.data;
+
+							// Send only cumulative totals (for status bar), without current request stats
+							// This prevents creating a 💰 bubble for each intermediate result
+							const statusOnlyMessage = {
 								type: 'updateTotals',
 								data: {
 									totalCost: message.data.totalCost,
@@ -697,7 +703,7 @@ export class ClaudeChatProvider {
 									// Excludes currentCost, currentDuration, currentTokensInput, currentTokensOutput
 								}
 							};
-							this._panel?.webview.postMessage(filteredMessage);
+							this._panel?.webview.postMessage(statusOnlyMessage);
 						} else {
 							this._panel?.webview.postMessage(message);
 						}
@@ -732,6 +738,9 @@ export class ClaudeChatProvider {
 				}
 			},
 			onClose: (code: number | null) => {
+				// Capture compact mode state before it gets reset below
+				const wasCompactMode = this._isCompactMode;
+
 				// In compact mode, send compactComplete message
 				// This clears the frontend message list and displays the summary
 				if (this._isCompactMode && this._compactSummaryBuffer.trim()) {
@@ -766,6 +775,15 @@ export class ClaudeChatProvider {
 				}
 
 				this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
+
+				// Send the final 💰 cost bubble (only once, at process close)
+				// Skip in compact mode since cost stats are not shown in that mode
+				if (lastUpdateTotalsData && !wasCompactMode) {
+					this._panel?.webview.postMessage({
+						type: 'updateTotals',
+						data: lastUpdateTotalsData
+					});
+				}
 
 				// Clean up Claude CLI temp files after process ends
 				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
