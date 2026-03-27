@@ -3,13 +3,6 @@
  * Modular UI system with extracted services
  */
 
-import { StateManager } from './services/StateManager';
-import { EventHandlers } from './services/EventHandlers';
-import { formatDiff } from './utils/formatters/diff-formatter';
-import { formatToolInputUI as formatToolInput } from './utils/formatters/tool-formatter';
-import { parseMarkdown } from './utils/markdown';
-import { VscodeApi } from './types';
-import { getCombinedStyles } from './styles';
 import { getBodyContent } from './getBodyContent';
 import { uiScript } from './ui-script';
 

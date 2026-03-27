@@ -13,6 +13,7 @@ import { ConversationManager } from '../managers/ConversationManager';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { getMcpSystemPrompts } from '../utils/mcpPrompts';
 import { debugLog, debugError } from './DebugLogger';
+import { SecretService } from './SecretService';
 
 export interface ProcessOptions {
     message: string;
@@ -36,6 +37,8 @@ export interface ProcessCallbacks {
 export class ClaudeProcessService {
     private _currentProcess: cp.ChildProcess | undefined;
     private _npmPrefixPromise: Promise<string | undefined>;
+    // Guards against concurrent startProcess() calls (e.g. double-click on Send)
+    private _isStarting: boolean = false;
 
     constructor(
         private _windowsCompatibility: WindowsCompatibility,
@@ -67,7 +70,12 @@ export class ClaudeProcessService {
         if (this._currentProcess) {
             throw new Error('A Claude process is already running');
         }
+        if (this._isStarting) {
+            throw new Error('A Claude process is already starting');
+        }
 
+        this._isStarting = true;
+        try {
         const { execEnvironment, args } = await this._prepareProcessExecution(options);
         
         if (!execEnvironment.claudeExecutablePath) {
@@ -103,6 +111,10 @@ export class ClaudeProcessService {
         
         // Set up event handlers
         this._setupProcessHandlers(this._currentProcess, callbacks);
+        } finally {
+            // Always clear the starting flag, whether spawn succeeded or threw
+            this._isStarting = false;
+        }
     }
 
     /**
@@ -170,16 +182,20 @@ export class ClaudeProcessService {
         const cliCommand = apiConfig.cliCommand || 'claude';
         const isOfficialClaude = cliCommand === 'claude';
 
-        if (apiConfig.useCustomAPI && apiConfig.key && apiConfig.baseUrl && isOfficialClaude) {
+        // Read API key from SecretStorage (the key field in apiConfig is always empty after migration)
+        const secretApiKey = await SecretService.getInstance().getAnthropicApiKey();
+        const effectiveApiKey = secretApiKey || '';
+
+        if (apiConfig.useCustomAPI && effectiveApiKey && apiConfig.baseUrl && isOfficialClaude) {
             // Only pass API env vars for official claude CLI
             execEnvironment.spawnOptions.env = {
                 ...execEnvironment.spawnOptions.env,
-                ANTHROPIC_API_KEY: apiConfig.key,
+                ANTHROPIC_API_KEY: effectiveApiKey,
                 ANTHROPIC_BASE_URL: apiConfig.baseUrl
             };
             debugLog('ClaudeProcessService', 'Using custom API with official claude', {
                 baseUrl: apiConfig.baseUrl,
-                hasKey: !!apiConfig.key
+                hasKey: !!effectiveApiKey
             });
         } else if (apiConfig.useCustomAPI && !isOfficialClaude) {
             // Third-party CLI (e.g., xxxxclaude) - don't pass API env vars
