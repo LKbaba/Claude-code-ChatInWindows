@@ -13,7 +13,14 @@ import { debugLog, debugError } from './DebugLogger';
 // Storage key constants
 const SECRET_KEYS = {
     GEMINI_API_KEY: 'gemini-api-key',
-    GEMINI_ENABLED: 'gemini-integration-enabled'
+    GEMINI_ENABLED: 'gemini-integration-enabled',
+    ANTHROPIC_API_KEY: 'anthropic-api-key'
+} as const;
+
+// Provider identifier constants for use with generic getApiKey/setApiKey methods
+export const API_KEY_PROVIDERS = {
+    ANTHROPIC: 'anthropic-api-key',
+    GEMINI: 'gemini-api-key'
 } as const;
 
 // VS Code configuration key constants
@@ -70,51 +77,117 @@ export class SecretService {
         }
     }
 
-    // ==================== Gemini API Key Related Methods ====================
+    // ==================== Generic API Key Methods ====================
 
     /**
-     * Get Gemini API Key
-     * @returns API Key or undefined (if not set)
+     * Get API key for the specified provider
+     * @param provider Provider identifier (use API_KEY_PROVIDERS constants)
+     * @returns API Key or undefined if not set
      */
-    public async getGeminiApiKey(): Promise<string | undefined> {
+    public async getApiKey(provider: string): Promise<string | undefined> {
         this.ensureInitialized();
         try {
-            const apiKey = await this.secrets!.get(SECRET_KEYS.GEMINI_API_KEY);
-            debugLog('SecretService', `Get Gemini API Key: ${apiKey ? 'configured' : 'not set'}`);
+            const apiKey = await this.secrets!.get(provider);
+            debugLog('SecretService', `Get API key for provider "${provider}": ${apiKey ? 'configured' : 'not set'}`);
             return apiKey;
         } catch (error) {
-            debugError('SecretService', 'Failed to get Gemini API Key', error);
+            debugError('SecretService', `Failed to get API key for provider "${provider}"`, error);
             return undefined;
         }
     }
 
     /**
-     * Set Gemini API Key
-     * @param apiKey API Key to store
+     * Store API key for the specified provider
+     * @param provider Provider identifier (use API_KEY_PROVIDERS constants)
+     * @param key API Key to store
      */
-    public async setGeminiApiKey(apiKey: string): Promise<void> {
+    public async setApiKey(provider: string, key: string): Promise<void> {
         this.ensureInitialized();
         try {
-            await this.secrets!.store(SECRET_KEYS.GEMINI_API_KEY, apiKey);
-            debugLog('SecretService', 'Gemini API Key stored securely');
+            await this.secrets!.store(provider, key);
+            debugLog('SecretService', `API key for provider "${provider}" stored securely`);
         } catch (error) {
-            debugError('SecretService', 'Failed to store Gemini API Key', error);
+            debugError('SecretService', `Failed to store API key for provider "${provider}"`, error);
             throw error;
         }
     }
 
     /**
-     * Delete Gemini API Key
+     * Delete API key for the specified provider
+     * @param provider Provider identifier (use API_KEY_PROVIDERS constants)
      */
-    public async deleteGeminiApiKey(): Promise<void> {
+    public async deleteApiKey(provider: string): Promise<void> {
         this.ensureInitialized();
         try {
-            await this.secrets!.delete(SECRET_KEYS.GEMINI_API_KEY);
-            debugLog('SecretService', 'Gemini API Key deleted');
+            await this.secrets!.delete(provider);
+            debugLog('SecretService', `API key for provider "${provider}" deleted`);
         } catch (error) {
-            debugError('SecretService', 'Failed to delete Gemini API Key', error);
+            debugError('SecretService', `Failed to delete API key for provider "${provider}"`, error);
             throw error;
         }
+    }
+
+    // ==================== Anthropic API Key Methods ====================
+
+    /**
+     * Get Anthropic API Key
+     * @returns API Key or undefined if not set
+     */
+    public async getAnthropicApiKey(): Promise<string | undefined> {
+        return this.getApiKey(SECRET_KEYS.ANTHROPIC_API_KEY);
+    }
+
+    /**
+     * Store Anthropic API Key
+     * @param apiKey API Key to store
+     */
+    public async setAnthropicApiKey(apiKey: string): Promise<void> {
+        return this.setApiKey(SECRET_KEYS.ANTHROPIC_API_KEY, apiKey);
+    }
+
+    /**
+     * Delete Anthropic API Key
+     */
+    public async deleteAnthropicApiKey(): Promise<void> {
+        return this.deleteApiKey(SECRET_KEYS.ANTHROPIC_API_KEY);
+    }
+
+    /**
+     * Validate Anthropic API Key format
+     * Anthropic keys start with "sk-ant-"
+     * @param apiKey API Key to validate
+     * @returns Whether the format is valid
+     */
+    public static isValidAnthropicApiKeyFormat(apiKey: string): boolean {
+        if (!apiKey || typeof apiKey !== 'string') {
+            return false;
+        }
+        return apiKey.startsWith('sk-ant-') && apiKey.length >= 20;
+    }
+
+    // ==================== Gemini API Key Related Methods ====================
+
+    /**
+     * Get Gemini API Key (delegates to generic getApiKey for backward compatibility)
+     * @returns API Key or undefined if not set
+     */
+    public async getGeminiApiKey(): Promise<string | undefined> {
+        return this.getApiKey(SECRET_KEYS.GEMINI_API_KEY);
+    }
+
+    /**
+     * Set Gemini API Key (delegates to generic setApiKey for backward compatibility)
+     * @param apiKey API Key to store
+     */
+    public async setGeminiApiKey(apiKey: string): Promise<void> {
+        return this.setApiKey(SECRET_KEYS.GEMINI_API_KEY, apiKey);
+    }
+
+    /**
+     * Delete Gemini API Key (delegates to generic deleteApiKey for backward compatibility)
+     */
+    public async deleteGeminiApiKey(): Promise<void> {
+        return this.deleteApiKey(SECRET_KEYS.GEMINI_API_KEY);
     }
 
     // ==================== Gemini Integration Configuration Methods ====================

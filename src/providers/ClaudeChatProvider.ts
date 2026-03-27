@@ -123,6 +123,11 @@ export class ClaudeChatProvider {
 			debugError('ClaudeChatProvider', 'Failed to initialize backup repo', error);
 		});
 
+		// Migrate legacy plaintext API key to SecretStorage (runs once, no-op if already migrated)
+		this._configurationManager.migrateApiKeyIfNeeded().catch(error => {
+			debugError('ClaudeChatProvider', 'Failed to migrate API key', error);
+		});
+
 		// Load saved model preference (default to Sonnet 4.6)
 		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'claude-sonnet-4-6');
 
@@ -1916,13 +1921,25 @@ export class ClaudeChatProvider {
 	}
 
 	private _sendCurrentSettings(): void {
-		const settings = this._configurationManager.getCurrentSettings();
-
-		// DEBUG: console.log('Sending current settings including MCP:', settings);
-
-		this._panel?.webview.postMessage({
-			type: 'settingsData',
-			data: settings
+		// Fetch API key from SecretStorage asynchronously, then send all settings to UI
+		secretService.getAnthropicApiKey().then(apiKey => {
+			const settings = this._configurationManager.getCurrentSettings();
+			if (apiKey) {
+				settings['api.key'] = apiKey;
+			}
+			// DEBUG: console.log('Sending current settings including MCP:', settings);
+			this._panel?.webview.postMessage({
+				type: 'settingsData',
+				data: settings
+			});
+		}).catch(error => {
+			debugError('ClaudeChatProvider', 'Failed to read API key for settings display', error);
+			// Fall back to sending settings without the key
+			const settings = this._configurationManager.getCurrentSettings();
+			this._panel?.webview.postMessage({
+				type: 'settingsData',
+				data: settings
+			});
 		});
 	}
 
@@ -1930,7 +1947,19 @@ export class ClaudeChatProvider {
 		// DEBUG: console.log('Updating settings:', settings);
 
 		try {
-			await this._configurationManager.updateSettings(settings);
+			// Intercept api.key — route to SecretStorage instead of settings.json
+			if (settings['api.key'] !== undefined) {
+				const keyValue = settings['api.key'] as string;
+				if (keyValue) {
+					await secretService.setAnthropicApiKey(keyValue);
+				}
+				// Remove from settings object so it is not written to settings.json
+				const settingsWithoutKey = { ...settings };
+				delete settingsWithoutKey['api.key'];
+				await this._configurationManager.updateSettings(settingsWithoutKey);
+			} else {
+				await this._configurationManager.updateSettings(settings);
+			}
 
 			// Show success notification
 			vscode.window.showInformationMessage('Settings updated successfully');

@@ -118,6 +118,13 @@ export class ConfigurationManagerFacade {
     }
 
     /**
+     * Migrates legacy plaintext API key from settings.json to SecretStorage
+     */
+    public async migrateApiKeyIfNeeded(): Promise<void> {
+        return this.apiManager.migrateApiKeyIfNeeded();
+    }
+
+    /**
      * Cleans up old MCP configs
      */
     public async cleanupOldMcpConfigs(): Promise<void> {

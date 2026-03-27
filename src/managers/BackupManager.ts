@@ -4,7 +4,7 @@ import * as cp from 'child_process';
 import * as util from 'util';
 import { debugLog, debugError } from '../services/DebugLogger';
 
-const exec = util.promisify(cp.exec);
+const execFile = util.promisify(cp.execFile);
 
 export interface CommitInfo {
     id: string;
@@ -60,12 +60,11 @@ export class BackupManager {
                 debugLog('BackupManager', `Workspace path: ${workspacePath}`);
 
                 // Initialize git repo with workspace as work-tree
-                const initCmd = `git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" init`;
-                debugLog('BackupManager', `Running init command: ${initCmd}`);
-                await exec(initCmd);
+                debugLog('BackupManager', `Running init command: git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" init`);
+                await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'init']);
 
-                await exec(`git --git-dir="${this._backupRepoPath}" config user.name "Claude Code Chat"`);
-                await exec(`git --git-dir="${this._backupRepoPath}" config user.email "claude@anthropic.com"`);
+                await execFile('git', ['--git-dir', this._backupRepoPath, 'config', 'user.name', 'Claude Code Chat']);
+                await execFile('git', ['--git-dir', this._backupRepoPath, 'config', 'user.email', 'claude@anthropic.com']);
 
                 debugLog('BackupManager', `Initialized backup repository at: ${this._backupRepoPath}`);
             }
@@ -91,25 +90,22 @@ export class BackupManager {
             const commitMessage = `Before: ${userMessage.substring(0, 50)}${userMessage.length > 50 ? '...' : ''}`;
 
             // Add all files using git-dir and work-tree (excludes .git automatically)
-            const addCmd = `git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" add -A`;
-            debugLog('BackupManager', `Running add command: ${addCmd}`);
-            await exec(addCmd);
+            debugLog('BackupManager', `Running add command: git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" add -A`);
+            await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'add', '-A']);
 
             // Check if this is the first commit (no HEAD exists yet)
             let isFirstCommit = false;
             try {
-                const headCmd = `git --git-dir="${this._backupRepoPath}" rev-parse HEAD`;
-                debugLog('BackupManager', `Checking for HEAD: ${headCmd}`);
-                await exec(headCmd);
+                debugLog('BackupManager', `Checking for HEAD: git --git-dir="${this._backupRepoPath}" rev-parse HEAD`);
+                await execFile('git', ['--git-dir', this._backupRepoPath, 'rev-parse', 'HEAD']);
             } catch (e) {
                 debugLog('BackupManager', 'No HEAD found, this is the first commit');
                 isFirstCommit = true;
             }
 
             // Check if there are changes to commit
-            const statusCmd = `git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" status --porcelain`;
-            debugLog('BackupManager', `Running status command: ${statusCmd}`);
-            const { stdout: status } = await exec(statusCmd);
+            debugLog('BackupManager', `Running status command: git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" status --porcelain`);
+            const { stdout: status } = await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'status', '--porcelain']);
 
             debugLog('BackupManager', 'Git status check', {
                 isFirstCommit,
@@ -129,14 +125,12 @@ export class BackupManager {
                     actualMessage = commitMessage;
                 }
 
-                // Create commit
-                const commitCmd = `git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" commit -m "${actualMessage}"`;
-                debugLog('BackupManager', `Running commit command: ${commitCmd}`);
-                await exec(commitCmd);
+                // Create commit - use execFile to prevent shell injection via actualMessage
+                debugLog('BackupManager', `Running commit command: git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" commit -m "${actualMessage}"`);
+                await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'commit', '-m', actualMessage]);
 
-                const shaCmd = `git --git-dir="${this._backupRepoPath}" rev-parse HEAD`;
-                debugLog('BackupManager', `Getting commit SHA: ${shaCmd}`);
-                const { stdout: sha } = await exec(shaCmd);
+                debugLog('BackupManager', `Getting commit SHA: git --git-dir="${this._backupRepoPath}" rev-parse HEAD`);
+                const { stdout: sha } = await execFile('git', ['--git-dir', this._backupRepoPath, 'rev-parse', 'HEAD']);
 
                 // Store commit info
                 const commitInfo: CommitInfo = {
@@ -176,7 +170,7 @@ export class BackupManager {
             const workspacePath = workspaceFolder.uri.fsPath;
 
             // Restore files directly to workspace using git checkout
-            await exec(`git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" checkout ${commitSha} -- .`);
+            await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'checkout', commitSha, '--', '.']);
 
             vscode.window.showInformationMessage(`Restored to commit: ${commit.message}`);
 

@@ -4,6 +4,8 @@
  */
 
 import * as vscode from 'vscode';
+import { SecretService } from '../../services/SecretService';
+import { debugLog } from '../../services/DebugLogger';
 
 export interface ApiConfig {
     useCustomAPI: boolean;
@@ -33,33 +35,52 @@ export class ApiConfigManager {
 
     /**
      * Gets API configuration
+     * Note: the 'key' field is always empty here — the actual key is stored in SecretStorage.
+     * Use SecretService.getAnthropicApiKey() to read the key asynchronously.
      * @returns API configuration object
      */
     public getApiConfig(): ApiConfig {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         return {
             useCustomAPI: config.get<boolean>('api.useCustomAPI', false),
-            key: config.get<string>('api.key', ''),
+            key: '',  // Key is no longer stored in settings.json — use SecretStorage
             baseUrl: config.get<string>('api.baseUrl', 'https://api.anthropic.com'),
-            cliCommand: config.get<string>('api.cliCommand', 'claude')  // Read CLI command name config
+            cliCommand: config.get<string>('api.cliCommand', 'claude')
         };
     }
 
     /**
-     * Updates API key in settings
-     * @param apiKey The API key to set
+     * Updates API key — stores in SecretStorage instead of settings.json
+     * @param apiKey The API key to store securely
      */
     public async updateApiKey(apiKey: string): Promise<void> {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        await config.update('api.key', apiKey, vscode.ConfigurationTarget.Global);
+        await SecretService.getInstance().setAnthropicApiKey(apiKey);
+        debugLog('ApiConfigManager', 'API key stored in SecretStorage');
     }
 
     /**
-     * Gets the API key from settings
-     * @returns The API key or empty string if not set
+     * Gets the API key (sync stub — always returns empty string).
+     * Use SecretService.getAnthropicApiKey() for the actual async read.
+     * @returns Empty string
      */
     public getApiKey(): string {
+        return '';
+    }
+
+    /**
+     * Migrates legacy plaintext API key from settings.json to SecretStorage.
+     * Reads api.key from settings → stores in SecretStorage → clears settings value.
+     * Safe to call multiple times (no-op when no plaintext key is present).
+     */
+    public async migrateApiKeyIfNeeded(): Promise<void> {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        return config.get<string>('api.key', '');
+        const legacyKey = config.get<string>('api.key', '');
+        if (legacyKey) {
+            debugLog('ApiConfigManager', 'Migrating legacy API key from settings to SecretStorage');
+            await SecretService.getInstance().setAnthropicApiKey(legacyKey);
+            // Clear plaintext key from settings.json after migration
+            await config.update('api.key', '', vscode.ConfigurationTarget.Global);
+            debugLog('ApiConfigManager', 'API key migration complete — plaintext key removed from settings');
+        }
     }
 }

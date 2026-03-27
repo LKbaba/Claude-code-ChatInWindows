@@ -118,16 +118,11 @@ export const uiScript = `
 			}
 		}
 
-		// HTML escape function to prevent XSS attacks and correctly display angle brackets
+		// HTML escape function - uses the browser DOM to correctly escape all special characters
 		function escapeHtml(text) {
-			const htmlEntities = {
-				'&': '&amp;',
-				'<': '&lt;',
-				'>': '&gt;',
-				'"': '&quot;',
-				"'": '&#39;'
-			};
-			return text.replace(/[&<>"']/g, char => htmlEntities[char]);
+			const div = document.createElement('div');
+			div.textContent = text;
+			return div.innerHTML;
 		}
 
 		function addMessage(content, type = 'claude') {
@@ -662,12 +657,6 @@ export const uiScript = `
 			}
 			
 			return result;
-		}
-
-		function escapeHtml(text) {
-			const div = document.createElement('div');
-			div.textContent = text;
-			return div.innerHTML;
 		}
 
 		// Normalize file path, replace backslashes with forward slashes
@@ -5891,12 +5880,6 @@ export const uiScript = `
 			}
 		}
 		
-		function escapeHtml(text) {
-			const div = document.createElement('div');
-			div.textContent = text;
-			return div.innerHTML;
-		}
-
 		window.togglePlanMode = togglePlanMode;
 		window.toggleThinkingMode = toggleThinkingMode;
 		window.toggleLanguageMode = toggleLanguageMode;
