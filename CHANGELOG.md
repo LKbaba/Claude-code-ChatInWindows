@@ -2,204 +2,261 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
-## [3.1.8] - 2026-03-12
+## [3.1.9] - 2026-03-29
+
+### Security
+- **Webview CSP Policy**
+  - Added Content-Security-Policy meta tag: `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src 'none'`
+  - Blocks loading of external resources, fonts, and unauthorized content
+  - Note: Uses `unsafe-inline` instead of nonce due to 119 inline event handlers in the codebase
+
+- **XSS Injection Fixes**
+  - Custom command display fields (name/description/command/icon) now escaped via `escapeHtml()`
+  - `cmd.id`/`cmd.command` in onclick attributes use `escapeForOnclick()` double-escaping (JS + HTML)
+  - MCP thinking tool results now pass through `escapeHtml()` before `parseSimpleMarkdown()`
 
 ### Fixed
-- **后台 Agent 任务导致 UI 状态撕裂 & 死锁**
-  - 修复 `onFinalResult` 中过早发送 `setProcessing(false)` 的问题
-  - 一次 CLI 进程可能产生多个 `type:"result"` 事件（后台 Agent 完成后触发新对话轮次），每次都会错误地将 UI 设为 Ready
-  - 现在 `setProcessing(false)` 仅在 `process.on('close')` 时发送，确保 UI 状态与进程生命周期一致
-  - 修复 Ready 状态下 Stop 按钮消失、用户无法停止残留进程的死锁问题
+- **Windows Orphan Process Cleanup**
+  - `provider` and `treeDisposable` added to `context.subscriptions` to ensure dispose fires on VS Code exit
+  - `killProcess()` Windows branch `cp.exec` properly wrapped in Promise so `await` actually waits
+  - `dispose()` now uses `killProcess(pid)` to kill the entire process tree via `taskkill /t /f`
 
-- **多个💰结算气泡重复显示**
-  - 每个 `type:"result"` 都会插入一个💰气泡，导致一次对话出现 2~4 个结算信息
-  - 现在中间的 `updateTotals` 只更新状态栏累计统计，不生成💰气泡
-  - 最终💰气泡仅在进程关闭时显示一次，展示完整的费用和时长
+- **configChanged Message Parameter Order**
+  - `addMessage('system', event.data)` → `addMessage(message.data, 'system')`
 
-- **Compact Mode 下的💰泄漏**
-  - 修复 `onClose` 中 `_isCompactMode` 先被重置再被检查的逻辑顺序问题
-  - 使用 `wasCompactMode` 提前捕获状态，防止 Compact Mode 下错误显示💰气泡
+- **Duplicate settingsData Message Handling**
+  - Removed ~150 lines of duplicate `addEventListener('message', ...)` block
+  - settingsData, geminiIntegrationConfig, platformInfo now handled only by the main handler
 
-### Changed
-- **默认模型更新为 Sonnet 4.6**
-  - 属性初始值、workspaceState fallback、前端默认值统一改为 `claude-sonnet-4-6`
-  - 仅影响首次使用的用户，已保存偏好的用户不受影响
+- **Duplicate textarea input Event Binding**
+  - Removed duplicate `addEventListener('input', ...)` binding
 
-### Added
-- **Grok Assistant MCP 模板**
-  - 新增 `grok-assistant` MCP 模板（`@lkbaba/grok-mcp`）
-  - 支持实时 Web & X (Twitter) 搜索（`grok_agent_search`）和创意头脑风暴（`grok_brainstorm`）
-  - Grok 工具调用显示 🛰️ 图标
-  - 需要配置 `XAI_API_KEY`（从 console.x.ai 获取）
+- **StatisticsCache Expiry Logic**
+  - Split `CachedFileData` interface into `fileTimestamp` (file modification time) and `cachedAt` (cache creation time)
+  - `needsUpdate()` uses `fileTimestamp` for file change detection, `cachedAt` for cache expiry
+  - Before fix: all caches for files older than 5 minutes were perpetually treated as expired
+
+- **getWindowsConfig Missing gitBashPath**
+  - `ApiConfigManager.getWindowsConfig()` now correctly returns the `gitBashPath` setting
 
 ### Removed
-- **移除 Basic Memory MCP 模板**
-  - 移除模板定义、系统提示词、下拉菜单选项
-- **移除 n8n MCP 模板**
-  - 移除模板定义、系统提示词、下拉菜单选项
-  - 移除 CLAUDE.md 自动注入的 ~120 行 n8n 使用指南及相关检测逻辑
+- **Removed unused docx dependency** — `"docx": "^9.5.1"` in `package.json` had no code references, saving ~27 KB in VSIX
+
+### Changed
+- `.vscodeignore` added `specs/**` exclusion rule, VSIX no longer includes planning documents
 
 ### Files Modified
 | File | Changes |
 |------|---------|
-| `package.json` | 版本号更新至 3.1.8 |
-| `src/providers/ClaudeChatProvider.ts` | 修复 setProcessing 时机、💰去重、Compact Mode 逻辑、默认模型改为 Sonnet 4.6 |
-| `src/ui-v2/getBodyContent.ts` | 版本号更新；移除 Basic Memory/n8n 选项；添加 Grok Assistant 选项 |
-| `src/ui-v2/ui-script.ts` | 默认模型改为 Sonnet 4.6；移除 Basic Memory/n8n 模板；添加 Grok Assistant 模板和 🛰️ 图标 |
-| `src/utils/mcpPrompts.ts` | 移除 basic-memory/n8n 提示词；添加 grok-assistant 提示词 |
-| `src/utils/utils.ts` | 移除 n8n CLAUDE.md 注入逻辑（n8nSection 变量、hasN8nInfo 检查、写入代码） |
+| `package.json` | Version bumped to 3.1.9; removed docx dependency |
+| `src/ui-v2/index.ts` | Added CSP meta tag |
+| `src/ui-v2/ui-script.ts` | XSS fixes (escapeForOnclick); configChanged parameter fix; removed duplicate handlers and listeners |
+| `src/ui-v2/getBodyContent.ts` | Version display updated to v3.1.9 |
+| `src/extension.ts` | provider and treeDisposable added to subscriptions |
+| `src/managers/WindowsCompatibility.ts` | killProcess Promise wrapping |
+| `src/services/ClaudeProcessService.ts` | dispose uses killProcess for process tree kill |
+| `src/services/StatisticsCache.ts` | fileTimestamp + cachedAt dual-field separation |
+| `src/managers/config/ApiConfigManager.ts` | Added missing gitBashPath |
+| `.vscodeignore` | Added specs/** exclusion |
+
+## [3.1.8] - 2026-03-12
+
+### Fixed
+- **Background Agent UI State Tearing & Deadlock**
+  - Fixed `onFinalResult` prematurely sending `setProcessing(false)`
+  - A single CLI process can emit multiple `type:"result"` events (background Agent completion triggers new conversation turns), each incorrectly setting UI to Ready
+  - `setProcessing(false)` now only sent on `process.on('close')`, ensuring UI state aligns with process lifecycle
+  - Fixed deadlock where Stop button disappeared in Ready state while residual process was still running
+
+- **Duplicate Cost Bubble Display**
+  - Each `type:"result"` was inserting a cost bubble, causing 2~4 cost messages per conversation
+  - Intermediate `updateTotals` now only updates status bar cumulative stats without generating cost bubbles
+  - Final cost bubble shown only once on process close, displaying complete cost and duration
+
+- **Compact Mode Cost Bubble Leak**
+  - Fixed logic order issue in `onClose` where `_isCompactMode` was reset before being checked
+  - Uses `wasCompactMode` to capture state early, preventing cost bubble display during Compact Mode
+
+### Changed
+- **Default Model Updated to Sonnet 4.6**
+  - Property initial values, workspaceState fallback, and frontend defaults unified to `claude-sonnet-4-6`
+  - Only affects first-time users; existing saved preferences are unchanged
+
+### Added
+- **Grok Assistant MCP Template**
+  - Added `grok-assistant` MCP template (`@lkbaba/grok-mcp`)
+  - Supports real-time Web & X (Twitter) search (`grok_agent_search`) and creative brainstorming (`grok_brainstorm`)
+  - Grok tool calls display a satellite dish icon
+  - Requires `XAI_API_KEY` configuration (from console.x.ai)
+
+### Removed
+- **Removed Basic Memory MCP Template**
+  - Removed template definition, system prompt, and dropdown option
+- **Removed n8n MCP Template**
+  - Removed template definition, system prompt, and dropdown option
+  - Removed ~120 lines of n8n guide auto-injection into CLAUDE.md and related detection logic
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `package.json` | Version bumped to 3.1.8 |
+| `src/providers/ClaudeChatProvider.ts` | Fixed setProcessing timing, cost dedup, Compact Mode logic; default model changed to Sonnet 4.6 |
+| `src/ui-v2/getBodyContent.ts` | Version update; removed Basic Memory/n8n options; added Grok Assistant option |
+| `src/ui-v2/ui-script.ts` | Default model changed to Sonnet 4.6; removed Basic Memory/n8n templates; added Grok Assistant template and icon |
+| `src/utils/mcpPrompts.ts` | Removed basic-memory/n8n prompts; added grok-assistant prompt |
+| `src/utils/utils.ts` | Removed n8n CLAUDE.md injection logic (n8nSection variable, hasN8nInfo check, write code) |
 
 ## [3.1.7] - 2026-02-18
 
 ### Added
-- **Claude Sonnet 4.6 模型支持**
-  - 新增 `claude-sonnet-4-6` 到有效模型列表和定价配置（$3.00/$15.00 per M tokens）
-  - 模型选择器 UI 新增 Sonnet 4.6 选项（Latest intelligent model）
-  - 统计格式化逻辑支持 Sonnet 4.6/4.5 版本号判断
+- **Claude Sonnet 4.6 Model Support**
+  - Added `claude-sonnet-4-6` to valid model list and pricing config ($3.00/$15.00 per M tokens)
+  - Model selector UI now includes Sonnet 4.6 option (Latest intelligent model)
+  - Statistics formatting logic supports Sonnet 4.6/4.5 version detection
 
 ### Removed
-- **移除 Opus 4.1 模型（UI 层面）**
-  - 从模型选择器中移除 Opus 4.1 选项
-  - 从 displayNames 和 radioId 映射中移除
-  - 从 switch 语句中移除（MODEL_PRICING 保留用于历史数据计费）
+- **Removed Opus 4.1 Model (UI layer)**
+  - Removed Opus 4.1 option from model selector
+  - Removed from displayNames and radioId mappings
+  - Removed from switch statements (MODEL_PRICING retained for historical billing)
 
 ### Changed
-- Opus 4.5 描述更新为 "Previous flagship model, excellent for coding"
-- Sonnet 4.5 标题更新为 "Previous intelligent model"
-- **Compute Mode 升级**：MAX 模式和 Enhance Subagents 强制模型从 Sonnet 4.5 升级为 Sonnet 4.6
-  - MAX 模式描述更新：`enforces Sonnet 4.6`
-  - Enhance Subagents 描述更新：`Use Sonnet 4.6 for all subagent operations`
-  - 后端 `_handleModeSelection` 和 `_handleSubagentEnhancement` 使用 `claude-sonnet-4-6`
+- Opus 4.5 description updated to "Previous flagship model, excellent for coding"
+- Sonnet 4.5 title updated to "Previous intelligent model"
+- **Compute Mode Upgrade**: MAX mode and Enhance Subagents now enforce Sonnet 4.6 (upgraded from Sonnet 4.5)
+  - MAX mode description updated: `enforces Sonnet 4.6`
+  - Enhance Subagents description updated: `Use Sonnet 4.6 for all subagent operations`
+  - Backend `_handleModeSelection` and `_handleSubagentEnhancement` use `claude-sonnet-4-6`
 
 ### Files Modified
 | File | Changes |
 |------|---------|
-| `package.json` | 版本号更新至 3.1.7 |
-| `src/providers/ClaudeChatProvider.ts` | 添加 Sonnet 4.6 定价/显示名称/switch，移除 Opus 4.1；Compute Mode 强制模型升级为 Sonnet 4.6 |
-| `src/ui-v2/getBodyContent.ts` | 版本号、添加 Sonnet 4.6 选择器、移除 Opus 4.1 选择器；Compute Mode UI 描述更新 |
-| `src/ui-v2/ui-script.ts` | displayNames/radioId 映射更新、统计格式化逻辑添加版本判断 |
-| `src/utils/constants.ts` | 添加 `claude-sonnet-4-6`，移除 `claude-opus-4-1-20250805` |
+| `package.json` | Version bumped to 3.1.7 |
+| `src/providers/ClaudeChatProvider.ts` | Added Sonnet 4.6 pricing/display name/switch, removed Opus 4.1; Compute Mode forced model upgrade to Sonnet 4.6 |
+| `src/ui-v2/getBodyContent.ts` | Version update; added Sonnet 4.6 selector, removed Opus 4.1 selector; Compute Mode UI description update |
+| `src/ui-v2/ui-script.ts` | displayNames/radioId mapping updates; statistics formatting version detection |
+| `src/utils/constants.ts` | Added `claude-sonnet-4-6`, removed `claude-opus-4-1-20250805` |
 
 ## [3.1.6] - 2025-02-10
 
 ### Fixed
-- **@ 文件引用功能 - 大小写不敏感搜索**
-  - 搜索 `readme` 现在可以匹配 `README.md`、`Readme.md` 等
-  - 通过将搜索词转换为大小写通配 glob 模式实现（如 `readme` → `[rR][eE][aA][dD][mM][eE]`）
+- **@ File Reference — Case-Insensitive Search**
+  - Searching `readme` now matches `README.md`, `Readme.md`, etc.
+  - Implemented by converting search terms to case-insensitive glob patterns (e.g., `readme` → `[rR][eE][aA][dD][mM][eE]`)
 
-- **@ 文件引用功能 - 竞态条件修复**
-  - 修复初始文件列表请求无 `requestId` 导致的竞态条件
-  - 快速输入搜索词时，旧的全量文件列表不再覆盖过滤结果
+- **@ File Reference — Race Condition Fix**
+  - Fixed race condition caused by initial file list request lacking `requestId`
+  - Fast typing no longer causes stale full file list to overwrite filtered results
 
-- **@ 文件引用功能 - 键盘导航滚动**
-  - 使用 ArrowUp/ArrowDown 导航时，选中项自动滚动到可视区域
+- **@ File Reference — Keyboard Navigation Scroll**
+  - Selected item auto-scrolls into view when navigating with ArrowUp/ArrowDown
 
-- **@ 文件引用功能 - 光标位置修复**
-  - 修复文件选择后插入位置不正确的问题
-  - 在打开文件选择器前保存光标位置，避免焦点切换导致位置丢失
+- **@ File Reference — Cursor Position Fix**
+  - Fixed incorrect insertion position after file selection
+  - Cursor position now saved before opening file picker to prevent focus-switch displacement
 
-- **@ 文件引用功能 - 选择索引重置时机**
-  - 用户输入搜索词时立即重置选择索引，不再等待 150ms debounce
+- **@ File Reference — Selection Index Reset Timing**
+  - Selection index now resets immediately on user input instead of waiting for 150ms debounce
 
 ### Files Modified
 | File | Changes |
 |------|---------|
-| `src/managers/FileOperationsManager.ts` | 添加大小写不敏感 glob 模式构建 |
-| `src/ui-v2/ui-script.ts` | 修复竞态条件、光标位置、键盘导航滚动、选择索引重置 |
+| `src/managers/FileOperationsManager.ts` | Added case-insensitive glob pattern builder |
+| `src/ui-v2/ui-script.ts` | Fixed race condition, cursor position, keyboard nav scroll, selection index reset |
 
 ## [3.1.5] - 2025-02-10
 
 ### Added
-- **Claude Opus 4.6 模型支持**
-  - 新增 `claude-opus-4-6` 到有效模型列表
-  - 添加定价配置（$5.00/$25.00 per M tokens）
-  - 模型选择器 UI 新增 Opus 4.6 选项
-  - 更新模型描述：4.6 Latest、4.5 Previous、4.1 Classic
+- **Claude Opus 4.6 Model Support**
+  - Added `claude-opus-4-6` to valid model list
+  - Added pricing config ($5.00/$25.00 per M tokens)
+  - Model selector UI now includes Opus 4.6 option
+  - Updated model descriptions: 4.6 Latest, 4.5 Previous, 4.1 Classic
 
 ### Files Modified
 | File | Changes |
 |------|---------|
-| `package.json` | 版本号更新至 3.1.5 |
-| `src/providers/ClaudeChatProvider.ts` | 添加 Opus 4.6 定价和显示名称映射 |
-| `src/ui-v2/getBodyContent.ts` | 添加 Opus 4.6 模型选择器选项和描述 |
-| `src/ui-v2/ui-script.ts` | 添加 Opus 4.6 radio ID 映射和统计格式化 |
-| `src/utils/constants.ts` | 添加 `claude-opus-4-6` 到 VALID_MODELS |
+| `package.json` | Version bumped to 3.1.5 |
+| `src/providers/ClaudeChatProvider.ts` | Added Opus 4.6 pricing and display name mapping |
+| `src/ui-v2/getBodyContent.ts` | Added Opus 4.6 model selector option and description |
+| `src/ui-v2/ui-script.ts` | Added Opus 4.6 radio ID mapping and statistics formatting |
+| `src/utils/constants.ts` | Added `claude-opus-4-6` to VALID_MODELS |
 
 ## [3.1.4] - 2025-01-29
 
 ### Added
-- **macOS 平台支持** 🎉
-  - 扩展现在可以在 macOS 上运行
-  - 支持三种 Claude CLI 安装方式：官方安装器、Homebrew、npm
-  - 支持 nvm 安装的 Node.js/npm 环境
+- **macOS Platform Support**
+  - Extension now runs on macOS
+  - Supports three Claude CLI installation methods: native installer, Homebrew, npm
+  - Supports nvm-installed Node.js/npm environments
 
 ### Changed
-- **平台兼容性重构**
-  - `package.json` 添加 `darwin` 平台支持
-  - `EnvironmentChecker.ts` 添加 Mac 环境检查（不检查 Git Bash）
-  - `WindowsCompatibility.ts` 添加 Mac 执行环境配置
-  - `utils.ts` 函数重命名：`updateClaudeMdWithWindowsInfo` → `updateClaudeMdWithPlatformInfo`
-  - `ClaudeChatProvider.ts` 更新调用以支持跨平台
+- **Platform Compatibility Refactoring**
+  - `package.json` added `darwin` platform support
+  - `EnvironmentChecker.ts` added Mac environment checks (Git Bash not required)
+  - `WindowsCompatibility.ts` added Mac execution environment config
+  - `utils.ts` function renamed: `updateClaudeMdWithWindowsInfo` → `updateClaudeMdWithPlatformInfo`
+  - `ClaudeChatProvider.ts` updated calls for cross-platform support
 
-- **CLAUDE.md 平台信息**
-  - Mac: 显示 macOS 版本和当前 shell
-  - Windows: 保持原有 Windows + Git Bash 信息
+- **CLAUDE.md Platform Info**
+  - Mac: displays macOS version and current shell
+  - Windows: retains existing Windows + Git Bash info
 
-- **CLI 路径查找优化**
-  - Mac: 支持 `~/.local/bin`、Homebrew、nvm 路径
-  - Mac: 只查找无扩展名可执行文件（不查找 .cmd/.exe）
+- **CLI Path Discovery Improvements**
+  - Mac: supports `~/.local/bin`, Homebrew, nvm paths
+  - Mac: only searches for extensionless executables (skips .cmd/.exe)
 
-- **npm 查找优化**
-  - Mac: 支持 Homebrew 和 nvm 安装的 npm
-  - 找不到 npm 时不再弹窗报错（改为 console.warn）
+- **npm Discovery Improvements**
+  - Mac: supports Homebrew and nvm-installed npm
+  - Missing npm no longer shows error dialog (downgraded to console.warn)
 
 ### Fixed
-- **恢复调试自动编译**
-  - `launch.json` 恢复 `preLaunchTask`，F5 调试前自动编译 TypeScript
-- **打包体积优化**
-  - `.vscodeignore` 排除 `*.vsix` 和 `*.zip` 文件，避免旧版本打包产物被混入 VSIX
+- **Restored Debug Auto-Compilation**
+  - `launch.json` restored `preLaunchTask` for automatic TypeScript compilation before F5 debug
+- **Package Size Optimization**
+  - `.vscodeignore` excludes `*.vsix` and `*.zip` files to prevent old build artifacts from being included in VSIX
 
 ### Files Modified
 | File | Changes |
 |------|---------|
-| `package.json` | 添加 `darwin` 到 `os` 字段 |
-| `src/extension.ts` | `~/.claude` 目录创建改为跨平台 |
-| `src/utils/EnvironmentChecker.ts` | 添加 Mac CLI 检查 + nvm 支持 |
-| `src/utils/utils.ts` | 平台信息函数重构 |
-| `src/utils/npmFinder.ts` | 添加 Mac npm 路径 + nvm 支持 |
-| `src/managers/WindowsCompatibility.ts` | 添加 Mac 执行环境、错误提示、PATH 设置 |
-| `src/providers/ClaudeChatProvider.ts` | 更新函数调用和变量名 |
-| `.vscode/launch.json` | 恢复 `preLaunchTask` 自动编译 |
-| `.vscodeignore` | 排除 `*.vsix`、`*.zip` 打包产物 |
+| `package.json` | Added `darwin` to `os` field |
+| `src/extension.ts` | `~/.claude` directory creation made cross-platform |
+| `src/utils/EnvironmentChecker.ts` | Added Mac CLI checks + nvm support |
+| `src/utils/utils.ts` | Platform info function refactoring |
+| `src/utils/npmFinder.ts` | Added Mac npm paths + nvm support |
+| `src/managers/WindowsCompatibility.ts` | Added Mac execution environment, error messages, PATH setup |
+| `src/providers/ClaudeChatProvider.ts` | Updated function calls and variable names |
+| `.vscode/launch.json` | Restored `preLaunchTask` auto-compilation |
+| `.vscodeignore` | Excluded `*.vsix`, `*.zip` build artifacts |
 
 ### Notes
-- Windows 功能保持不变（回归兼容）
-- 可选修改（类名重命名、Mac shell 配置项）未实现
+- Windows functionality unchanged (backward compatible)
+- Optional changes (class renaming, Mac shell config setting) deferred
 
 ## [3.1.3] - 2025-01-23
 
 ### Added
-- **支持 Claude Code 原生安装器路径**
-  - 新增 `~/.local/bin/` 搜索路径（官方 PowerShell/WinGet 安装位置）
-  - 新增 `~/.claude/bin/` 备用搜索路径
-  - 搜索优先级：原生安装器 > npm > Bun
+- **Native Installer Path Support**
+  - Added `~/.local/bin/` search path (official PowerShell/WinGet installation location)
+  - Added `~/.claude/bin/` fallback search path
+  - Search priority: native installer > npm > Bun
 
 ### Changed
-- **npm 依赖改为可选**
-  - 未安装 npm 时不再报错，继续检查其他安装路径
-  - 支持无 Node.js 环境使用原生安装器安装的 Claude Code
-- **错误提示更新为中文**
-  - 推荐使用官方原生安装方式
-  - 标注 npm 安装方式已弃用
+- **npm Dependency Now Optional**
+  - No longer errors when npm is not installed; continues checking other paths
+  - Supports Claude Code installed via native installer without Node.js
+- **Updated Error Messages**
+  - Recommends official native installation method
+  - Notes that npm installation method is deprecated
 
 ### Files Modified
 | File | Changes |
 |------|---------|
-| `src/managers/WindowsCompatibility.ts` | 添加原生路径搜索、PATH 注入、更新错误提示 |
-| `src/utils/EnvironmentChecker.ts` | npm 改为可选、扩展搜索路径、更新安装提示 |
+| `src/managers/WindowsCompatibility.ts` | Added native path search, PATH injection, updated error messages |
+| `src/utils/EnvironmentChecker.ts` | npm made optional; expanded search paths; updated install prompts |
 
 ### Background
-Anthropic 官方在 Claude Code 2.1.15 版本后弃用了 npm 安装方式，推荐使用原生安装器：
+Anthropic deprecated the npm installation method after Claude Code 2.1.15, recommending native installers:
 - PowerShell: `irm https://claude.ai/install.ps1 | iex`
 - WinGet: `winget install Anthropic.ClaudeCode`
 
