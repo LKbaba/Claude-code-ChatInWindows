@@ -2002,52 +2002,82 @@ export const uiScript = `
 
 		// Update status
 		var enabledCount = hooks.filter(function(h) { return h.enabled; }).length;
-		var disabledCount = hooks.length - enabledCount;
+		var scopeCount = (globalHooks.length > 0 ? 1 : 0) + (projectHooks.length > 0 ? 1 : 0) + (projectLocalHooks.length > 0 ? 1 : 0);
 		var statusEl = document.getElementById('hooks-status');
 		if (statusEl) {
-			statusEl.textContent = 'Active: ' + enabledCount + '  Disabled: ' + disabledCount + '  Total: ' + hooks.length;
+			statusEl.textContent = hooks.length === 0 ? 'No hooks configured' : 'Loaded ' + hooks.length + ' hook(s) across ' + scopeCount + ' scope(s)';
+		}
+
+		// Update toolbar button text
+		var hooksBtn = document.getElementById('hooks-button');
+		if (hooksBtn) {
+			var svgPart = '<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><path d="M1 2.5l3 3 3-3"></path></svg>';
+			if (hooks.length === 0) {
+				hooksBtn.innerHTML = 'Hooks ' + svgPart;
+			} else if (enabledCount === hooks.length) {
+				hooksBtn.innerHTML = 'Hooks: All ' + svgPart;
+			} else {
+				hooksBtn.innerHTML = 'Hooks: ' + enabledCount + ' ' + svgPart;
+			}
 		}
 
 		// Render list
 		var listEl = document.getElementById('hooksList');
 		if (listEl) {
-			listEl.innerHTML = renderHooksScopeGroup('Global (~/.claude/settings.json)', globalHooks, true) +
-				renderHooksScopeGroup('Project (.claude/settings.json)', projectHooks, false) +
-				renderHooksScopeGroup('Project Local (.claude/settings.local.json)', projectLocalHooks, true);
+			listEl.innerHTML = renderHooksScopeGroup('global', 'Global', '~/.claude/settings.json', globalHooks, true) +
+				renderHooksScopeGroup('project', 'Project', '.claude/settings.json', projectHooks, false) +
+				renderHooksScopeGroup('project-local', 'Project Local', '.claude/settings.local.json', projectLocalHooks, true);
 		}
 	}
 
-	function renderHooksScopeGroup(title, hooks, openByDefault) {
+	function renderHooksScopeGroup(scope, title, pathDesc, hooks, openByDefault) {
+		var headerClass = (scope === 'global') ? 'user' : 'workspace';
 		if (hooks.length === 0) {
-			return '<details style="margin: 4px 8px;">' +
-				'<summary style="cursor: pointer; padding: 4px 0; font-size: 12px; opacity: 0.7;">' + escapeHtml(title) + ' (0)</summary>' +
-				'<div style="padding: 4px 12px; font-size: 11px; opacity: 0.5;">No hooks configured</div>' +
+			return '<details class="skill-category">' +
+				'<summary class="skill-category-header ' + headerClass + '">' +
+				'<span class="collapse-indicator">▶</span>' +
+				'<span class="category-title">' + escapeHtml(title) + ' (0)</span>' +
+				'<span class="category-path">' + escapeHtml(pathDesc) + '</span>' +
+				'</summary>' +
+				'<div class="skill-category-content"><div style="padding: 8px 12px; font-size: 11px; opacity: 0.5;">No hooks configured</div></div>' +
 				'</details>';
 		}
-		return '<details' + (openByDefault ? ' open' : '') + ' style="margin: 4px 8px;">' +
-			'<summary style="cursor: pointer; padding: 4px 0; font-size: 12px; font-weight: 500;">' + escapeHtml(title) + ' (' + hooks.length + ')</summary>' +
-			'<div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 0;">' +
+		return '<details class="skill-category"' + (openByDefault ? ' open' : '') + '>' +
+			'<summary class="skill-category-header ' + headerClass + '">' +
+			'<span class="collapse-indicator">▶</span>' +
+			'<span class="category-title">' + escapeHtml(title) + ' (' + hooks.length + ')</span>' +
+			'<span class="category-path">' + escapeHtml(pathDesc) + '</span>' +
+			'</summary>' +
+			'<div class="skill-category-content">' +
 			hooks.map(function(h) { return renderHookItem(h); }).join('') +
 			'</div></details>';
 	}
 
 	function renderHookItem(hook) {
-		var checkedAttr = hook.enabled ? ' checked' : '';
 		var hookIdSafe = escapeForOnclick(hook.id);
+		var isDisabled = !hook.enabled;
+		var itemClass = 'skill-item' + (isDisabled ? ' is-disabled' : '');
 		var displayName = hook.description ? escapeHtml(hook.description) : escapeHtml(hook.command);
 		var matcherDisplay = hook.matcher ? escapeHtml(hook.matcher) : '(all)';
 		var commandDisplay = escapeHtml(hook.command);
+		var btnClass = isDisabled ? 'is-disabled' : 'is-enabled';
+		var btnText = isDisabled ? 'Disabled' : 'Enabled';
 
-		return '<div class="skill-item" data-hook-id="' + escapeHtml(hook.id) + '" style="padding: 6px 8px;">' +
-			'<div style="display: flex; align-items: center; gap: 8px; width: 100%;">' +
-			'<input type="checkbox"' + checkedAttr + ' onchange="handleHookToggle(event, \\'' + hookIdSafe + '\\')" title="Enable/disable" />' +
-			'<div style="flex: 1; min-width: 0;">' +
-			'<div style="font-weight: 500; font-size: 12px;">' + escapeHtml(hook.event) + ': ' + displayName + '</div>' +
-			'<div style="font-size: 11px; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + commandDisplay + '">' +
-			'matcher: ' + matcherDisplay + '  |  cmd: ' + commandDisplay +
-			'</div></div>' +
+		return '<div class="' + itemClass + '" data-hook-id="' + escapeHtml(hook.id) + '">' +
+			'<div class="skill-content">' +
+			'<div class="skill-header-row">' +
+			'<div class="skill-header-left">' +
+			'<span class="skill-name-text">' + escapeHtml(hook.event) + ': ' + displayName + '</span>' +
+			'<button class="skill-state-btn ' + btnClass + '" onclick="handleHookToggle(event, \\'' + hookIdSafe + '\\')">' + btnText + '</button>' +
+			'</div>' +
+			'<div class="skill-header-right">' +
 			'<button class="btn outlined" onclick="editHook(\\'' + hookIdSafe + '\\')" style="font-size: 10px; padding: 1px 6px;">Edit</button>' +
 			'<button class="btn outlined" onclick="deleteHook(\\'' + hookIdSafe + '\\')" style="font-size: 10px; padding: 1px 6px; color: var(--vscode-errorForeground);">Delete</button>' +
+			'</div>' +
+			'</div>' +
+			'<div class="skill-description" title="' + commandDisplay + '">' +
+			'matcher: ' + matcherDisplay + '  |  cmd: ' + commandDisplay +
+			'</div>' +
 			'</div></div>';
 	}
 
@@ -2135,11 +2165,19 @@ export const uiScript = `
 		var listEl = document.getElementById('hookTemplatesList');
 		if (!listEl) return;
 		listEl.innerHTML = templates.map(function(t) {
-			return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">' +
-				'<div><strong>' + escapeHtml(t.name) + '</strong> <span style="opacity: 0.7; font-size: 11px;">(' + escapeHtml(t.event) + ')</span><br/>' +
-				'<span style="font-size: 11px; opacity: 0.7;">' + escapeHtml(t.description) + '</span></div>' +
+			return '<div class="skill-item">' +
+				'<div class="skill-content">' +
+				'<div class="skill-header-row">' +
+				'<div class="skill-header-left">' +
+				'<span class="skill-name-text">' + escapeHtml(t.name) + '</span>' +
+				'<span style="opacity: 0.7; font-size: 11px;">(' + escapeHtml(t.event) + ')</span>' +
+				'</div>' +
+				'<div class="skill-header-right">' +
 				'<button class="btn outlined" onclick="applyHookTemplate(\\'' + escapeForOnclick(t.name) + '\\')" style="font-size: 10px; padding: 1px 8px;">Use</button>' +
-				'</div>';
+				'</div>' +
+				'</div>' +
+				'<div class="skill-description">' + escapeHtml(t.description) + '</div>' +
+				'</div></div>';
 		}).join('');
 	}
 

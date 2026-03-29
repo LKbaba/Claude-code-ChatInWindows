@@ -1773,6 +1773,14 @@ function getStylesOld(): string {
         border-bottom: 1px solid var(--vscode-panel-border);
     }
 
+    /* Hooks status bar */
+    .hooks-status {
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--vscode-panel-border);
+    }
+
     /* Skills list container */
     .skills-list {
         padding: 12px;
