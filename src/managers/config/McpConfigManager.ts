@@ -291,9 +291,9 @@ export class McpConfigManager {
             mcpConfig.mcpServers[server.name] = serverConfig;
         });
 
-        // ==================== Gemini API Key Runtime Injection ====================
-        // Check if Gemini API Key from SecretStorage needs to be injected into gemini-assistant server
-        await this.injectGeminiApiKeyIfNeeded(mcpConfig);
+        // ==================== AI API Key Runtime Injection ====================
+        // Inject securely stored API keys / credentials into matching MCP servers
+        await this.injectApiKeysIfNeeded(mcpConfig);
 
         // Write MCP config to a temporary file in ~/.claude directory
         let mcpConfigPath: string | null = null;
@@ -423,83 +423,107 @@ export class McpConfigManager {
         }
     }
 
-    // ==================== Gemini API Key Injection Related Methods ====================
+    // ==================== AI API Key Injection Methods ====================
 
     /**
-     * Check if server config is a Gemini MCP server
-     * Identify by name or characteristics in arguments
-     * @param serverName Server name
-     * @param serverConfig Server configuration
-     * @returns Whether it's a Gemini server
+     * Check if a server matches a provider by name or args
      */
-    private isGeminiServer(serverName: string, serverConfig: any): boolean {
-        // Check if server name contains 'gemini'
-        if (serverName.toLowerCase().includes('gemini')) {
+    private isServerForProvider(serverName: string, serverConfig: any, keyword: string): boolean {
+        if (serverName.toLowerCase().includes(keyword)) {
             return true;
         }
-
-        // Check if args contain Gemini-mcp related content
         if (serverConfig.args && Array.isArray(serverConfig.args)) {
             const argsString = serverConfig.args.join(' ').toLowerCase();
-            if (argsString.includes('gemini-mcp') || argsString.includes('gemini_mcp')) {
+            if (argsString.includes(`${keyword}-mcp`) || argsString.includes(`${keyword}_mcp`)) {
                 return true;
             }
         }
-
         return false;
     }
 
     /**
-     * If Gemini Integration is enabled, inject securely stored API Key into Gemini server config
-     * @param mcpConfig MCP configuration object
+     * Inject securely stored API keys and credentials into matching MCP servers
      */
-    private async injectGeminiApiKeyIfNeeded(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
+    private async injectApiKeysIfNeeded(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
         try {
-            // Check if API Key should be injected
-            const shouldInject = await secretService.shouldInjectGeminiApiKey();
-
-            if (!shouldInject) {
-                debugLog('McpConfigManager', 'Gemini Integration not enabled or API Key not set, skipping injection');
-                return;
-            }
-
-            // Get securely stored API Key
-            const apiKey = await secretService.getGeminiApiKey();
-            if (!apiKey) {
-                debugLog('McpConfigManager', 'Unable to get Gemini API Key, skipping injection');
-                return;
-            }
-
-            // Iterate all servers, find Gemini servers and inject API Key
-            let injectedCount = 0;
-            for (const [serverName, serverConfig] of Object.entries(mcpConfig.mcpServers)) {
-                if (this.isGeminiServer(serverName, serverConfig)) {
-                    // Ensure env object exists
-                    if (!serverConfig.env) {
-                        serverConfig.env = {};
-                    }
-
-                    // Inject API Key (override original placeholder or value)
-                    const originalKey = serverConfig.env.GEMINI_API_KEY;
-                    serverConfig.env.GEMINI_API_KEY = apiKey;
-                    injectedCount++;
-
-                    debugLog('McpConfigManager', `Injected Gemini API Key into server '${serverName}'`, {
-                        hadOriginalKey: !!originalKey,
-                        originalKeyMasked: originalKey ? `${originalKey.substring(0, 4)}...` : 'none'
-                    });
-                }
-            }
-
-            if (injectedCount > 0) {
-                debugLog('McpConfigManager', `Gemini API Key injection complete, injected into ${injectedCount} server(s)`);
-            } else {
-                debugLog('McpConfigManager', 'No Gemini server found, no API Key injection needed');
-            }
-
+            await this.injectGeminiCredentials(mcpConfig);
+            await this.injectGrokApiKey(mcpConfig);
         } catch (error) {
-            debugError('McpConfigManager', 'Gemini API Key injection failed', error);
-            // Injection failure should not block MCP config, just log the error
+            debugError('McpConfigManager', 'API key injection failed', error);
+        }
+    }
+
+    /**
+     * Inject Gemini API Key or Vertex AI credentials into Gemini servers
+     */
+    private async injectGeminiCredentials(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
+        const shouldInject = await secretService.shouldInjectGeminiApiKey();
+        if (!shouldInject) {
+            debugLog('McpConfigManager', 'Gemini Integration not enabled or no credentials set, skipping');
+            return;
+        }
+
+        const apiKey = await secretService.getGeminiApiKey();
+        const vertexCredentials = await secretService.getVertexCredentials();
+        const vertexProject = secretService.getVertexProject();
+
+        let injectedCount = 0;
+        for (const [serverName, serverConfig] of Object.entries(mcpConfig.mcpServers)) {
+            if (this.isServerForProvider(serverName, serverConfig, 'gemini')) {
+                if (!serverConfig.env) {
+                    serverConfig.env = {};
+                }
+
+                if (apiKey) {
+                    serverConfig.env.GEMINI_API_KEY = apiKey;
+                    debugLog('McpConfigManager', `Injected Gemini API Key into server '${serverName}'`);
+                } else if (vertexCredentials) {
+                    // Vertex AI mode: set the flags the Gemini MCP server expects
+                    serverConfig.env.GOOGLE_GENAI_USE_VERTEXAI = 'true';
+                    serverConfig.env.GOOGLE_CREDENTIALS_JSON = vertexCredentials;
+                    if (vertexProject) {
+                        serverConfig.env.GOOGLE_CLOUD_PROJECT = vertexProject;
+                    }
+                    debugLog('McpConfigManager', `Injected Vertex AI credentials into server '${serverName}' (project: ${vertexProject})`);
+                }
+                injectedCount++;
+            }
+        }
+
+        if (injectedCount > 0) {
+            debugLog('McpConfigManager', `Gemini credentials injection complete, injected into ${injectedCount} server(s)`);
+        }
+    }
+
+    /**
+     * Inject Grok API Key into Grok servers
+     */
+    private async injectGrokApiKey(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
+        const shouldInject = await secretService.shouldInjectGrokApiKey();
+        if (!shouldInject) {
+            debugLog('McpConfigManager', 'Grok Integration not enabled or API Key not set, skipping');
+            return;
+        }
+
+        const apiKey = await secretService.getGrokApiKey();
+        if (!apiKey) {
+            return;
+        }
+
+        let injectedCount = 0;
+        for (const [serverName, serverConfig] of Object.entries(mcpConfig.mcpServers)) {
+            if (this.isServerForProvider(serverName, serverConfig, 'grok')) {
+                if (!serverConfig.env) {
+                    serverConfig.env = {};
+                }
+                serverConfig.env.XAI_API_KEY = apiKey;
+                injectedCount++;
+                debugLog('McpConfigManager', `Injected Grok API Key into server '${serverName}'`);
+            }
+        }
+
+        if (injectedCount > 0) {
+            debugLog('McpConfigManager', `Grok API Key injection complete, injected into ${injectedCount} server(s)`);
         }
     }
 

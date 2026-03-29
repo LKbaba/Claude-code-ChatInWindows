@@ -2004,18 +2004,8 @@ export const uiScript = `
 			statusEl.textContent = hooks.length === 0 ? 'No hooks configured' : 'Loaded ' + hooks.length + ' hook(s)';
 		}
 
-		// Update toolbar button text
-		var hooksBtn = document.getElementById('hooks-button');
-		if (hooksBtn) {
-			var svgPart = '<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><path d="M1 2.5l3 3 3-3"></path></svg>';
-			if (hooks.length === 0) {
-				hooksBtn.innerHTML = 'Hooks ' + svgPart;
-			} else if (enabledCount === hooks.length) {
-				hooksBtn.innerHTML = 'Hooks: All ' + svgPart;
-			} else {
-				hooksBtn.innerHTML = 'Hooks: ' + enabledCount + ' ' + svgPart;
-			}
-		}
+		// Toolbar button always shows "Hooks: All" (matching Skills/Plugins behavior)
+
 
 		// Render list: Project on top, Global on bottom
 		var listEl = document.getElementById('hooksList');
@@ -3375,6 +3365,26 @@ export const uiScript = `
 			if (message.type === 'geminiIntegrationConfig') {
 				console.log('[Gemini] Received config:', message.data);
 				initGeminiIntegration(message.data);
+			}
+
+			// Handle Grok Integration config message
+			if (message.type === 'grokIntegrationConfig') {
+				console.log('[Grok] Received config:', message.data);
+				initGrokIntegration(message.data);
+			}
+
+			// Handle Vertex AI credentials import result
+			if (message.type === 'vertexCredentialsImported') {
+				const vertexStatus = document.getElementById('vertex-status');
+				if (vertexStatus && message.data) {
+					if (message.data.success) {
+						vertexStatus.textContent = '\u2705 Imported (project: ' + message.data.project + ')';
+						vertexStatus.style.color = 'var(--vscode-testing-iconPassed)';
+					} else {
+						vertexStatus.textContent = '\u274c ' + (message.data.error || 'Import failed');
+						vertexStatus.style.color = 'var(--vscode-testing-iconFailed)';
+					}
+				}
 			}
 
 			if (message.type === 'platformInfo') {
@@ -5101,23 +5111,23 @@ export const uiScript = `
 					env: {}
 				},
 				// Grok AI assistant - real-time web/X search and brainstorming
+				// Key auto-injected at runtime if configured in Settings → AI Assistant → Grok
 				'grok-assistant': {
 					name: 'grok-assistant',
 					command: 'npx',
 					args: ['-y', '@lkbaba/grok-mcp@latest'],
 					env: {
-						'XAI_API_KEY': ''  // Get from https://console.x.ai/
+						'XAI_API_KEY': ''  // Auto-filled from Settings, or paste your key from https://console.x.ai/
 					}
 				},
 				// Gemini AI assistant - provides UI generation, multimodal analysis, etc.
+				// Key auto-injected at runtime if configured in Settings → AI Assistant → Gemini
 				'gemini-assistant': {
 					name: 'gemini-assistant',
 					command: 'npx',
 					args: ['-y', '@lkbaba/mcp-server-gemini@latest'],
 					env: {
-						// Placeholder to prompt user to configure actual API Key
-						// Real key can be securely set in Gemini Integration section
-						'GEMINI_API_KEY': 'xxxxxxx'
+						'GEMINI_API_KEY': ''  // Auto-filled from Settings, or paste your key from https://aistudio.google.com/apikey
 					}
 				}
 			};
@@ -5205,11 +5215,129 @@ export const uiScript = `
 
 				// If API Key exists, show masked placeholder
 				if (config.hasApiKey && apiKeyInput) {
-					apiKeyInput.placeholder = config.maskedKey || 'AIza••••••••••••••••••••';
+					apiKeyInput.placeholder = config.maskedKey || 'AIza\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
 				}
 			}
 
+			// Update Vertex AI status indicator
+			const vertexStatus = document.getElementById('vertex-status');
+			const vertexDeleteBtn = document.getElementById('vertex-delete-btn');
+			if (vertexStatus) {
+				if (config.hasVertexCredentials && config.vertexProject) {
+					vertexStatus.textContent = '\u2705 Imported (project: ' + config.vertexProject + ')';
+					vertexStatus.style.color = 'var(--vscode-testing-iconPassed)';
+					if (vertexDeleteBtn) vertexDeleteBtn.style.display = 'inline-block';
+				} else {
+					vertexStatus.textContent = '\u2014 Not imported';
+					vertexStatus.style.color = 'var(--vscode-descriptionForeground)';
+					if (vertexDeleteBtn) vertexDeleteBtn.style.display = 'none';
+				}
+			}
+
+			// Restore auth mode radio selection based on stored state
+			if (config.hasVertexCredentials && !config.hasApiKey) {
+				switchGeminiAuthMode('vertex');
+				const vertexRadio = document.querySelector('input[name="gemini-auth-mode"][value="vertex"]');
+				if (vertexRadio) vertexRadio.checked = true;
+			}
+
 			console.log('[Gemini] Integration initialization complete:', config);
+		}
+
+		/**
+		 * Switch Gemini auth mode between API Key and Vertex AI
+		 */
+		function switchGeminiAuthMode(mode) {
+			const apikeyPanel = document.getElementById('gemini-apikey-panel');
+			const vertexPanel = document.getElementById('gemini-vertex-panel');
+			if (apikeyPanel) apikeyPanel.style.display = mode === 'apikey' ? 'block' : 'none';
+			if (vertexPanel) vertexPanel.style.display = mode === 'vertex' ? 'block' : 'none';
+		}
+
+		/**
+		 * Delete saved Gemini API Key
+		 */
+		function deleteGeminiApiKey() {
+			vscode.postMessage({ type: 'deleteGeminiApiKey' });
+			const input = document.getElementById('gemini-api-key');
+			if (input) { input.value = ''; input.placeholder = 'AIza...'; }
+		}
+
+		/**
+		 * Delete saved Vertex AI credentials
+		 */
+		function deleteVertexCredentials() {
+			vscode.postMessage({ type: 'deleteVertexCredentials' });
+			const status = document.getElementById('vertex-status');
+			const btn = document.getElementById('vertex-delete-btn');
+			if (status) { status.textContent = '\u2014 Not imported'; status.style.color = 'var(--vscode-descriptionForeground)'; }
+			if (btn) btn.style.display = 'none';
+		}
+
+		// ==================== Grok Integration Functions ====================
+
+		/**
+		 * Toggle Grok Integration options show/hide
+		 */
+		function toggleGrokOptions() {
+			const checkbox = document.getElementById('grok-enabled');
+			const optionsDiv = document.getElementById('grokOptions');
+			if (checkbox && optionsDiv) {
+				const enabled = checkbox.checked;
+				optionsDiv.style.display = enabled ? 'block' : 'none';
+				vscode.postMessage({ type: 'updateGrokIntegration', enabled: enabled });
+			}
+			console.log('[Grok] Integration status updated:', checkbox ? checkbox.checked : false);
+		}
+
+		/**
+		 * Update Grok API Key
+		 */
+		function updateGrokApiKey() {
+			const input = document.getElementById('grok-api-key');
+			if (!input) return;
+			const apiKey = input.value.trim();
+			if (!apiKey) {
+				console.log('[Grok] API Key is empty, not saving');
+				return;
+			}
+			if (!apiKey.startsWith('xai-')) {
+				console.warn('[Grok] API key should start with "xai-"');
+			}
+			vscode.postMessage({ type: 'updateGrokApiKey', apiKey: apiKey });
+			console.log('[Grok] API Key sent to Extension for secure storage');
+		}
+
+		/**
+		 * Initialize Grok Integration settings
+		 * @param {Object} config - Config object containing enabled and hasApiKey
+		 */
+		function initGrokIntegration(config) {
+			const checkbox = document.getElementById('grok-enabled');
+			const optionsDiv = document.getElementById('grokOptions');
+			const apiKeyInput = document.getElementById('grok-api-key');
+			if (checkbox) checkbox.checked = config.enabled;
+			if (optionsDiv) optionsDiv.style.display = config.enabled ? 'block' : 'none';
+			if (apiKeyInput && config.hasApiKey) {
+				apiKeyInput.placeholder = config.maskedKey || 'xai-\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+			}
+			console.log('[Grok] Integration initialization complete:', config);
+		}
+
+		/**
+		 * Delete saved Grok API Key
+		 */
+		function deleteGrokApiKey() {
+			vscode.postMessage({ type: 'deleteGrokApiKey' });
+			const input = document.getElementById('grok-api-key');
+			if (input) { input.value = ''; input.placeholder = 'xai-...'; }
+		}
+
+		/**
+		 * Import Vertex AI credentials via file picker
+		 */
+		function importVertexCredentials() {
+			vscode.postMessage({ type: 'importVertexCredentials' });
 		}
 
 		// ==================== API Configuration related functions ====================
@@ -5431,6 +5559,16 @@ export const uiScript = `
 		window.toggleGeminiOptions = toggleGeminiOptions;
 		window.updateGeminiApiKey = updateGeminiApiKey;
 		window.initGeminiIntegration = initGeminiIntegration;
+		// Grok Integration function mounting
+		window.toggleGrokOptions = toggleGrokOptions;
+		window.updateGrokApiKey = updateGrokApiKey;
+		window.initGrokIntegration = initGrokIntegration;
+		window.importVertexCredentials = importVertexCredentials;
+		// Delete / mode-switch functions
+		window.switchGeminiAuthMode = switchGeminiAuthMode;
+		window.deleteGeminiApiKey = deleteGeminiApiKey;
+		window.deleteVertexCredentials = deleteVertexCredentials;
+		window.deleteGrokApiKey = deleteGrokApiKey;
 		// Operation History Functions
 		let currentOperations = [];
 

@@ -382,6 +382,25 @@ export class ClaudeChatProvider {
 					case 'getGeminiIntegration':
 						this._sendGeminiIntegrationConfig();
 						return;
+					case 'deleteGeminiApiKey':
+						this._deleteGeminiApiKey();
+						return;
+					case 'importVertexCredentials':
+						this._importVertexCredentials();
+						return;
+					case 'deleteVertexCredentials':
+						this._deleteVertexCredentials();
+						return;
+					// Grok Integration related message handling
+					case 'updateGrokIntegration':
+						this._updateGrokIntegration(message.enabled);
+						return;
+					case 'updateGrokApiKey':
+						this._updateGrokApiKey(message.apiKey);
+						return;
+					case 'deleteGrokApiKey':
+						this._deleteGrokApiKey();
+						return;
 				}
 			},
 			null,
@@ -439,8 +458,9 @@ export class ClaudeChatProvider {
 				version: version
 			});
 
-			// Send Gemini Integration config to webview
+			// Send AI Integration configs to webview
 			this._sendGeminiIntegrationConfig();
+			this._sendGrokIntegrationConfig();
 
 		}, 100);
 	}
@@ -2087,13 +2107,155 @@ export class ClaudeChatProvider {
 				data: {
 					enabled: config.enabled,
 					hasApiKey: !!config.apiKey,
-					maskedKey: config.apiKey ? SecretService.maskApiKey(config.apiKey) : ''
+					maskedKey: config.apiKey ? SecretService.maskApiKey(config.apiKey) : '',
+					hasVertexCredentials: config.hasVertexCredentials,
+					vertexProject: config.vertexProject
 				}
 			});
 
 			debugLog('Gemini', 'Config sent to webview');
 		} catch (error) {
 			debugError('Gemini', 'Failed to get config', error);
+		}
+	}
+
+	/**
+	 * Delete Gemini API Key
+	 */
+	private async _deleteGeminiApiKey(): Promise<void> {
+		try {
+			await secretService.deleteGeminiApiKey();
+			vscode.window.showInformationMessage('Gemini API key deleted');
+			this._sendGeminiIntegrationConfig();
+		} catch (error) {
+			debugError('Gemini', 'Failed to delete API Key', error);
+		}
+	}
+
+	/**
+	 * Import Vertex AI service account JSON via file picker
+	 */
+	private async _importVertexCredentials(): Promise<void> {
+		try {
+			const fileUris = await vscode.window.showOpenDialog({
+				canSelectMany: false,
+				filters: { 'JSON': ['json'] },
+				title: 'Select Vertex AI Service Account JSON Key File'
+			});
+
+			if (!fileUris || fileUris.length === 0) {
+				return;
+			}
+
+			const content = await fs.promises.readFile(fileUris[0].fsPath, 'utf-8');
+			const validation = SecretService.validateServiceAccountJson(content);
+
+			if (!validation.valid) {
+				this._panel?.webview.postMessage({
+					type: 'vertexCredentialsImported',
+					data: { success: false, error: validation.error }
+				});
+				vscode.window.showErrorMessage(`Invalid service account JSON: ${validation.error}`);
+				return;
+			}
+
+			await secretService.setVertexCredentials(content);
+			if (validation.projectId) {
+				await secretService.setVertexProject(validation.projectId);
+			}
+
+			this._panel?.webview.postMessage({
+				type: 'vertexCredentialsImported',
+				data: { success: true, project: validation.projectId }
+			});
+			vscode.window.showInformationMessage(`Vertex AI credentials imported (project: ${validation.projectId})`);
+			this._sendGeminiIntegrationConfig();
+		} catch (error) {
+			debugError('Vertex', 'Failed to import credentials', error);
+			vscode.window.showErrorMessage('Failed to import Vertex AI credentials');
+		}
+	}
+
+	/**
+	 * Delete Vertex AI credentials
+	 */
+	private async _deleteVertexCredentials(): Promise<void> {
+		try {
+			await secretService.deleteVertexCredentials();
+			await secretService.setVertexProject('');
+			vscode.window.showInformationMessage('Vertex AI credentials deleted');
+			this._sendGeminiIntegrationConfig();
+		} catch (error) {
+			debugError('Vertex', 'Failed to delete credentials', error);
+		}
+	}
+
+	// ==================== Grok Integration Methods ====================
+
+	/**
+	 * Update Grok Integration enabled status
+	 */
+	private async _updateGrokIntegration(enabled: boolean): Promise<void> {
+		try {
+			await secretService.setGrokIntegrationEnabled(enabled);
+			debugLog('Grok', `Integration status updated: ${enabled}`);
+			if (enabled) {
+				vscode.window.showInformationMessage('Grok Integration enabled. API key will be automatically injected.');
+			}
+		} catch (error) {
+			debugError('Grok', 'Failed to update Integration status', error);
+			vscode.window.showErrorMessage('Failed to update Grok Integration settings');
+		}
+	}
+
+	/**
+	 * Update Grok API Key (secure storage)
+	 */
+	private async _updateGrokApiKey(apiKey: string): Promise<void> {
+		try {
+			if (!SecretService.isValidGrokApiKeyFormat(apiKey)) {
+				vscode.window.showWarningMessage('Grok API key format may be incorrect. Keys typically start with "xai-".');
+			}
+			await secretService.setGrokApiKey(apiKey);
+			debugLog('Grok', 'API Key stored securely');
+			vscode.window.showInformationMessage('Grok API key saved securely');
+			this._sendGrokIntegrationConfig();
+		} catch (error) {
+			debugError('Grok', 'Failed to save API Key', error);
+			vscode.window.showErrorMessage('Failed to save Grok API key');
+		}
+	}
+
+	/**
+	 * Delete Grok API Key
+	 */
+	private async _deleteGrokApiKey(): Promise<void> {
+		try {
+			await secretService.deleteGrokApiKey();
+			vscode.window.showInformationMessage('Grok API key deleted');
+			this._sendGrokIntegrationConfig();
+		} catch (error) {
+			debugError('Grok', 'Failed to delete API Key', error);
+		}
+	}
+
+	/**
+	 * Send Grok Integration config to webview
+	 */
+	private async _sendGrokIntegrationConfig(): Promise<void> {
+		try {
+			const config = await secretService.getGrokIntegrationConfig();
+			this._panel?.webview.postMessage({
+				type: 'grokIntegrationConfig',
+				data: {
+					enabled: config.enabled,
+					hasApiKey: !!config.apiKey,
+					maskedKey: config.apiKey ? SecretService.maskApiKey(config.apiKey) : ''
+				}
+			});
+			debugLog('Grok', 'Config sent to webview');
+		} catch (error) {
+			debugError('Grok', 'Failed to get config', error);
 		}
 	}
 

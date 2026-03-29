@@ -313,6 +313,16 @@
           "default": false,
           "description": "Enable Gemini Integration to automatically inject API key into gemini-assistant MCP server"
         },
+        "claudeCodeChatUI.grokIntegrationEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Grok Integration to automatically inject API key into grok-assistant MCP server"
+        },
+        "claudeCodeChatUI.gemini.vertexProject": {
+          "type": "string",
+          "default": "",
+          "description": "GCP Project ID extracted from imported Vertex AI Service Account JSON"
+        },
         "claudeCodeChatUI.debug.enabled": {
           "type": "boolean",
           "default": false,
