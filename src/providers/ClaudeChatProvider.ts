@@ -21,6 +21,7 @@ import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
 import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
 import { SkillManager } from '../services/SkillManager';
+import { HooksConfigManager } from '../services/HooksConfigManager';
 import { secretService, SecretService } from '../services/SecretService';
 import { debugLog, debugWarn, debugError } from '../services/DebugLogger';
 // ClaudeConfigService removed - language setting now implemented entirely via prompts
@@ -281,6 +282,31 @@ export class ClaudeChatProvider {
 					case 'toggleSkillState':
 						// Toggle skill enabled/disabled state
 						await this._toggleSkillState(message.skillName, message.scope);
+						return;
+					// Hooks management messages
+					case 'getConfiguredHooks':
+						this._getConfiguredHooks();
+						return;
+					case 'refreshHooks':
+						this._refreshHooks();
+						return;
+					case 'addHook':
+						await this._addHook(message.hook);
+						return;
+					case 'removeHook':
+						await this._removeHook(message.hookId);
+						return;
+					case 'toggleHookState':
+						await this._toggleHookState(message.hookId);
+						return;
+					case 'updateHook':
+						await this._updateHook(message.hookId, message.changes);
+						return;
+					case 'getHookTemplates':
+						this._getHookTemplates();
+						return;
+					case 'applyHookTemplate':
+						await this._applyHookTemplate(message.templateName);
 						return;
 					case 'getClipboardText':
 						const clipboardText = await this._fileOperationsManager.getClipboardText();
@@ -2344,6 +2370,121 @@ export class ClaudeChatProvider {
 			});
 		} catch (error: any) {
 			debugError('SkillManager', `Failed to toggle skill state: ${skillName}`, error);
+		}
+	}
+
+	// ── Hooks management methods ──────────────────────────────────────────
+
+	private async _getConfiguredHooks(): Promise<void> {
+		try {
+			const hooksManager = HooksConfigManager.getInstance();
+			const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+			hooksManager.setWorkspacePath(workspaceFolder?.uri.fsPath);
+			const hooks = await hooksManager.loadConfiguredHooks();
+			this._panel?.webview.postMessage({ type: 'configuredHooksUpdated', hooks });
+			debugLog('HooksManager', `Sent ${hooks.length} hook(s) to webview`);
+		} catch (error: any) {
+			debugError('HooksManager', 'Failed to load hooks', error);
+			this._panel?.webview.postMessage({ type: 'configuredHooksUpdated', hooks: [], error: 'Failed to load hooks' });
+		}
+	}
+
+	private async _refreshHooks(): Promise<void> {
+		try {
+			const hooksManager = HooksConfigManager.getInstance();
+			const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+			hooksManager.setWorkspacePath(workspaceFolder?.uri.fsPath);
+			hooksManager.clearCache();
+			const hooks = await hooksManager.loadConfiguredHooks(true);
+			this._panel?.webview.postMessage({ type: 'configuredHooksUpdated', hooks });
+			debugLog('HooksManager', `Hooks refreshed: ${hooks.length} hook(s) loaded`);
+		} catch (error: any) {
+			debugError('HooksManager', 'Failed to refresh hooks', error);
+			this._panel?.webview.postMessage({ type: 'configuredHooksUpdated', hooks: [], error: 'Failed to refresh hooks' });
+		}
+	}
+
+	private async _addHook(hook: any): Promise<void> {
+		try {
+			const hooksManager = HooksConfigManager.getInstance();
+			const newHook = await hooksManager.addHook(hook);
+			this._panel?.webview.postMessage({ type: 'hookAdded', hook: newHook });
+			debugLog('HooksManager', `Hook added: ${newHook.event}/${newHook.matcher || '(all)'}`);
+		} catch (error: any) {
+			debugError('HooksManager', 'Failed to add hook', error);
+			this._panel?.webview.postMessage({ type: 'hookError', message: error.message });
+		}
+	}
+
+	private async _removeHook(hookId: string): Promise<void> {
+		try {
+			const hooksManager = HooksConfigManager.getInstance();
+			await hooksManager.removeHook(hookId);
+			this._panel?.webview.postMessage({ type: 'hookRemoved', hookId });
+			debugLog('HooksManager', `Hook removed: ${hookId}`);
+		} catch (error: any) {
+			debugError('HooksManager', 'Failed to remove hook', error);
+			this._panel?.webview.postMessage({ type: 'hookError', message: error.message });
+		}
+	}
+
+	private async _toggleHookState(hookId: string): Promise<void> {
+		try {
+			const hooksManager = HooksConfigManager.getInstance();
+			const enabled = await hooksManager.toggleHookState(hookId);
+			this._panel?.webview.postMessage({ type: 'hookStateChanged', hookId, enabled });
+			debugLog('HooksManager', `Hook toggled: ${hookId} enabled=${enabled}`);
+		} catch (error: any) {
+			debugError('HooksManager', 'Failed to toggle hook state', error);
+			this._panel?.webview.postMessage({ type: 'hookError', message: error.message });
+		}
+	}
+
+	private async _updateHook(hookId: string, changes: any): Promise<void> {
+		try {
+			const hooksManager = HooksConfigManager.getInstance();
+			await hooksManager.updateHook(hookId, changes);
+			this._panel?.webview.postMessage({ type: 'hookUpdated', hookId });
+			debugLog('HooksManager', `Hook updated: ${hookId}`);
+		} catch (error: any) {
+			debugError('HooksManager', 'Failed to update hook', error);
+			this._panel?.webview.postMessage({ type: 'hookError', message: error.message });
+		}
+	}
+
+	private _getHookTemplates(): void {
+		try {
+			const hooksManager = HooksConfigManager.getInstance();
+			const templates = hooksManager.getTemplates();
+			this._panel?.webview.postMessage({ type: 'hookTemplatesUpdated', templates });
+		} catch (error: any) {
+			debugError('HooksManager', 'Failed to get hook templates', error);
+			this._panel?.webview.postMessage({ type: 'hookError', message: error.message });
+		}
+	}
+
+	private async _applyHookTemplate(templateName: string): Promise<void> {
+		try {
+			const hooksManager = HooksConfigManager.getInstance();
+			const templates = hooksManager.getTemplates();
+			const template = templates.find(t => t.name === templateName);
+			if (!template) {
+				throw new Error(`Template not found: ${templateName}`);
+			}
+			const newHook = await hooksManager.addHook({
+				event: template.event,
+				matcher: template.matcher,
+				type: 'command',
+				command: template.command,
+				description: template.description,
+				scope: 'project-local',
+				enabled: true
+			});
+			this._panel?.webview.postMessage({ type: 'hookAdded', hook: newHook });
+			debugLog('HooksManager', `Template applied: ${templateName}`);
+		} catch (error: any) {
+			debugError('HooksManager', 'Failed to apply hook template', error);
+			this._panel?.webview.postMessage({ type: 'hookError', message: error.message });
 		}
 	}
 

@@ -1758,6 +1758,13 @@ function getStylesOld(): string {
         overflow-y: auto;
     }
 
+    /* Hooks modal content */
+    .hooks-modal-content {
+        max-width: 600px;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
     /* Skills status bar */
     .skills-status {
         font-size: 12px;
