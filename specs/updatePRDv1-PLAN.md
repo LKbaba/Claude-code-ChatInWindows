@@ -24,13 +24,13 @@
 **状态**: [x]
 
 **上下文摘要**:
-> 这是整个 Hooks GUI 的后端基础。需要创建一个 Singleton 服务来管理三个 scope（global / project / project-local）的 hooks 配置。该服务负责读取、解析、写入 settings JSON 文件中的 `hooks` 字段，并提供预置模板。模式完全参照现有的 `SkillManager.ts`（622 行，Singleton + 三级 scope + 缓存）。
+> 这是整个 Hooks GUI 的后端基础。需要创建一个 Singleton（单例）服务来管理三个 scope（global / project / project-local）的 hooks 配置。该服务负责读取、解析、写入 settings JSON 文件中的 `hooks` 字段，并提供预置模板。模式完全参照现有的 `SkillManager.ts`（622 行，Singleton + 三级 scope + 缓存）。
 
 **AI 提示词**:
 
 ultrathink
 
-你是一位资深 VS Code 扩展开发专家，精通 TypeScript + Node.js + VS Code Extension API，擅长设计 Singleton 服务和文件系统操作。
+你是一位资深 VS Code 扩展开发专家，精通 TypeScript + Node.js + VS Code Extension API，擅长设计 Singleton（单例）服务和文件系统操作。
 
 请在 `src/services/HooksConfigManager.ts` 创建一个新的 Hooks 配置管理服务。
 
@@ -38,7 +38,7 @@ ultrathink
 
 这是 Claude Code ChatUI VS Code 扩展（v4.0.2）的一部分。扩展通过 Claude Code CLI 与 AI 交互，CLI 支持 hooks（生命周期钩子）。hooks 配置存储在 JSON settings 文件中，有三个 scope 层级。
 
-现有的 `src/services/SkillManager.ts` 是一个成熟的 Singleton 服务模板，请严格参照其模式。
+现有的 `src/services/SkillManager.ts` 是一个成熟的 Singleton（单例）服务模板，请严格参照其模式。
 
 ## 需求
 
@@ -68,7 +68,7 @@ export interface HookTemplate {
 }
 ```
 
-### 2. Singleton 模式
+### 2. Singleton（单例）模式
 
 参照 SkillManager 的实现：
 - `private static instance: HooksConfigManager`
@@ -224,29 +224,29 @@ public getTemplates(): HookTemplate[] {
 
 - 文件位置：`src/services/HooksConfigManager.ts`
 - 使用 `import { debugLog, debugError } from './DebugLogger';` 进行日志记录
-- 使用 Node.js `fs/promises` (async) 进行文件操作
+- 使用 Node.js `fs/promises`（异步）进行文件操作
 - 使用 `crypto.randomUUID()` 生成 hook ID
 - 不引入任何新的 npm 依赖
 
 ## 约束条件
 
-- 严格参照 `src/services/SkillManager.ts` 的 Singleton 模式和代码风格
+- 严格参照 `src/services/SkillManager.ts` 的 Singleton（单例）模式和代码风格
 - **绝对不能**覆盖 settings 文件中的其他字段（permissions、enabledPlugins 等）
 - 读取文件失败时优雅降级（返回空数组，不抛异常）
 - 所有代码注释使用英文
 
 ## 参考
 
-- `src/services/SkillManager.ts` — Singleton 模式、三级 scope、缓存策略
+- `src/services/SkillManager.ts` — Singleton（单例）模式、三级 scope、缓存策略
 - `specs/updatePRDv1.md` 第 4.3 节 — Hook 配置 JSON 格式
 - `specs/updatePRDv1.md` 第 5.2 节 — HooksConfigManager 设计
 
 **验收标准**:
-- [ ] 文件创建成功，TypeScript 编译无错误
-- [ ] 能正确读取 `~/.claude/settings.json` 中的 hooks 配置
-- [ ] 能正确读取项目级别的 `.claude/settings.local.json` 中的 hooks 配置
-- [ ] 写入操作不会破坏 settings 文件中的其他字段
-- [ ] 模板列表可正常获取
+- [x] 文件创建成功，TypeScript 编译无错误
+- [x] 能正确读取 `~/.claude/settings.json` 中的 hooks 配置
+- [x] 能正确读取项目级别的 `.claude/settings.local.json` 中的 hooks 配置
+- [x] 写入操作不会破坏 settings 文件中的其他字段
+- [x] 模板列表可正常获取
 
 ---
 
@@ -401,10 +401,10 @@ private async _refreshHooks(): Promise<void> {
 - `src/providers/ClaudeChatProvider.ts` lines 2258-2348 — Skills 处理器实现
 
 **验收标准**:
-- [ ] `npm run compile` 编译成功
-- [ ] extension.ts 中 HooksConfigManager 初始化无报错
-- [ ] ClaudeChatProvider 中 6 个新 case 和 6 个新方法已添加
-- [ ] 消息类型与 PRD 5.6 协议一致
+- [x] `npm run compile` 编译成功
+- [x] extension.ts 中 HooksConfigManager 初始化无报错
+- [x] ClaudeChatProvider 中 6 个新 case 和 6 个新方法已添加
+- [x] 消息类型与 PRD 5.6 协议一致
 
 ---
 
@@ -561,11 +561,11 @@ private async _refreshHooks(): Promise<void> {
 - PRD 5.3 GUI Layout 示意图
 
 **验收标准**:
-- [ ] Hooks 按钮出现在 Skills 按钮右侧
-- [ ] 点击 Hooks 按钮能打开 Hooks Modal
-- [ ] Modal 包含 Add / Templates / Refresh / Close 按钮
-- [ ] Add Hook 表单包含 Event、Scope、Matcher、Command、Description 字段
-- [ ] 视觉风格与 Skills Modal 一致
+- [x] Hooks 按钮出现在 Skills 按钮右侧
+- [x] 点击 Hooks 按钮能打开 Hooks Modal
+- [x] Modal 包含 Add / Templates / Refresh / Close 按钮
+- [x] Add Hook 表单包含 Event、Scope、Matcher、Command、Description 字段
+- [x] 视觉风格与 Skills Modal 一致
 
 ---
 
@@ -591,7 +591,7 @@ ultrathink
 `ui-script.ts` 是一个特殊文件——它导出一个 TypeScript 函数，该函数返回一个巨大的模板字符串，内容是完整的浏览器端 JavaScript 代码。这意味着：
 
 1. **双层转义**：源码中的 `\\\\` → JS 输出 `\\` → 运行时 `\`
-2. **模板字面量**：代码中的反引号需要转义为 `` \` ``
+2. **模板字面量（Template Literal）**：代码中的反引号需要转义为 `` \` ``
 3. **所有函数都是全局函数**（没有模块系统）
 4. **通过 `vscode.postMessage()` 与扩展通信**
 
@@ -855,19 +855,19 @@ function handleRefreshHooks() {
 
 - Skills JS 函数：`ui-script.ts` lines 1647-1960
 - `escapeHtml()` 和 `escapeForOnclick()` 函数（文件中已存在）
-- 消息监听器：`ui-script.ts` line 2546+ (switch/case 结构)
+- 消息监听器：`ui-script.ts` line 2546+（switch/case 结构）
 - PRD 5.3 GUI Layout + 5.6 消息协议
 
 **验收标准**:
-- [ ] 点击 Hooks 按钮能打开 Modal 并加载 hooks 列表
-- [ ] Hooks 按 scope 分组显示（Global / Project / Project-Local）
-- [ ] checkbox 切换能正确启用/禁用 hook
-- [ ] Add 表单能正确创建新 hook
-- [ ] Edit 能预填充表单并更新
+- [x] 点击 Hooks 按钮能打开 Modal 并加载 hooks 列表
+- [x] Hooks 按 scope 分组显示（Global / Project / Project-Local）
+- [x] checkbox 切换能正确启用/禁用 hook
+- [x] Add 表单能正确创建新 hook
+- [x] Edit 能预填充表单并更新
 - [x] Delete 直接删除（VS Code webview 中 confirm() 不可靠，已移除确认弹窗）
-- [ ] Templates 能显示并应用
-- [ ] 点击 backdrop 或 x 能关闭 Modal
-- [ ] 无 XSS 漏洞（所有用户数据已转义）
+- [x] Templates 能显示并应用
+- [x] 点击 backdrop 或 x 能关闭 Modal
+- [x] 无 XSS 漏洞（所有用户数据已转义）
 
 ---
 
@@ -934,16 +934,16 @@ cmd //c "npx @vscode/vsce package --no-dependencies"
 ### 4. 手动测试清单
 
 在 Extension Development Host (F5) 中验证：
-- [ ] Hooks 按钮出现在 Skills 按钮右侧
-- [ ] 点击 Hooks 按钮打开 Modal
-- [ ] 如果 `~/.claude/settings.json` 中有 hooks，能正确显示
-- [ ] Add Hook 表单能创建新 hook
-- [ ] Toggle checkbox 能启用/禁用 hook
-- [ ] Delete 能删除 hook
-- [ ] Templates 能显示预置模板
-- [ ] Refresh 按钮能重新加载
-- [ ] Modal 关闭方式正常（x 按钮、backdrop 点击）
-- [ ] 版本号显示为 v4.0.2
+- [x] Hooks 按钮出现在 Skills 按钮右侧
+- [x] 点击 Hooks 按钮打开 Modal
+- [x] 如果 `~/.claude/settings.json` 中有 hooks，能正确显示
+- [x] Add Hook 表单能创建新 hook
+- [x] Toggle checkbox 能启用/禁用 hook
+- [x] Delete 能删除 hook
+- [x] Templates 能显示预置模板
+- [x] Refresh 按钮能重新加载
+- [x] Modal 关闭方式正常（x 按钮、backdrop 点击）
+- [x] 版本号显示为 v4.0.2
 
 ## 约束条件
 
@@ -951,10 +951,10 @@ cmd //c "npx @vscode/vsce package --no-dependencies"
 - 确保 `.vscodeignore` 中有 `specs/**` 和 `test-hooks/**`
 
 **验收标准**:
-- [ ] 三个位置的版本号均更新为 4.0.2
-- [ ] `npm run compile` 零错误
-- [ ] VSIX 打包成功
-- [ ] Extension Development Host 中 Hooks 面板功能正常
+- [x] 三个位置的版本号均更新为 4.0.2
+- [x] `npm run compile` 零错误
+- [x] VSIX 打包成功
+- [x] Extension Development Host 中 Hooks 面板功能正常
 
 ---
 
