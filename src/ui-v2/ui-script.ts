@@ -2024,9 +2024,9 @@ export const uiScript = `
 		// Render list
 		var listEl = document.getElementById('hooksList');
 		if (listEl) {
-			listEl.innerHTML = renderHooksScopeGroup('global', 'Global', '~/.claude/settings.json', globalHooks, true) +
-				renderHooksScopeGroup('project', 'Project', '.claude/settings.json', projectHooks, false) +
-				renderHooksScopeGroup('project-local', 'Project Local', '.claude/settings.local.json', projectLocalHooks, true);
+			listEl.innerHTML = renderHooksScopeGroup('global', 'Global', '~/.claude/settings.json', globalHooks, globalHooks.length > 0) +
+				renderHooksScopeGroup('project', 'Project', '.claude/settings.json', projectHooks, projectHooks.length > 0) +
+				renderHooksScopeGroup('project-local', 'Project Local', '.claude/settings.local.json', projectLocalHooks, projectLocalHooks.length > 0);
 		}
 	}
 
@@ -2183,6 +2183,9 @@ export const uiScript = `
 
 	function applyHookTemplate(templateName) {
 		vscode.postMessage({ type: 'applyHookTemplate', templateName: templateName });
+		// Hide templates section after applying
+		var container = document.getElementById('hookTemplatesContainer');
+		if (container) { container.style.display = 'none'; }
 	}
 
 	// Close hooks modal (click on background)
