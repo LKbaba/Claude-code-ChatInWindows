@@ -149,15 +149,11 @@ src/
 
 Planning and requirements documents live in `specs/`. Naming convention: `{topic}.md` for requirements, `{topic}-PLAN.md` for implementation plans.
 
-| File | Description | Status |
-|------|-------------|--------|
-| [updatePRDv2.md](specs/updatePRDv2.md) | v3.1.9 requirements — CSP, XSS, orphan process, cache fix, code hygiene | Completed |
-| [updatePRDv2-PLAN.md](specs/updatePRDv2-PLAN.md) | v3.1.9 implementation plan — 8 tasks, 4 checkpoints | Completed |
-| [updatePRDv1.md](specs/updatePRDv1.md) | v3.1.7–3.1.8 requirements — background Agent fix, Grok MCP, Sonnet 4.6 | Completed |
-| [updatePRDv1-PLAN.md](specs/updatePRDv1-PLAN.md) | v3.1.7–3.1.8 implementation plan | Completed |
-| [gemini-integration-PLAN.md](specs/gemini-integration-PLAN.md) | Gemini API key injection into MCP server config | Completed |
-| [native-installer-support-PLAN.md](specs/native-installer-support-PLAN.md) | Support for Claude Code native installer path discovery | Completed |
-| [v3.0.6-bugfix-PLAN.md](specs/v3.0.6-bugfix-PLAN.md) | v3.0.6 bug fix plan | Completed |
+| File | Description |
+|------|-------------|
+| [updatePRD-consolidated.md](specs/updatePRD-consolidated.md) | Consolidated PRD updates — all features from v3.0.6 through v3.1.9 |
+
+Previous individual spec files (`updatePRDv1/v2`, `gemini-integration-PLAN`, `native-installer-support-PLAN`, `v3.0.6-bugfix-PLAN`) have been consolidated and removed. Access via `git log --diff-filter=D -- specs/`.
 
 ## Configuration Settings
 
