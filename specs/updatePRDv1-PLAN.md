@@ -981,3 +981,30 @@ cmd //c "npx @vscode/vsce package --no-dependencies"
 > - `confirm()` 在 VS Code webview 中不可靠，delete 操作已改为直接删除
 > - 模板从 5 个（Tool Logger, Bash Guard, Ralph Loop, Message Inbox, Session Timer）精简为 1 个跨平台 Completion Notification
 > - 模板命令根据 `process.platform` 动态生成，支持 Windows/macOS/Linux
+
+---
+
+## Phase 1.1 UI 简化（v4.0.4）
+
+**日期**：2026-03-29
+**状态**：✅ 已完成
+
+### 变更清单
+
+| 变更 | 文件 | 说明 |
+|------|------|------|
+| 按钮初始显示 `Hooks: All` | `getBodyContent.ts` | 与 Skills/Plugins 按钮一致 |
+| 移除 Add 按钮 + 表单 | `getBodyContent.ts`、`ui-script.ts` | hooks 为代码型配置，不应 GUI 手动添加 |
+| 移除 Edit 按钮 | `ui-script.ts` | 同上，用户应直接编辑 settings 文件 |
+| Scope 三级 → 两级 | `ui-script.ts` | Project（上，合并 project + project-local）+ Global（下） |
+| Templates scope 选择器 | `getBodyContent.ts`、`ui-script.ts`、`ClaudeChatProvider.ts` | 用户可选 Project/Global |
+| 默认写入 project scope | `ClaudeChatProvider.ts` | 从 `project-local` 改为 `project`（写入 `.claude/settings.json`） |
+| 下拉框样式修复 | `getBodyContent.ts` | 使用 `--vscode-dropdown-*` 主题变量 |
+
+### 设计决策
+
+1. **为什么移除 Add/Edit**：Hooks 的核心是 shell 命令 + matcher 配置，这是代码型的工作。通过 GUI 文本框输入 shell 命令容易出错且难以调试。用户应该：(a) 使用模板一键应用预置 hook，或 (b) 直接编辑 settings JSON 文件。这与 Skills 的设计理念一致——Skills 也不支持 GUI 创建。
+
+2. **为什么简化为两级 scope**：CLI 支持三级（global / project / project-local），但对用户来说 project 和 project-local 的区别（是否提交到 git）是实现细节。简化为 Project + Global 更直观。
+
+3. **为什么默认写入 project 而非 project-local**：用户看到的分组是 "Project"，路径是 `.claude/settings.json`。写入 `settings.local.json` 但显示 `settings.json` 会造成困惑。

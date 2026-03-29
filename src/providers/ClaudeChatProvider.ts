@@ -306,7 +306,7 @@ export class ClaudeChatProvider {
 						this._getHookTemplates();
 						return;
 					case 'applyHookTemplate':
-						await this._applyHookTemplate(message.templateName);
+						await this._applyHookTemplate(message.templateName, message.scope);
 						return;
 					case 'getClipboardText':
 						const clipboardText = await this._fileOperationsManager.getClipboardText();
@@ -2463,7 +2463,7 @@ export class ClaudeChatProvider {
 		}
 	}
 
-	private async _applyHookTemplate(templateName: string): Promise<void> {
+	private async _applyHookTemplate(templateName: string, scope?: string): Promise<void> {
 		try {
 			const hooksManager = HooksConfigManager.getInstance();
 			const templates = hooksManager.getTemplates();
@@ -2471,13 +2471,14 @@ export class ClaudeChatProvider {
 			if (!template) {
 				throw new Error(`Template not found: ${templateName}`);
 			}
+			const hookScope = (scope === 'global' ? 'global' : 'project') as any;
 			const newHook = await hooksManager.addHook({
 				event: template.event,
 				matcher: template.matcher,
 				type: 'command',
 				command: template.command,
 				description: template.description,
-				scope: 'project-local',
+				scope: hookScope,
 				enabled: true
 			});
 			this._panel?.webview.postMessage({ type: 'hookAdded', hook: newHook });
