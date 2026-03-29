@@ -1,9 +1,9 @@
-# Claude Code ChatUI v4.0.1 — Hooks Integration & Agent Orchestration PRD
+# Claude Code ChatUI v4.0.2 — Hooks Integration & Agent Orchestration PRD
 
-> **Version**: v1.0
-> **Date**: 2026-03-28
-> **Status**: Research complete, pending implementation
-> **Target Release**: v4.0.1
+> **Version**: v1.1
+> **Date**: 2026-03-29
+> **Status**: Phase 1 complete (Hooks GUI), Phase 2-4 pending
+> **Target Release**: v4.0.2 (Phase 1), v4.1+ (Phase 2-4)
 > **Author**: Maintained by solo developer + Claude Code
 
 ---
@@ -25,15 +25,15 @@
 
 ## 1. Executive Summary
 
-v4.0.1 introduces Claude Code hooks integration into the VS Code extension, giving users GUI-based control over hook lifecycle events without manual JSON editing. This is the foundation for two advanced features planned for subsequent releases: tmux-style mid-task intervention (redirecting Claude while it's working) and Ralph Loop (auto-iterative development using Stop hooks).
+v4.0.2 introduces Claude Code hooks integration into the VS Code extension, giving users GUI-based control over hook lifecycle events without manual JSON editing. This is the foundation for two advanced features planned for subsequent releases: tmux-style mid-task intervention (redirecting Claude while it's working) and Ralph Loop (auto-iterative development using Stop hooks).
 
-### Core deliverables (v4.0.1)
+### Core deliverables (v4.0.2 — COMPLETED)
 
-| Feature | Priority | Architecture Change |
-|---------|----------|-------------------|
-| Hooks GUI Management Panel | P0 | New service + UI modal |
-| Project-level hook injection | P0 | Writes to `.claude/settings.local.json` |
-| Quick hook templates | P1 | Bundled hook scripts |
+| Feature | Priority | Status | Architecture Change |
+|---------|----------|--------|-------------------|
+| Hooks GUI Management Panel | P0 | ✅ Done | New service + UI modal |
+| Project-level hook injection | P0 | ✅ Done | Writes to `.claude/settings.local.json` |
+| Quick hook templates | P1 | ✅ Done | Bundled cross-platform Completion Notification |
 
 ### Future deliverables (v4.1+)
 
@@ -350,13 +350,18 @@ const SETTINGS_PATHS = {
 
 ### 5.4 Quick Templates
 
-| Template | Event | Matcher | Description |
-|----------|-------|---------|-------------|
-| Tool Logger | PreToolUse | `*` | Logs all tool calls to `~/hook-test.log` |
-| Bash Guard | PreToolUse | `Bash` | Blocks dangerous Bash commands (rm -rf, etc.) |
-| Ralph Loop | Stop | `` | Continues iteration until criteria met |
-| Message Inbox | PreToolUse | `*` | Checks `.claude/inbox.txt` for user instructions |
-| Session Timer | SessionStart | `` | Logs session start time |
+Templates are dynamically generated based on the user's platform (`process.platform`).
+
+| Template | Event | Matcher | Description | Platform |
+|----------|-------|---------|-------------|----------|
+| Completion Notification | Stop | _(empty)_ | Show a system notification when Claude finishes a task | Cross-platform |
+
+**Platform-specific notification commands**:
+- **Windows**: PowerShell `MessageBox` via `System.Windows.Forms`
+- **macOS**: `osascript` with `display notification`
+- **Linux**: `notify-send` desktop notification
+
+> **Design decision**: Earlier iterations included Tool Logger, Bash Guard, Session Timer, and Ralph Loop templates. These were removed after community research and user feedback — a single high-value, cross-platform template is preferred over multiple niche templates that require platform-specific debugging.
 
 ### 5.5 Files to Modify/Create
 
@@ -568,18 +573,18 @@ fi
 
 ## 9. Implementation Roadmap
 
-### Phase 1: Hooks GUI Foundation (v4.0.1)
+### Phase 1: Hooks GUI Foundation (v4.0.2) — ✅ COMPLETED
 
-| Step | Task | Files | Effort |
+| Step | Task | Files | Status |
 |------|------|-------|--------|
-| 1 | Create `HooksConfigManager.ts` | New file | Medium |
-| 2 | Add Hooks button to header bar | `getBodyContent.ts` | Small |
-| 3 | Add Hooks modal HTML | `getBodyContent.ts` | Medium |
-| 4 | Add frontend JS (show/render/CRUD) | `ui-script.ts` | Large |
-| 5 | Add message handlers | `ClaudeChatProvider.ts` | Medium |
-| 6 | Add quick templates | `HooksConfigManager.ts` | Small |
+| 1 | Create `HooksConfigManager.ts` | New file (~400 lines) | ✅ Done |
+| 2 | Add Hooks button to header bar | `getBodyContent.ts` | ✅ Done |
+| 3 | Add Hooks modal HTML | `getBodyContent.ts` (~70 lines) | ✅ Done |
+| 4 | Add frontend JS (show/render/CRUD) | `ui-script.ts` (~200 lines) | ✅ Done |
+| 5 | Add message handlers | `ClaudeChatProvider.ts` (8 cases + 8 methods) | ✅ Done |
+| 6 | Add quick templates | `HooksConfigManager.ts` (1 cross-platform template) | ✅ Done |
 
-**Estimated scope**: ~800-1200 lines of new/modified code across 5 files.
+**Actual scope**: ~700 lines of new/modified code across 6 files.
 
 ### Phase 2: Ralph Loop (v4.1)
 

@@ -1962,6 +1962,200 @@ export const uiScript = `
 		}
 	});
 
+	// ── Hooks management functions ──────────────────────────────────────
+
+	var currentHooks = [];
+	var editingHookId = null;
+
+	function showHooksModal() {
+		var modal = document.getElementById('hooksModal');
+		if (modal) { modal.style.display = 'flex'; }
+		var status = document.getElementById('hooks-status');
+		if (status) { status.textContent = 'Loading hooks...'; }
+		vscode.postMessage({ type: 'getConfiguredHooks' });
+	}
+
+	function hideHooksModal() {
+		var modal = document.getElementById('hooksModal');
+		if (modal) { modal.style.display = 'none'; }
+		cancelHookForm();
+	}
+
+	function handleRefreshHooks() {
+		var btn = document.getElementById('refresh-hooks-btn');
+		if (btn) { btn.disabled = true; btn.textContent = 'Refreshing...'; }
+		vscode.postMessage({ type: 'refreshHooks' });
+	}
+
+	function updateHooksList(hooks) {
+		hooks = hooks || [];
+		currentHooks = hooks;
+
+		// Restore refresh button
+		var btn = document.getElementById('refresh-hooks-btn');
+		if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+
+		// Group by scope
+		var globalHooks = hooks.filter(function(h) { return h.scope === 'global'; });
+		var projectHooks = hooks.filter(function(h) { return h.scope === 'project'; });
+		var projectLocalHooks = hooks.filter(function(h) { return h.scope === 'project-local'; });
+
+		// Update status
+		var enabledCount = hooks.filter(function(h) { return h.enabled; }).length;
+		var disabledCount = hooks.length - enabledCount;
+		var statusEl = document.getElementById('hooks-status');
+		if (statusEl) {
+			statusEl.textContent = 'Active: ' + enabledCount + '  Disabled: ' + disabledCount + '  Total: ' + hooks.length;
+		}
+
+		// Render list
+		var listEl = document.getElementById('hooksList');
+		if (listEl) {
+			listEl.innerHTML = renderHooksScopeGroup('Global (~/.claude/settings.json)', globalHooks, true) +
+				renderHooksScopeGroup('Project (.claude/settings.json)', projectHooks, false) +
+				renderHooksScopeGroup('Project Local (.claude/settings.local.json)', projectLocalHooks, true);
+		}
+	}
+
+	function renderHooksScopeGroup(title, hooks, openByDefault) {
+		if (hooks.length === 0) {
+			return '<details style="margin: 4px 8px;">' +
+				'<summary style="cursor: pointer; padding: 4px 0; font-size: 12px; opacity: 0.7;">' + escapeHtml(title) + ' (0)</summary>' +
+				'<div style="padding: 4px 12px; font-size: 11px; opacity: 0.5;">No hooks configured</div>' +
+				'</details>';
+		}
+		return '<details' + (openByDefault ? ' open' : '') + ' style="margin: 4px 8px;">' +
+			'<summary style="cursor: pointer; padding: 4px 0; font-size: 12px; font-weight: 500;">' + escapeHtml(title) + ' (' + hooks.length + ')</summary>' +
+			'<div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 0;">' +
+			hooks.map(function(h) { return renderHookItem(h); }).join('') +
+			'</div></details>';
+	}
+
+	function renderHookItem(hook) {
+		var checkedAttr = hook.enabled ? ' checked' : '';
+		var hookIdSafe = escapeForOnclick(hook.id);
+		var displayName = hook.description ? escapeHtml(hook.description) : escapeHtml(hook.command);
+		var matcherDisplay = hook.matcher ? escapeHtml(hook.matcher) : '(all)';
+		var commandDisplay = escapeHtml(hook.command);
+
+		return '<div class="skill-item" data-hook-id="' + escapeHtml(hook.id) + '" style="padding: 6px 8px;">' +
+			'<div style="display: flex; align-items: center; gap: 8px; width: 100%;">' +
+			'<input type="checkbox"' + checkedAttr + ' onchange="handleHookToggle(event, \\'' + hookIdSafe + '\\')" title="Enable/disable" />' +
+			'<div style="flex: 1; min-width: 0;">' +
+			'<div style="font-weight: 500; font-size: 12px;">' + escapeHtml(hook.event) + ': ' + displayName + '</div>' +
+			'<div style="font-size: 11px; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + commandDisplay + '">' +
+			'matcher: ' + matcherDisplay + '  |  cmd: ' + commandDisplay +
+			'</div></div>' +
+			'<button class="btn outlined" onclick="editHook(\\'' + hookIdSafe + '\\')" style="font-size: 10px; padding: 1px 6px;">Edit</button>' +
+			'<button class="btn outlined" onclick="deleteHook(\\'' + hookIdSafe + '\\')" style="font-size: 10px; padding: 1px 6px; color: var(--vscode-errorForeground);">Delete</button>' +
+			'</div></div>';
+	}
+
+	function handleHookToggle(event, hookId) {
+		event.stopPropagation();
+		vscode.postMessage({ type: 'toggleHookState', hookId: hookId });
+	}
+
+	function deleteHook(hookId) {
+		// confirm() may not work in VS Code webview — use direct delete
+		vscode.postMessage({ type: 'removeHook', hookId: hookId });
+	}
+
+	function editHook(hookId) {
+		var hook = currentHooks.find(function(h) { return h.id === hookId; });
+		if (!hook) return;
+		document.getElementById('hookEventSelect').value = hook.event;
+		document.getElementById('hookScopeSelect').value = hook.scope;
+		document.getElementById('hookMatcherInput').value = hook.matcher;
+		document.getElementById('hookCommandInput').value = hook.command;
+		document.getElementById('hookDescriptionInput').value = hook.description || '';
+		editingHookId = hookId;
+		document.getElementById('hookFormSubmitBtn').textContent = 'Update Hook';
+		document.getElementById('hookFormContainer').style.display = 'block';
+		document.getElementById('hookTemplatesContainer').style.display = 'none';
+	}
+
+	function showAddHookForm() {
+		editingHookId = null;
+		document.getElementById('hookEventSelect').value = 'PreToolUse';
+		document.getElementById('hookScopeSelect').value = 'project-local';
+		document.getElementById('hookMatcherInput').value = '';
+		document.getElementById('hookCommandInput').value = '';
+		document.getElementById('hookDescriptionInput').value = '';
+		document.getElementById('hookFormSubmitBtn').textContent = 'Add Hook';
+		document.getElementById('hookFormContainer').style.display = 'block';
+		document.getElementById('hookTemplatesContainer').style.display = 'none';
+	}
+
+	function cancelHookForm() {
+		var container = document.getElementById('hookFormContainer');
+		if (container) { container.style.display = 'none'; }
+		editingHookId = null;
+	}
+
+	function submitHookForm() {
+		var hookEvent = document.getElementById('hookEventSelect').value;
+		var scope = document.getElementById('hookScopeSelect').value;
+		var matcher = document.getElementById('hookMatcherInput').value.trim();
+		var command = document.getElementById('hookCommandInput').value.trim();
+		var description = document.getElementById('hookDescriptionInput').value.trim();
+
+		if (!command) {
+			alert('Command is required');
+			return;
+		}
+
+		if (editingHookId) {
+			vscode.postMessage({
+				type: 'updateHook',
+				hookId: editingHookId,
+				changes: { event: hookEvent, scope: scope, matcher: matcher, command: command, description: description }
+			});
+		} else {
+			vscode.postMessage({
+				type: 'addHook',
+				hook: { event: hookEvent, scope: scope, matcher: matcher, type: 'command', command: command, description: description, enabled: true }
+			});
+		}
+		cancelHookForm();
+	}
+
+	function showHookTemplates() {
+		var container = document.getElementById('hookTemplatesContainer');
+		var isVisible = container.style.display !== 'none';
+		container.style.display = isVisible ? 'none' : 'block';
+		document.getElementById('hookFormContainer').style.display = 'none';
+
+		if (!isVisible) {
+			vscode.postMessage({ type: 'getHookTemplates' });
+		}
+	}
+
+	function updateHookTemplates(templates) {
+		var listEl = document.getElementById('hookTemplatesList');
+		if (!listEl) return;
+		listEl.innerHTML = templates.map(function(t) {
+			return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">' +
+				'<div><strong>' + escapeHtml(t.name) + '</strong> <span style="opacity: 0.7; font-size: 11px;">(' + escapeHtml(t.event) + ')</span><br/>' +
+				'<span style="font-size: 11px; opacity: 0.7;">' + escapeHtml(t.description) + '</span></div>' +
+				'<button class="btn outlined" onclick="applyHookTemplate(\\'' + escapeForOnclick(t.name) + '\\')" style="font-size: 10px; padding: 1px 8px;">Use</button>' +
+				'</div>';
+		}).join('');
+	}
+
+	function applyHookTemplate(templateName) {
+		vscode.postMessage({ type: 'applyHookTemplate', templateName: templateName });
+	}
+
+	// Close hooks modal (click on background)
+	document.getElementById('hooksModal').addEventListener('click', function(e) {
+		if (e.target === document.getElementById('hooksModal')) {
+			hideHooksModal();
+		}
+	});
+
+	// ── End Hooks management ──────────────────────────────────────────
+
 
 		// Model selector functions
 		let currentModel = 'opus'; // Default model
@@ -3001,6 +3195,24 @@ export const uiScript = `
 					// Skill state was toggled, refresh the skills list
 					console.log('[Skills] State changed:', message.skillName, 'enabled:', message.enabled);
 					vscode.postMessage({ type: 'getInstalledSkills' });
+					break;
+				// Hooks management messages
+				case 'configuredHooksUpdated':
+					currentHooks = message.hooks || [];
+					updateHooksList(currentHooks);
+					break;
+				case 'hookStateChanged':
+				case 'hookAdded':
+				case 'hookRemoved':
+				case 'hookUpdated':
+					// Re-fetch full list after any mutation
+					vscode.postMessage({ type: 'getConfiguredHooks' });
+					break;
+				case 'hookTemplatesUpdated':
+					updateHookTemplates(message.templates || []);
+					break;
+				case 'hookError':
+					alert('Hook error: ' + (message.message || 'Unknown error'));
 					break;
 				case 'operationHistory':
 					// Update operation history UI and sync currentOperations

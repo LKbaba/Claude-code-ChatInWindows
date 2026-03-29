@@ -70,3 +70,6 @@ reference/**
 
 # Spec/planning documents (development only)
 specs/**
+
+# Test hook scripts (development only)
+test-hooks/**

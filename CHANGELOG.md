@@ -2,6 +2,19 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.0.2] - 2026-03-28
+
+### New Features
+- **Hooks GUI Management Panel**: Full GUI for managing Claude Code hooks
+  - Add/edit/delete hooks with scope selection (global/project/project-local)
+  - Enable/disable hooks via checkbox toggle
+  - Cross-platform Completion Notification template (Windows/macOS/Linux)
+  - Grouped display by scope with details/summary sections
+- **HooksConfigManager service**: Singleton service for reading/writing hook configurations
+  - Three-scope settings file support (~/.claude/settings.json, .claude/settings.json, .claude/settings.local.json)
+  - Safe read-modify-write that preserves other settings fields
+  - Disabled hook tracking via _disabledHooks array
+
 ## [3.1.9] - 2026-03-29
 
 ### Security

@@ -4,6 +4,7 @@ import { EnvironmentChecker } from './utils/EnvironmentChecker';
 import { ClaudeChatViewProvider } from './providers/ClaudeChatViewProvider';
 import { ClaudeChatProvider } from './providers/ClaudeChatProvider';
 import { PluginManager } from './services/PluginManager';
+import { HooksConfigManager } from './services/HooksConfigManager';
 import { secretService } from './services/SecretService';
 import { DebugLogger } from './services/DebugLogger';
 import { ClaudeProcessService } from './services/ClaudeProcessService';
@@ -80,6 +81,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	} catch (error) {
 		console.error('[Extension] Failed to initialize plugin manager:', error);
 		// Initialization failure should not block extension startup
+	}
+
+	// Initialize HooksConfigManager
+	try {
+		const hooksConfigManager = HooksConfigManager.getInstance();
+		hooksConfigManager.setWorkspacePath(workspacePath);
+	} catch (error) {
+		console.error('[Extension] Failed to initialize hooks config manager:', error);
+		// Non-blocking — extension works without hooks management
 	}
 
 	const provider = new ClaudeChatProvider(context.extensionUri, context);
