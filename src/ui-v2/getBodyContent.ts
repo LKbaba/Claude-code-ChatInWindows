@@ -108,7 +108,7 @@ export function getBodyContent(): string {
 							</button>
 
 							<button class="plugins-btn" id="hooks-button" onclick="showHooksModal()" title="Manage hooks">
-								Hooks
+								Hooks: All
 								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
 									<path d="M1 2.5l3 3 3-3"></path>
 								</svg>
@@ -953,12 +953,6 @@ export function getBodyContent(): string {
 			<div class="tools-modal-header">
 				<span>Hooks Management</span>
 				<div style="display: flex; gap: 8px; align-items: center;">
-					<button class="btn outlined" id="add-hook-btn"
-							onclick="showAddHookForm()"
-							title="Add a new hook"
-							style="font-size: 11px; padding: 2px 8px;">
-						+ Add
-					</button>
 					<button class="btn outlined" id="hook-templates-btn"
 							onclick="showHookTemplates()"
 							title="Quick templates"
@@ -975,38 +969,15 @@ export function getBodyContent(): string {
 				</div>
 			</div>
 
-			<!-- Add/Edit hook form (hidden by default) -->
-			<div id="hookFormContainer" style="display: none; padding: 12px; border-bottom: 1px solid var(--vscode-panel-border);">
-				<div style="display: flex; flex-direction: column; gap: 8px;">
-					<div style="display: flex; gap: 8px;">
-						<select id="hookEventSelect" style="flex: 1; padding: 4px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 3px;">
-							<option value="PreToolUse">PreToolUse</option>
-							<option value="PostToolUse">PostToolUse</option>
-							<option value="Stop">Stop</option>
-							<option value="SessionStart">SessionStart</option>
-							<option value="UserPromptSubmit">UserPromptSubmit</option>
-						</select>
-						<select id="hookScopeSelect" style="flex: 1; padding: 4px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 3px;">
-							<option value="project-local">Project Local</option>
-							<option value="global">Global</option>
-							<option value="project">Project</option>
-						</select>
-					</div>
-					<input id="hookMatcherInput" type="text" placeholder="Matcher (e.g., Bash, *, or empty for all)"
-						   style="padding: 4px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 3px;" />
-					<input id="hookCommandInput" type="text" placeholder="Command (e.g., bash /path/to/hook.sh)"
-						   style="padding: 4px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 3px;" />
-					<input id="hookDescriptionInput" type="text" placeholder="Description (optional)"
-						   style="padding: 4px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 3px;" />
-					<div style="display: flex; gap: 8px; justify-content: flex-end;">
-						<button class="btn outlined" onclick="cancelHookForm()" style="font-size: 11px; padding: 2px 12px;">Cancel</button>
-						<button class="btn primary" id="hookFormSubmitBtn" onclick="submitHookForm()" style="font-size: 11px; padding: 2px 12px;">Add Hook</button>
-					</div>
-				</div>
-			</div>
-
 			<!-- Templates dropdown (hidden by default) -->
 			<div id="hookTemplatesContainer" style="display: none; padding: 8px 12px; border-bottom: 1px solid var(--vscode-panel-border);">
+				<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+					<span style="font-size: 11px; opacity: 0.7;">Apply to:</span>
+					<select id="hookTemplateScopeSelect" style="padding: 3px 8px; font-size: 12px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); border-radius: 3px;">
+						<option value="project" style="background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground);">Project</option>
+						<option value="global" style="background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground);">Global</option>
+					</select>
+				</div>
 				<div id="hookTemplatesList" style="display: flex; flex-direction: column; gap: 4px;">
 					<!-- Templates will be dynamically populated -->
 				</div>

@@ -1965,7 +1965,6 @@ export const uiScript = `
 	// ── Hooks management functions ──────────────────────────────────────
 
 	var currentHooks = [];
-	var editingHookId = null;
 
 	function showHooksModal() {
 		var modal = document.getElementById('hooksModal');
@@ -1978,7 +1977,6 @@ export const uiScript = `
 	function hideHooksModal() {
 		var modal = document.getElementById('hooksModal');
 		if (modal) { modal.style.display = 'none'; }
-		cancelHookForm();
 	}
 
 	function handleRefreshHooks() {
@@ -1995,17 +1993,15 @@ export const uiScript = `
 		var btn = document.getElementById('refresh-hooks-btn');
 		if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
 
-		// Group by scope
+		// Group by scope: merge project + project-local into "Project"
 		var globalHooks = hooks.filter(function(h) { return h.scope === 'global'; });
-		var projectHooks = hooks.filter(function(h) { return h.scope === 'project'; });
-		var projectLocalHooks = hooks.filter(function(h) { return h.scope === 'project-local'; });
+		var projectHooks = hooks.filter(function(h) { return h.scope === 'project' || h.scope === 'project-local'; });
 
 		// Update status
 		var enabledCount = hooks.filter(function(h) { return h.enabled; }).length;
-		var scopeCount = (globalHooks.length > 0 ? 1 : 0) + (projectHooks.length > 0 ? 1 : 0) + (projectLocalHooks.length > 0 ? 1 : 0);
 		var statusEl = document.getElementById('hooks-status');
 		if (statusEl) {
-			statusEl.textContent = hooks.length === 0 ? 'No hooks configured' : 'Loaded ' + hooks.length + ' hook(s) across ' + scopeCount + ' scope(s)';
+			statusEl.textContent = hooks.length === 0 ? 'No hooks configured' : 'Loaded ' + hooks.length + ' hook(s)';
 		}
 
 		// Update toolbar button text
@@ -2021,12 +2017,11 @@ export const uiScript = `
 			}
 		}
 
-		// Render list
+		// Render list: Project on top, Global on bottom
 		var listEl = document.getElementById('hooksList');
 		if (listEl) {
-			listEl.innerHTML = renderHooksScopeGroup('global', 'Global', '~/.claude/settings.json', globalHooks, globalHooks.length > 0) +
-				renderHooksScopeGroup('project', 'Project', '.claude/settings.json', projectHooks, projectHooks.length > 0) +
-				renderHooksScopeGroup('project-local', 'Project Local', '.claude/settings.local.json', projectLocalHooks, projectLocalHooks.length > 0);
+			listEl.innerHTML = renderHooksScopeGroup('project', 'Project', '.claude/settings.json', projectHooks, projectHooks.length > 0) +
+				renderHooksScopeGroup('global', 'Global', '~/.claude/settings.json', globalHooks, globalHooks.length > 0);
 		}
 	}
 
@@ -2071,7 +2066,6 @@ export const uiScript = `
 			'<button class="skill-state-btn ' + btnClass + '" onclick="handleHookToggle(event, \\'' + hookIdSafe + '\\')">' + btnText + '</button>' +
 			'</div>' +
 			'<div class="skill-header-right">' +
-			'<button class="btn outlined" onclick="editHook(\\'' + hookIdSafe + '\\')" style="font-size: 10px; padding: 1px 6px;">Edit</button>' +
 			'<button class="btn outlined" onclick="deleteHook(\\'' + hookIdSafe + '\\')" style="font-size: 10px; padding: 1px 6px; color: var(--vscode-errorForeground);">Delete</button>' +
 			'</div>' +
 			'</div>' +
@@ -2091,70 +2085,11 @@ export const uiScript = `
 		vscode.postMessage({ type: 'removeHook', hookId: hookId });
 	}
 
-	function editHook(hookId) {
-		var hook = currentHooks.find(function(h) { return h.id === hookId; });
-		if (!hook) return;
-		document.getElementById('hookEventSelect').value = hook.event;
-		document.getElementById('hookScopeSelect').value = hook.scope;
-		document.getElementById('hookMatcherInput').value = hook.matcher;
-		document.getElementById('hookCommandInput').value = hook.command;
-		document.getElementById('hookDescriptionInput').value = hook.description || '';
-		editingHookId = hookId;
-		document.getElementById('hookFormSubmitBtn').textContent = 'Update Hook';
-		document.getElementById('hookFormContainer').style.display = 'block';
-		document.getElementById('hookTemplatesContainer').style.display = 'none';
-	}
-
-	function showAddHookForm() {
-		editingHookId = null;
-		document.getElementById('hookEventSelect').value = 'PreToolUse';
-		document.getElementById('hookScopeSelect').value = 'project-local';
-		document.getElementById('hookMatcherInput').value = '';
-		document.getElementById('hookCommandInput').value = '';
-		document.getElementById('hookDescriptionInput').value = '';
-		document.getElementById('hookFormSubmitBtn').textContent = 'Add Hook';
-		document.getElementById('hookFormContainer').style.display = 'block';
-		document.getElementById('hookTemplatesContainer').style.display = 'none';
-	}
-
-	function cancelHookForm() {
-		var container = document.getElementById('hookFormContainer');
-		if (container) { container.style.display = 'none'; }
-		editingHookId = null;
-	}
-
-	function submitHookForm() {
-		var hookEvent = document.getElementById('hookEventSelect').value;
-		var scope = document.getElementById('hookScopeSelect').value;
-		var matcher = document.getElementById('hookMatcherInput').value.trim();
-		var command = document.getElementById('hookCommandInput').value.trim();
-		var description = document.getElementById('hookDescriptionInput').value.trim();
-
-		if (!command) {
-			alert('Command is required');
-			return;
-		}
-
-		if (editingHookId) {
-			vscode.postMessage({
-				type: 'updateHook',
-				hookId: editingHookId,
-				changes: { event: hookEvent, scope: scope, matcher: matcher, command: command, description: description }
-			});
-		} else {
-			vscode.postMessage({
-				type: 'addHook',
-				hook: { event: hookEvent, scope: scope, matcher: matcher, type: 'command', command: command, description: description, enabled: true }
-			});
-		}
-		cancelHookForm();
-	}
 
 	function showHookTemplates() {
 		var container = document.getElementById('hookTemplatesContainer');
 		var isVisible = container.style.display !== 'none';
 		container.style.display = isVisible ? 'none' : 'block';
-		document.getElementById('hookFormContainer').style.display = 'none';
 
 		if (!isVisible) {
 			vscode.postMessage({ type: 'getHookTemplates' });
@@ -2182,7 +2117,9 @@ export const uiScript = `
 	}
 
 	function applyHookTemplate(templateName) {
-		vscode.postMessage({ type: 'applyHookTemplate', templateName: templateName });
+		var scopeSelect = document.getElementById('hookTemplateScopeSelect');
+		var scope = scopeSelect ? scopeSelect.value : 'project';
+		vscode.postMessage({ type: 'applyHookTemplate', templateName: templateName, scope: scope });
 		// Hide templates section after applying
 		var container = document.getElementById('hookTemplatesContainer');
 		if (container) { container.style.display = 'none'; }
