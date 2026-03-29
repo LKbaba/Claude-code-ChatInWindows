@@ -399,11 +399,19 @@ export class ClaudeProcessService {
      */
     public dispose(): void {
         if (this._currentProcess) {
-            debugLog('ClaudeProcessService', 'Disposing: killing Claude process on extension deactivation');
+            const pid = this._currentProcess.pid;
+            debugLog('ClaudeProcessService', 'Disposing: killing Claude process tree on extension deactivation');
+            if (pid) {
+                // Fire-and-forget: send taskkill to kill entire process tree
+                // Don't await - dispose must be synchronous for VS Code lifecycle
+                this._windowsCompatibility.killProcess(pid).catch(error => {
+                    debugError('ClaudeProcessService', 'Error killing process tree during dispose', error);
+                });
+            }
             try {
-                this._currentProcess.kill();
+                this._currentProcess.kill(); // Also send SIGTERM as fallback
             } catch (error) {
-                debugError('ClaudeProcessService', 'Error killing process during dispose', error);
+                // Process may already be dead
             }
             this._currentProcess = undefined;
         }

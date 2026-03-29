@@ -125,6 +125,12 @@ export const uiScript = `
 			return div.innerHTML;
 		}
 
+		// Escape string for safe insertion into onclick attribute JS string (single-quoted)
+		function escapeForOnclick(str) {
+			const jsEscaped = str.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
+			return escapeHtml(jsEscaped);
+		}
+
 		function addMessage(content, type = 'claude') {
 			const messageDiv = document.createElement('div');
 			messageDiv.className = \`message \${type}\`;
@@ -330,8 +336,8 @@ export const uiScript = `
 			
 			// Special handling for MCP thinking tools - render as Markdown
 			if (data.toolName && data.toolName.startsWith('mcp__') && data.toolName.includes('thinking')) {
-				// Parse and render as Markdown
-				contentDiv.innerHTML = parseSimpleMarkdown(content, imagePathMap);
+				// Escape HTML first to prevent XSS, then render Markdown formatting
+				contentDiv.innerHTML = parseSimpleMarkdown(escapeHtml(content), imagePathMap);
 			} else if (content.length > 200 && !data.isError) {
 				const truncateAt = 197;
 				const truncated = content.substring(0, truncateAt);
@@ -2363,16 +2369,16 @@ export const uiScript = `
 					existingCommandsList.innerHTML = commands.map(cmd => \`
 						<div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; margin-bottom: 4px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px;">
 							<div style="display: flex; align-items: center; gap: 8px;">
-								<span style="font-size: 16px;">\${cmd.icon || '⚡'}</span>
+								<span style="font-size: 16px;">\${escapeHtml(cmd.icon || '⚡')}</span>
 								<div>
-									<div style="font-size: 12px; font-weight: 600;">/\${cmd.name}</div>
-									<div style="font-size: 11px; color: var(--vscode-descriptionForeground);">\${cmd.description}</div>
-									<div style="font-size: 10px; color: var(--vscode-descriptionForeground); font-family: monospace; margin-top: 2px;">\${cmd.command}</div>
+									<div style="font-size: 12px; font-weight: 600;">/\${escapeHtml(cmd.name)}</div>
+									<div style="font-size: 11px; color: var(--vscode-descriptionForeground);">\${escapeHtml(cmd.description)}</div>
+									<div style="font-size: 10px; color: var(--vscode-descriptionForeground); font-family: monospace; margin-top: 2px;">\${escapeHtml(cmd.command)}</div>
 								</div>
 							</div>
 							<div style="display: flex; gap: 4px;">
-								<button onclick="editCustomCommand('\${cmd.id}')" style="padding: 4px 8px; font-size: 11px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 2px; cursor: pointer;">Edit</button>
-								<button onclick="deleteCustomCommand('\${cmd.id}')" style="padding: 4px 8px; font-size: 11px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 2px; cursor: pointer;">Delete</button>
+								<button onclick="editCustomCommand('\${escapeForOnclick(cmd.id)}')" style="padding: 4px 8px; font-size: 11px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 2px; cursor: pointer;">Edit</button>
+								<button onclick="deleteCustomCommand('\${escapeForOnclick(cmd.id)}')" style="padding: 4px 8px; font-size: 11px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 2px; cursor: pointer;">Delete</button>
 							</div>
 						</div>
 					\`).join('');
@@ -2386,11 +2392,11 @@ export const uiScript = `
 				if (commands.length > 0) {
 					customCommandsSection.style.display = 'block';
 					customCommandsList.innerHTML = commands.map(cmd => \`
-						<div class="slash-command-item" onclick="executeCustomCommand('\${cmd.command}')">
-							<div class="slash-command-icon">\${cmd.icon || '⚡'}</div>
+						<div class="slash-command-item" onclick="executeCustomCommand('\${escapeForOnclick(cmd.command)}')">
+							<div class="slash-command-icon">\${escapeHtml(cmd.icon || '⚡')}</div>
 							<div class="slash-command-content">
-								<div class="slash-command-title">/\${cmd.name}</div>
-								<div class="slash-command-description">\${cmd.description}</div>
+								<div class="slash-command-title">/\${escapeHtml(cmd.name)}</div>
+								<div class="slash-command-description">\${escapeHtml(cmd.description)}</div>
 							</div>
 						</div>
 					\`).join('');
@@ -2963,7 +2969,7 @@ export const uiScript = `
 					}
 					break;
 				case 'configChanged':
-					addMessage('system', event.data);
+					addMessage(message.data, 'system');
 					break;
 				case 'platformInfo':
 					// Check if user is on Windows and show WSL alert if not dismissed and WSL not already enabled
@@ -5186,167 +5192,6 @@ export const uiScript = `
 			if (e.target === document.getElementById('slashCommandsModal')) {
 				hideSlashCommandsModal();
 			}
-		});
-
-		// Add settings message handler to window message event
-		const originalMessageHandler = window.onmessage;
-		window.addEventListener('message', event => {
-			const message = event.data;
-			
-			if (message.type === 'settingsData') {
-				// Restore thinking mode settings
-				const savedThinkingMode = message.data['thinking.enabled'] || false;
-				const thinkingIntensity = message.data['thinking.intensity'] || 'think';
-				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
-				const sliderValue = intensityValues.indexOf(thinkingIntensity);
-
-				// Restore thinking mode switch state
-				if (savedThinkingMode && !thinkingModeEnabled) {
-					thinkingModeEnabled = true;
-					const thinkingSwitchElement = document.getElementById('thinkingModeSwitch');
-					if (thinkingSwitchElement && !thinkingSwitchElement.classList.contains('active')) {
-						thinkingSwitchElement.classList.add('active');
-					}
-					// Update label to show current intensity
-					updateThinkingModeToggleName(sliderValue >= 0 ? sliderValue : 0);
-				}
-
-				// Update thinking intensity slider (if modal exists)
-				const thinkingIntensitySlider = document.getElementById('thinkingIntensitySlider');
-				if (thinkingIntensitySlider) {
-					thinkingIntensitySlider.value = sliderValue >= 0 ? sliderValue : 0;
-					updateThinkingIntensityDisplay(thinkingIntensitySlider.value);
-				} else if (!savedThinkingMode) {
-					// If disabled, update to default name
-					updateThinkingModeToggleName(sliderValue >= 0 ? sliderValue : 0);
-				}
-
-				// Restore language mode settings
-				const savedLanguageMode = message.data['language.enabled'] || false;
-				const savedLanguage = message.data['language.selected'] || null;
-				
-				// Only update if the current state doesn't match the saved state
-				if (savedLanguageMode && savedLanguage && !languageModeEnabled) {
-					languageModeEnabled = true;
-					selectedLanguage = savedLanguage;
-					
-					// Update UI
-					const switchElement = document.getElementById('languageModeSwitch');
-					if (switchElement && !switchElement.classList.contains('active')) {
-						switchElement.classList.add('active');
-					}
-					
-					const toggleLabel = document.getElementById('languageModeLabel');
-					const languageNames = {
-						'zh': '中文',
-						'es': 'Español',
-						'ar': 'العربية',
-						'fr': 'Français',
-						'de': 'Deutsch',
-						'ja': '日本語',
-						'ko': '한국어'
-					};
-					
-					if (toggleLabel && languageNames[savedLanguage]) {
-						toggleLabel.textContent = languageNames[savedLanguage];
-					}
-					
-					// Check the radio button in modal if open
-					const radioElement = document.getElementById('language-' + savedLanguage);
-					if (radioElement) {
-						radioElement.checked = true;
-					}
-				}
-				
-				// Restore "communicate only" checkbox state
-				const savedOnlyCommunicate = message.data['language.onlyCommunicate'] || false;
-				onlyCommunicateEnabled = savedOnlyCommunicate;
-				const onlyCommunicateCheckbox = document.getElementById('onlyCommunicateCheckbox');
-				if (onlyCommunicateCheckbox) {
-					onlyCommunicateCheckbox.checked = savedOnlyCommunicate;
-				}
-				// Update description text
-				const langDescEl = document.getElementById('languageModalDescription');
-				if (langDescEl) {
-					langDescEl.textContent = savedOnlyCommunicate
-						? 'The language for CC to communicate only.'
-						: 'The language for CC to communicate & write code-comments.';
-				}
-
-				// Skip WSL settings as those elements don't exist in the UI
-
-				// Load MCP settings
-				const mcpEnabledCheckbox = document.getElementById('mcp-enabled');
-				const mcpOptionsDiv = document.getElementById('mcpOptions');
-
-				if (mcpEnabledCheckbox) {
-					mcpEnabledCheckbox.checked = message.data['mcp.enabled'] || false;
-				}
-
-				if (mcpOptionsDiv) {
-					mcpOptionsDiv.style.display = message.data['mcp.enabled'] ? 'block' : 'none';
-				}
-
-				// Load MCP config target (configuration save location)
-				const mcpConfigTargetSelect = document.getElementById('mcpConfigTarget');
-				if (mcpConfigTargetSelect) {
-					mcpConfigTargetSelect.value = message.data['mcp.configTarget'] || 'workspace';
-				}
-
-				// Display config source info
-				const mcpConfigSource = message.data['mcp.configSource'];
-				const mcpConfigSourceInfo = document.getElementById('mcpConfigSourceInfo');
-				if (mcpConfigSourceInfo && mcpConfigSource) {
-					const sourceLabels = {
-						'workspace': 'from workspace',
-						'user': 'from user settings',
-						'default': 'default'
-					};
-					const serversSource = sourceLabels[mcpConfigSource.servers] || mcpConfigSource.servers;
-					mcpConfigSourceInfo.textContent = serversSource;
-				}
-
-				// Load MCP servers - load global and workspace config in separate panels
-				mcpServerCount = 0; // Reset counter
-				mcpServerExpandStates.clear(); // Clear expansion states
-
-				// Load global MCP servers
-				const globalServers = message.data['mcp.globalServers'] || [];
-				loadMcpServersToSection(globalServers, 'global');
-
-				// Load workspace MCP servers
-				const workspaceServers = message.data['mcp.workspaceServers'] || [];
-				loadMcpServersToSection(workspaceServers, 'workspace');
-
-				// Load API configuration
-				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
-				document.getElementById('api-key').value = message.data['api.key'] || '';
-				document.getElementById('api-baseUrl').value = message.data['api.baseUrl'] || 'https://api.anthropic.com';
-				document.getElementById('api-cliCommand').value = message.data['api.cliCommand'] || 'claude';  // Load CLI command name config
-				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
-			}
-
-			// Handle Gemini Integration config message
-			if (message.type === 'geminiIntegrationConfig') {
-				console.log('[Gemini] Received config:', message.data);
-				initGeminiIntegration(message.data);
-			}
-
-			if (message.type === 'platformInfo') {
-				// Check if user is on Windows and show WSL alert if not dismissed and WSL not already enabled
-				if (message.data.isWindows && !message.data.wslAlertDismissed && !message.data.wslEnabled) {
-					// Small delay to ensure UI is ready
-					setTimeout(() => {
-						showWSLAlert();
-					}, 1000);
-				}
-			}
-		});
-
-		// Auto resize textarea
-		const textarea = document.getElementById('messageInput');
-		textarea.addEventListener('input', () => {
-			adjustTextareaHeight();
 		});
 
 		// Expose functions to global scope for HTML onclick handlers

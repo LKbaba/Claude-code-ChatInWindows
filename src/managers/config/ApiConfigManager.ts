@@ -29,7 +29,8 @@ export class ApiConfigManager {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         return {
             shell: config.get<string>('windows.shell'),
-            pythonPath: config.get<string>('windows.pythonPath')
+            pythonPath: config.get<string>('windows.pythonPath'),
+            gitBashPath: config.get<string>('windows.gitBashPath')
         };
     }
 

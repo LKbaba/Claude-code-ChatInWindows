@@ -67,3 +67,6 @@ CCimages/**
 
 # Reference files (development only)
 reference/**
+
+# Spec/planning documents (development only)
+specs/**
