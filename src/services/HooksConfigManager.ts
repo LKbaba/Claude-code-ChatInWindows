@@ -50,6 +50,17 @@ interface DisabledHookEntry {
 }
 
 /**
+ * Hook description entry stored in _hookDescriptions array.
+ * CLI format has no description field, so we persist it ourselves.
+ */
+interface HookDescriptionEntry {
+    event: string;
+    matcher: string;
+    command: string;
+    description: string;
+}
+
+/**
  * Raw hook entry in CLI settings JSON
  */
 interface RawHookEntry {
@@ -182,6 +193,18 @@ export class HooksConfigManager {
         group.hooks.push({ type: 'command', command: newHook.command });
         data.hooks = hooksSection;
 
+        // Persist description if provided (CLI format has no description field)
+        if (newHook.description) {
+            const descriptions: HookDescriptionEntry[] = (data._hookDescriptions as HookDescriptionEntry[]) || [];
+            descriptions.push({
+                event: newHook.event,
+                matcher: newHook.matcher,
+                command: newHook.command,
+                description: newHook.description
+            });
+            data._hookDescriptions = descriptions;
+        }
+
         await this.writeSettingsFile(filePath, data);
         this.clearCache();
 
@@ -217,6 +240,16 @@ export class HooksConfigManager {
             );
             if ((data._disabledHooks as DisabledHookEntry[]).length === 0) {
                 delete data._disabledHooks;
+            }
+        }
+
+        // Also remove from _hookDescriptions if present
+        if (data._hookDescriptions) {
+            data._hookDescriptions = (data._hookDescriptions as HookDescriptionEntry[]).filter(
+                d => !(d.event === hook.event && d.matcher === hook.matcher && d.command === hook.command)
+            );
+            if ((data._hookDescriptions as HookDescriptionEntry[]).length === 0) {
+                delete data._hookDescriptions;
             }
         }
 
@@ -458,6 +491,13 @@ export class HooksConfigManager {
             const data = await this.readSettingsFile(filePath);
             const hooksSection = data.hooks as Record<string, RawMatcherGroup[]> | undefined;
             const disabledHooks: DisabledHookEntry[] = (data._disabledHooks as DisabledHookEntry[]) || [];
+            const descriptions: HookDescriptionEntry[] = (data._hookDescriptions as HookDescriptionEntry[]) || [];
+
+            // Helper to find persisted description
+            const findDescription = (event: string, matcher: string, command: string): string => {
+                const entry = descriptions.find(d => d.event === event && d.matcher === matcher && d.command === command);
+                return entry ? entry.description : '';
+            };
 
             if (!hooksSection) {
                 // Also check for disabled-only hooks
@@ -469,7 +509,7 @@ export class HooksConfigManager {
                             matcher: disabled.matcher,
                             type: 'command',
                             command: disabled.command,
-                            description: '',
+                            description: findDescription(disabled.event, disabled.matcher, disabled.command),
                             scope,
                             enabled: false
                         });
@@ -502,7 +542,7 @@ export class HooksConfigManager {
                             matcher: group.matcher,
                             type: 'command',
                             command: hookEntry.command,
-                            description: '',
+                            description: findDescription(event, group.matcher, hookEntry.command),
                             scope,
                             enabled: !isDisabled
                         });
@@ -522,7 +562,7 @@ export class HooksConfigManager {
                         matcher: disabled.matcher,
                         type: 'command',
                         command: disabled.command,
-                        description: '',
+                        description: findDescription(disabled.event, disabled.matcher, disabled.command),
                         scope,
                         enabled: false
                     });
