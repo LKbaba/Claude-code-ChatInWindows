@@ -394,20 +394,25 @@ export class WindowsCompatibility {
         // Platform-specific termination
         if (process.platform === 'win32' && pid) {
             // On Windows, use taskkill to ensure all child processes are terminated
-            try {
-                // /T flag terminates child processes, /F forces termination
-                cp.exec(`taskkill /pid ${pid} /t /f`, (error) => {
-                    if (error) {
-                        console.error('Failed to kill process with taskkill:', error);
+            // Wrap in Promise so callers can properly await completion
+            await new Promise<void>((resolve) => {
+                try {
+                    // /T flag terminates child processes, /F forces termination
+                    cp.exec(`taskkill /pid ${pid} /t /f`, (error) => {
+                        if (error) {
+                            console.error('Failed to kill process with taskkill:', error);
+                        }
+                        resolve(); // Always resolve - process may already be dead
+                    });
+                } catch (error) {
+                    console.error('Error executing taskkill:', error);
+                    // Fallback to Node.js kill
+                    if (processToKill) {
+                        processToKill.kill();
                     }
-                });
-            } catch (error) {
-                console.error('Error executing taskkill:', error);
-                // Fallback to Node.js kill
-                if (processToKill) {
-                    processToKill.kill();
+                    resolve();
                 }
-            }
+            });
         } else {
             // On Unix-like systems, use standard signals
             if (processToKill) {

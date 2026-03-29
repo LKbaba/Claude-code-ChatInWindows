@@ -19,7 +19,8 @@ export interface StatisticsEntry {
 
 // Cached file data
 interface CachedFileData {
-    timestamp: number;      // File last modification time
+    fileTimestamp: number;   // File last modification time (stats.mtimeMs) - for detecting file changes
+    cachedAt: number;        // Cache creation time (Date.now()) - for expiry checking
     entries: StatisticsEntry[];  // Processed data entries
     hash: string;          // File content hash (for detecting changes)
 }
@@ -67,13 +68,13 @@ export class StatisticsCache {
             }
 
             // Check if file was modified
-            if (cachedData.timestamp !== currentTimestamp) {
+            if (cachedData.fileTimestamp !== currentTimestamp) {
                 return true; // File modified, need to re-read
             }
 
             // Check if cache expired
             const now = Date.now();
-            if (now - cachedData.timestamp > this.CACHE_EXPIRY_TIME) {
+            if (now - cachedData.cachedAt > this.CACHE_EXPIRY_TIME) {
                 return true; // Cache expired, need to update
             }
 
@@ -107,7 +108,8 @@ export class StatisticsCache {
             .digest('hex');
 
         this.fileCache.set(filePath, {
-            timestamp,
+            fileTimestamp: timestamp,
+            cachedAt: Date.now(),
             entries,
             hash
         });
@@ -182,7 +184,7 @@ export class StatisticsCache {
 
         // Clean file cache
         for (const [path, data] of this.fileCache.entries()) {
-            if (now - data.timestamp > this.CACHE_EXPIRY_TIME) {
+            if (now - data.cachedAt > this.CACHE_EXPIRY_TIME) {
                 this.fileCache.delete(path);
             }
         }
@@ -199,9 +201,9 @@ export class StatisticsCache {
      * Clean oldest cache entries (when cache size exceeds limit)
      */
     private cleanOldestCache(): void {
-        // Sort by timestamp, delete oldest 10%
+        // Sort by cache creation time, delete oldest 10%
         const sortedEntries = Array.from(this.fileCache.entries())
-            .sort((a, b) => a[1].timestamp - b[1].timestamp);
+            .sort((a, b) => a[1].cachedAt - b[1].cachedAt);
 
         const deleteCount = Math.floor(sortedEntries.length * 0.1);
         for (let i = 0; i < deleteCount; i++) {

@@ -106,7 +106,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register tree data provider for the activity bar view
 	const treeProvider = new ClaudeChatViewProvider(context.extensionUri, context);
-	vscode.window.registerTreeDataProvider('claude-code-chatui.chat', treeProvider);
+	const treeDisposable = vscode.window.registerTreeDataProvider('claude-code-chatui.chat', treeProvider);
 
 	// Make tree provider accessible to chat provider for refreshing
 	provider.setTreeProvider(treeProvider);
@@ -118,7 +118,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	statusBarItem.command = 'claude-code-chatui.openChat';
 	statusBarItem.show();
 
-	context.subscriptions.push(disposable, loadConversationDisposable, operationTrackedCommand, operationChangedCommand, statusBarItem);
+	context.subscriptions.push(disposable, loadConversationDisposable, operationTrackedCommand, operationChangedCommand, statusBarItem, provider, treeDisposable);
 	// DEBUG: console.log('Claude Code Chat extension activation completed successfully!');
 }
 
