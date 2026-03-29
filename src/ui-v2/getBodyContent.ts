@@ -429,31 +429,79 @@ export function getBodyContent(): string {
 					</div>
 				</div>
 
-				<h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 14px; font-weight: 600;">🦾 Gemini AI Assistant</h3>
+				<h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 14px; font-weight: 600;">🦾 AI Assistant</h3>
 				<div>
 					<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
-						Securely manage your Gemini API key. When enabled, this key will be automatically injected into the gemini-assistant MCP server.
+						Securely manage your AI integration keys. When enabled, keys will be automatically injected into the corresponding MCP servers.
 					</p>
 				</div>
 				<div class="settings-group">
+					<!-- Gemini Sub-section -->
 					<div class="tool-item">
 						<input type="checkbox" id="gemini-enabled" onchange="toggleGeminiOptions()">
-						<label for="gemini-enabled">Enable Gemini Integration</label>
+						<label for="gemini-enabled" style="font-weight: 600;">Gemini</label>
+					</div>
+					<div id="geminiOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
+						<!-- Auth mode radio -->
+						<div style="margin-bottom: 12px;">
+							<label style="display: inline-flex; align-items: center; margin-right: 16px; font-size: 12px; cursor: pointer;">
+								<input type="radio" name="gemini-auth-mode" value="apikey" checked onchange="switchGeminiAuthMode('apikey')" style="margin-right: 4px;">
+								API Key (AI Studio)
+							</label>
+							<label style="display: inline-flex; align-items: center; font-size: 12px; cursor: pointer;">
+								<input type="radio" name="gemini-auth-mode" value="vertex" onchange="switchGeminiAuthMode('vertex')" style="margin-right: 4px;">
+								Vertex AI (GCP Project)
+							</label>
+						</div>
+						<!-- Option A: API Key -->
+						<div id="gemini-apikey-panel" style="margin-bottom: 8px;">
+							<div style="display: flex; align-items: center; gap: 4px;">
+								<input type="password" id="gemini-api-key" placeholder="AIza..."
+									style="flex: 1; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;"
+									onchange="updateGeminiApiKey()">
+								<button onclick="deleteGeminiApiKey()" title="Delete saved key"
+									style="padding: 4px 8px; font-size: 12px; background: transparent; color: var(--vscode-errorForeground); border: 1px solid var(--vscode-input-border); border-radius: 4px; cursor: pointer;">✕</button>
+							</div>
+							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
+								🔒 Stored in VS Code SecretStorage.
+								💡 Get your key from <a href="https://aistudio.google.com/apikey" style="color: var(--vscode-textLink-foreground);">Google AI Studio</a>
+							</p>
+						</div>
+						<!-- Option B: Vertex AI -->
+						<div id="gemini-vertex-panel" style="margin-bottom: 8px; display: none;">
+							<div style="display: flex; align-items: center; gap: 8px;">
+								<button onclick="importVertexCredentials()"
+									style="padding: 4px 12px; font-size: 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer;">
+									📁 Import JSON Key File
+								</button>
+								<span id="vertex-status" style="font-size: 11px; color: var(--vscode-descriptionForeground);">— Not imported</span>
+								<button id="vertex-delete-btn" onclick="deleteVertexCredentials()" title="Delete imported credentials"
+									style="padding: 4px 8px; font-size: 12px; background: transparent; color: var(--vscode-errorForeground); border: 1px solid var(--vscode-input-border); border-radius: 4px; cursor: pointer; display: none;">✕</button>
+							</div>
+							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
+								💡 Export from <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" style="color: var(--vscode-textLink-foreground);">Google Cloud Console</a>: IAM → Service Accounts → Keys → Add Key → JSON
+							</p>
+						</div>
 					</div>
 
-					<div id="geminiOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
-						<div style="margin-bottom: 12px;">
-							<label for="gemini-api-key" style="display: block; font-size: 12px; margin-bottom: 4px;">Gemini API Key</label>
-							<input type="password" id="gemini-api-key" placeholder="AIza..."
-								style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;"
-								onchange="updateGeminiApiKey()">
-						</div>
-						<div style="padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
-							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
-								🔒 Your API key will be stored securely in VS Code SecretStorage.
-							</p>
+					<!-- Grok Sub-section -->
+					<div class="tool-item" style="margin-top: 12px;">
+						<input type="checkbox" id="grok-enabled" onchange="toggleGrokOptions()">
+						<label for="grok-enabled" style="font-weight: 600;">Grok</label>
+					</div>
+					<div id="grokOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
+						<div style="margin-bottom: 8px;">
+							<label for="grok-api-key" style="display: block; font-size: 12px; margin-bottom: 4px;">Grok API Key</label>
+							<div style="display: flex; align-items: center; gap: 4px;">
+								<input type="password" id="grok-api-key" placeholder="xai-..."
+									style="flex: 1; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;"
+									onchange="updateGrokApiKey()">
+								<button onclick="deleteGrokApiKey()" title="Delete saved key"
+									style="padding: 4px 8px; font-size: 12px; background: transparent; color: var(--vscode-errorForeground); border: 1px solid var(--vscode-input-border); border-radius: 4px; cursor: pointer;">✕</button>
+							</div>
 							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
-								💡 Get your free key from <a href="https://aistudio.google.com/apikey" style="color: var(--vscode-textLink-foreground);">Google AI Studio</a>
+								🔒 Stored in VS Code SecretStorage.
+								💡 Get your key from <a href="https://console.x.ai/" style="color: var(--vscode-textLink-foreground);">console.x.ai</a>
 							</p>
 						</div>
 					</div>
