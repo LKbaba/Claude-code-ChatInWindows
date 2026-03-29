@@ -2,6 +2,17 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.0.3] - 2026-03-29
+
+### Improvements
+- **Hooks UI polish**: Align Hooks panel visual style with Skills panel
+  - Toolbar button shows "Hooks: All" / "Hooks: N" count like Plugins/Skills
+  - Enabled/Disabled green/red pill badges replace checkbox toggles
+  - Scope groups use `skill-category` CSS classes instead of inline styles
+  - Status bar styled with `.hooks-status` CSS rule
+  - Templates section uses `.skill-item` card layout
+  - Hook items use `.skill-content` / `.skill-header-row` structure
+
 ## [4.0.2] - 2026-03-28
 
 ### New Features
