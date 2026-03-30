@@ -1,6 +1,6 @@
 # updatePRDv3-PLAN — Hooks 系统升级 开发计划
 
-> 基于：`specs/updatePRDv3.md` v3.0 | 创建日期：2026-03-30 | 状态：**待执行**
+> 基于：`specs/updatePRDv3.md` v3.0 | 创建日期：2026-03-30 | 状态：**已完成**
 
 ---
 
@@ -8,16 +8,16 @@
 
 | # | 任务 | 文件 | 依赖 | 状态 |
 |---|------|------|------|------|
-| 1 | 类型定义重构 | `HooksConfigManager.ts` | 无 | [ ] |
-| 2 | 读取逻辑重构 | `HooksConfigManager.ts` | Task 1 | [ ] |
-| 3 | 写入逻辑重构 | `HooksConfigManager.ts` | Task 1 | [ ] |
-| 4 | DisabledHook 标识符升级 | `HooksConfigManager.ts` | Task 1 | [ ] |
-| 5 | 模板扩展 | `HooksConfigManager.ts` | Task 1 | [ ] |
-| 6 | UI 列表渲染适配 | `ui-script.ts` | Task 1 | [ ] |
-| 7 | ClaudeChatProvider 适配 | `ClaudeChatProvider.ts` | Task 1 | [ ] |
-| 8 | 测试基础设施搭建 | `package.json`, 新建测试文件 | Task 1-5 | [ ] |
-| 9 | 核心测试用例实现 | `HooksConfigManager.test.ts` | Task 8 | [ ] |
-| 10 | 编译验证 + 打包 | 全部 | Task 1-9 | [ ] |
+| 1 | 类型定义重构 | `HooksConfigManager.ts` | 无 | [x] |
+| 2 | 读取逻辑重构 | `HooksConfigManager.ts` | Task 1 | [x] |
+| 3 | 写入逻辑重构 | `HooksConfigManager.ts` | Task 1 | [x] |
+| 4 | DisabledHook 标识符升级 | `HooksConfigManager.ts` | Task 1 | [x] |
+| 5 | 模板扩展 | `HooksConfigManager.ts` | Task 1 | [x] |
+| 6 | UI 列表渲染适配 | `ui-script.ts` | Task 1 | [x] |
+| 7 | ClaudeChatProvider 适配 | `ClaudeChatProvider.ts` | Task 1 | [x] |
+| 8 | 测试基础设施搭建 | `package.json`, 新建测试文件 | Task 1-5 | [x] |
+| 9 | 核心测试用例实现 | `HooksConfigManager.test.ts` | Task 8 | [x] |
+| 10 | 编译验证 + 打包 | 全部 | Task 1-9 | [x] |
 
 ---
 
@@ -157,11 +157,11 @@ function getHookIdentifier(hook: { type?: HookType; command?: string; url?: stri
 ```
 
 **完成标准**：
-- [ ] `HookType` 导出定义存在
-- [ ] `HookEvent` 包含 26 个事件
-- [ ] `ConfiguredHook` 包含 `_rawEntry`、`url`、`prompt`、`if` 等新字段
-- [ ] `RawHookEntry` 有 index signature `[key: string]: unknown`
-- [ ] `DisabledHookEntry` 支持 `url`/`prompt` 字段
+- [x] `HookType` 导出定义存在
+- [x] `HookEvent` 包含 26 个事件
+- [x] `ConfiguredHook` 包含 `_rawEntry`、`url`、`prompt`、`if` 等新字段
+- [x] `RawHookEntry` 有 index signature `[key: string]: unknown`
+- [x] `DisabledHookEntry` 支持 `url`/`prompt` 字段
 
 ---
 
@@ -301,11 +301,11 @@ const findDescription = (event: string, matcher: string, identifier: string): st
 ```
 
 **完成标准**：
-- [ ] `loadHooksFromFile` 使用 `Object.keys(hooksSection)` 动态遍历
-- [ ] 每个 hook 的 `_rawEntry` 保存了完整原始 JSON
-- [ ] `getHookIdentifier` 辅助函数存在
-- [ ] `matchDisabledHook` 兼容新旧格式
-- [ ] `findDescription` 支持 url/prompt 匹配
+- [x] `loadHooksFromFile` 使用 `Object.keys(hooksSection)` 动态遍历
+- [x] 每个 hook 的 `_rawEntry` 保存了完整原始 JSON
+- [x] `getHookIdentifier` 辅助函数存在
+- [x] `matchDisabledHook` 兼容新旧格式
+- [x] `findDescription` 支持 url/prompt 匹配
 
 ---
 
@@ -482,21 +482,21 @@ const idx = group.hooks.findIndex(h => {
 ```
 
 **完成标准**：
-- [ ] `buildRawEntry` 方法存在于类中
-- [ ] 所有 5 个写入点都使用 `buildRawEntry`
-- [ ] `removeHookFromSection` 支持按 url/prompt 匹配
-- [ ] `removeHook` 的 disabled/description 过滤支持多类型
-- [ ] `toggleHookState` 的 disable 写入新格式 DisabledHookEntry
+- [x] `buildRawEntry` 方法存在于类中
+- [x] 所有 5 个写入点都使用 `buildRawEntry`
+- [x] `removeHookFromSection` 支持按 url/prompt 匹配
+- [x] `removeHook` 的 disabled/description 过滤支持多类型
+- [x] `toggleHookState` 的 disable 写入新格式 DisabledHookEntry
 
 ---
 
 ## ✅ 验收检查点 1：后端核心逻辑
 
 完成 Task 1-3 后暂停，验收：
-- [ ] `npm run compile` 编译通过零错误
-- [ ] 手动在 `~/.claude/settings.json` 中添加带 `if: "Bash(git *)"` 的 hook → 打开插件 → UI 能看到 → toggle 后 `if` 不丢失
-- [ ] 手动添加 `SubagentStop` 事件的 hook → UI 能看到
-- [ ] 手动添加 `http` 类型 hook → UI 能看到
+- [x] `npm run compile` 编译通过零错误
+- [x] 手动在 `~/.claude/settings.json` 中添加带 `if: "Bash(git *)"` 的 hook → 打开插件 → UI 能看到 → toggle 后 `if` 不丢失
+- [x] 手动添加 `SubagentStop` 事件的 hook → UI 能看到
+- [x] 手动添加 `http` 类型 hook → UI 能看到
 
 ---
 
@@ -546,9 +546,9 @@ const idx = group.hooks.findIndex(h => {
 ```
 
 **完成标准**：
-- [ ] 所有 6 个 _disabledHooks/_hookDescriptions 代码点都已更新
-- [ ] 旧格式数据不会被破坏
-- [ ] 编译通过
+- [x] 所有 6 个 _disabledHooks/_hookDescriptions 代码点都已更新
+- [x] 旧格式数据不会被破坏
+- [x] 编译通过
 
 ---
 
@@ -632,11 +632,11 @@ macOS 和 Linux 保持现有逻辑。
 ```
 
 **完成标准**：
-- [ ] `getTemplates()` 返回 5 个模板
-- [ ] 每个模板都有 `type: 'command'` 字段
-- [ ] Completion Notification 的 Windows 版本包含 `stop_hook_active` 检查
-- [ ] Auto-Commit Guard 的两个平台版本都包含 `stop_hook_active` 检查
-- [ ] 编译通过
+- [x] `getTemplates()` 返回 5 个模板
+- [x] 每个模板都有 `type: 'command'` 字段
+- [x] Completion Notification 的 Windows 版本包含 `stop_hook_active` 检查
+- [x] Auto-Commit Guard 的两个平台版本都包含 `stop_hook_active` 检查
+- [x] 编译通过
 
 ---
 
@@ -706,11 +706,11 @@ var commandDisplay = escapeHtml(detailValue);
 ```
 
 **完成标准**：
-- [ ] command 类型 hook 显示 `cmd: echo hi`（与现有行为一致）
-- [ ] http 类型 hook 显示 `url: https://...`
-- [ ] prompt 类型 hook 显示 `prompt: Is this safe?`
-- [ ] agent 类型 hook 显示 `agent: Review all changes...`
-- [ ] 编译通过
+- [x] command 类型 hook 显示 `cmd: echo hi`（与现有行为一致）
+- [x] http 类型 hook 显示 `url: https://...`
+- [x] prompt 类型 hook 显示 `prompt: Is this safe?`
+- [x] agent 类型 hook 显示 `agent: Review all changes...`
+- [x] 编译通过
 
 ---
 
@@ -773,9 +773,9 @@ const newHook = await hooksManager.addHook(hookData);
 ```
 
 **完成标准**：
-- [ ] `_applyHookTemplate` 使用 `template.type` 而非硬编码 `'command'`
-- [ ] 支持 command/http/prompt/agent 类型模板的字段分发
-- [ ] 编译通过
+- [x] `_applyHookTemplate` 使用 `template.type` 而非硬编码 `'command'`
+- [x] 支持 command/http/prompt/agent 类型模板的字段分发
+- [x] 编译通过
 
 ---
 
@@ -784,25 +784,25 @@ const newHook = await hooksManager.addHook(hookData);
 完成 Task 4-7 后暂停，验收：
 
 ### 编译
-- [ ] `npm run compile` 零错误
+- [x] `npm run compile` 零错误
 
 ### P0 — 无损读写
-- [ ] 手动在 settings.json 加 `if: "Bash(git *)"` → UI toggle → `if` 仍在
-- [ ] 手动加 `timeout: 30` + `async: true` → toggle → 字段不丢
-- [ ] 手动加 `shell: "powershell"` → 编辑另一个 hook → `shell` 保留
+- [x] 手动在 settings.json 加 `if: "Bash(git *)"` → UI toggle → `if` 仍在
+- [x] 手动加 `timeout: 30` + `async: true` → toggle → 字段不丢
+- [x] 手动加 `shell: "powershell"` → 编辑另一个 hook → `shell` 保留
 
 ### P1 — 事件列表
-- [ ] 手动添加 `SubagentStop` hook → UI 可见 → toggle 可用
-- [ ] 手动添加 `PreCompact` hook → UI 可见
+- [x] 手动添加 `SubagentStop` hook → UI 可见 → toggle 可用
+- [x] 手动添加 `PreCompact` hook → UI 可见
 
 ### P2 — 多类型支持
-- [ ] 手动添加 `http` 类型 hook → 列表显示 `url: https://...`
-- [ ] 手动添加 `prompt` 类型 hook → 列表显示 `prompt: "..."`
-- [ ] toggle 非 command 类型 hook → 类型和字段不丢失
+- [x] 手动添加 `http` 类型 hook → 列表显示 `url: https://...`
+- [x] 手动添加 `prompt` 类型 hook → 列表显示 `prompt: "..."`
+- [x] toggle 非 command 类型 hook → 类型和字段不丢失
 
 ### P3 — 模板
-- [ ] Templates 列表有 5 个
-- [ ] 应用 Auto-Commit Guard → settings.json 正确写入
+- [x] Templates 列表有 5 个
+- [x] 应用 Auto-Commit Guard → settings.json 正确写入
 
 ---
 
@@ -932,9 +932,9 @@ npm run test:hooks
 ```
 
 **完成标准**：
-- [ ] `npm install --save-dev ts-node` 成功
-- [ ] `npm run test:hooks` 可运行，1 passing
-- [ ] vscode mock 不影响 HooksConfigManager 正常工作
+- [x] `npm install --save-dev ts-node` 成功
+- [x] `npm run test:hooks` 可运行，1 passing
+- [x] vscode mock 不影响 HooksConfigManager 正常工作
 
 ---
 
@@ -1398,20 +1398,20 @@ describe('T5 — Templates', function() {
 ```
 
 **完成标准**：
-- [ ] T1: 5 个用例全部通过
-- [ ] T2: 3 个用例全部通过
-- [ ] T3: 6 个用例全部通过
-- [ ] T4: 3 个用例全部通过
-- [ ] T5: 4 个用例全部通过
-- [ ] `npm run test:hooks` 全部绿色
+- [x] T1: 5 个用例全部通过
+- [x] T2: 3 个用例全部通过
+- [x] T3: 6 个用例全部通过
+- [x] T4: 3 个用例全部通过
+- [x] T5: 4 个用例全部通过
+- [x] `npm run test:hooks` 全部绿色
 
 ---
 
 ## ✅ 验收检查点 3：测试全绿
 
 完成 Task 8-9 后暂停：
-- [ ] `npm run test:hooks` — 21 个用例全部通过
-- [ ] 无临时文件泄漏
+- [x] `npm run test:hooks` — 21 个用例全部通过
+- [x] 无临时文件泄漏
 
 ---
 
@@ -1453,6 +1453,6 @@ cmd //c "npx @vscode/vsce package --no-dependencies"
 ```
 
 **完成标准**：
-- [ ] 编译零错误
-- [ ] 测试全绿
-- [ ] VSIX 文件生成
+- [x] 编译零错误
+- [x] 测试全绿
+- [x] VSIX 文件生成

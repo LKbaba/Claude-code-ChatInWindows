@@ -345,6 +345,7 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
+    "test:hooks": "mocha --require ts-node/register --timeout 10000 src/test/HooksConfigManager.test.ts",
     "package": "vsce package"
   },
   "dependencies": {
@@ -361,6 +362,7 @@
     "@vscode/vsce": "^3.5.0",
     "eslint": "^9.25.1",
     "playwright": "^1.40.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
 }

@@ -2634,15 +2634,29 @@ export class ClaudeChatProvider {
 				throw new Error(`Template not found: ${templateName}`);
 			}
 			const hookScope = (scope === 'global' ? 'global' : 'project') as any;
-			const newHook = await hooksManager.addHook({
+			const hookData: any = {
 				event: template.event,
 				matcher: template.matcher,
-				type: 'command',
-				command: template.command,
+				type: template.type || 'command',
 				description: template.description,
 				scope: hookScope,
 				enabled: true
-			});
+			};
+			// Set type-specific primary field from template
+			switch (template.type) {
+				case 'http':
+					hookData.url = template.url;
+					break;
+				case 'prompt':
+				case 'agent':
+					hookData.prompt = template.prompt;
+					break;
+				case 'command':
+				default:
+					hookData.command = template.command;
+					break;
+			}
+			const newHook = await hooksManager.addHook(hookData);
 			this._panel?.webview.postMessage({ type: 'hookAdded', hook: newHook });
 			debugLog('HooksManager', `Template applied: ${templateName}`);
 		} catch (error: any) {

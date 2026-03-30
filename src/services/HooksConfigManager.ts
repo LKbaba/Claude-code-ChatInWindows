@@ -6,9 +6,32 @@ import * as crypto from 'crypto';
 import { debugLog, debugWarn, debugError } from './DebugLogger';
 
 /**
- * Hook event types supported by Claude Code CLI
+ * Hook event types supported by Claude Code CLI (all 26 events)
  */
-export type HookEvent = 'PreToolUse' | 'PostToolUse' | 'Stop' | 'SessionStart' | 'UserPromptSubmit';
+export type HookEvent =
+    // Session lifecycle
+    | 'SessionStart' | 'SessionEnd' | 'InstructionsLoaded'
+    // Prompt & tool
+    | 'UserPromptSubmit' | 'PreToolUse' | 'PermissionRequest'
+    | 'PostToolUse' | 'PostToolUseFailure'
+    // Notifications & stops
+    | 'Notification' | 'Stop' | 'StopFailure'
+    // Subagents & tasks
+    | 'SubagentStart' | 'SubagentStop'
+    | 'TaskCreated' | 'TaskCompleted' | 'TeammateIdle'
+    // Config & environment
+    | 'ConfigChange' | 'CwdChanged' | 'FileChanged'
+    // Worktrees
+    | 'WorktreeCreate' | 'WorktreeRemove'
+    // Compaction
+    | 'PreCompact' | 'PostCompact'
+    // MCP Elicitation
+    | 'Elicitation' | 'ElicitationResult';
+
+/**
+ * Hook types supported by Claude Code CLI
+ */
+export type HookType = 'command' | 'http' | 'prompt' | 'agent';
 
 /**
  * Hook scope — determines which settings file the hook is stored in
@@ -22,11 +45,26 @@ export interface ConfiguredHook {
     id: string;           // Transient UUID (not persisted in JSON)
     event: HookEvent;
     matcher: string;      // Glob pattern for tool name, '' for match-all
-    type: 'command';
-    command: string;      // Shell command to execute
-    description: string;  // User-facing label
+    type: HookType;
+    // Type-specific primary field
+    command?: string;      // command type
+    url?: string;          // http type
+    prompt?: string;       // prompt / agent type
+    // Common optional fields
+    if?: string;
+    timeout?: number;
+    statusMessage?: string;
+    once?: boolean;
+    async?: boolean;       // command only
+    shell?: string;        // command only
+    model?: string;        // prompt / agent only
+    headers?: Record<string, string>;  // http only
+    // Plugin-managed fields
+    description: string;
     scope: HookScope;
     enabled: boolean;
+    // Preserve original raw entry for lossless round-trip
+    _rawEntry?: Record<string, unknown>;
 }
 
 /**
@@ -37,7 +75,10 @@ export interface HookTemplate {
     description: string;
     event: HookEvent;
     matcher: string;
-    command: string;
+    type: HookType;
+    command?: string;      // command type
+    url?: string;          // http type
+    prompt?: string;       // prompt/agent type
 }
 
 /**
@@ -46,7 +87,11 @@ export interface HookTemplate {
 interface DisabledHookEntry {
     event: string;
     matcher: string;
-    command: string;
+    type?: HookType;      // new, optional for backward compat
+    command?: string;      // command type identifier (backward compat)
+    url?: string;          // http type identifier
+    prompt?: string;       // prompt/agent type identifier
+    _rawEntry?: Record<string, unknown>;  // preserve raw data for lossless re-enable
 }
 
 /**
@@ -56,16 +101,36 @@ interface DisabledHookEntry {
 interface HookDescriptionEntry {
     event: string;
     matcher: string;
-    command: string;
+    command?: string;      // command type
+    url?: string;          // http type
+    prompt?: string;       // prompt/agent type
     description: string;
 }
 
 /**
- * Raw hook entry in CLI settings JSON
+ * Raw hook entry in CLI settings JSON.
+ * Uses index signature to preserve unknown/future fields.
  */
 interface RawHookEntry {
-    type: 'command';
-    command: string;
+    type: HookType;
+    // command type
+    command?: string;
+    async?: boolean;
+    shell?: string;
+    // http type
+    url?: string;
+    headers?: Record<string, string>;
+    allowedEnvVars?: string[];
+    // prompt / agent type
+    prompt?: string;
+    model?: string;
+    // common optional fields
+    if?: string;
+    timeout?: number;
+    statusMessage?: string;
+    once?: boolean;
+    // catch-all for future fields
+    [key: string]: unknown;
 }
 
 /**
@@ -74,6 +139,37 @@ interface RawHookEntry {
 interface RawMatcherGroup {
     matcher: string;
     hooks: RawHookEntry[];
+}
+
+/**
+ * Get the primary identifier of a hook entry based on its type.
+ */
+function getHookIdentifier(hook: { type?: HookType | string; command?: string; url?: string; prompt?: string }): string {
+    switch (hook.type) {
+        case 'http': return hook.url || '';
+        case 'prompt':
+        case 'agent': return hook.prompt || '';
+        case 'command':
+        default: return hook.command || '';
+    }
+}
+
+/**
+ * Match a disabled hook entry against a raw hook entry.
+ * Supports both old format (command-only) and new format (type-aware).
+ */
+function matchDisabledHook(disabled: DisabledHookEntry, hookEntry: RawHookEntry): boolean {
+    // New format: match by type + corresponding identifier
+    if (disabled.type) {
+        switch (disabled.type) {
+            case 'http': return disabled.url === hookEntry.url;
+            case 'prompt':
+            case 'agent': return disabled.prompt === hookEntry.prompt;
+            case 'command': return disabled.command === hookEntry.command;
+        }
+    }
+    // Old format: match by command field only (backward compat)
+    return disabled.command === hookEntry.command;
 }
 
 /**
@@ -190,18 +286,25 @@ export class HooksConfigManager {
             matcherGroups.push(group);
         }
 
-        group.hooks.push({ type: 'command', command: newHook.command });
+        group.hooks.push(this.buildRawEntry(newHook) as RawHookEntry);
         data.hooks = hooksSection;
 
         // Persist description if provided (CLI format has no description field)
         if (newHook.description) {
             const descriptions: HookDescriptionEntry[] = (data._hookDescriptions as HookDescriptionEntry[]) || [];
-            descriptions.push({
+            const identifier = getHookIdentifier(newHook);
+            const descEntry: HookDescriptionEntry = {
                 event: newHook.event,
                 matcher: newHook.matcher,
-                command: newHook.command,
                 description: newHook.description
-            });
+            };
+            // Set identifier field based on type
+            switch (newHook.type) {
+                case 'http': descEntry.url = newHook.url; break;
+                case 'prompt': case 'agent': descEntry.prompt = newHook.prompt; break;
+                default: descEntry.command = newHook.command; break;
+            }
+            descriptions.push(descEntry);
             data._hookDescriptions = descriptions;
         }
 
@@ -236,7 +339,7 @@ export class HooksConfigManager {
         // Also remove from _disabledHooks if present
         if (data._disabledHooks) {
             data._disabledHooks = (data._disabledHooks as DisabledHookEntry[]).filter(
-                d => !(d.event === hook.event && d.matcher === hook.matcher && d.command === hook.command)
+                d => !(d.event === hook.event && d.matcher === hook.matcher && matchDisabledHook(d, { type: hook.type, command: hook.command, url: hook.url, prompt: hook.prompt } as RawHookEntry))
             );
             if ((data._disabledHooks as DisabledHookEntry[]).length === 0) {
                 delete data._disabledHooks;
@@ -245,8 +348,10 @@ export class HooksConfigManager {
 
         // Also remove from _hookDescriptions if present
         if (data._hookDescriptions) {
+            const identifier = getHookIdentifier(hook);
             data._hookDescriptions = (data._hookDescriptions as HookDescriptionEntry[]).filter(
-                d => !(d.event === hook.event && d.matcher === hook.matcher && d.command === hook.command)
+                d => !(d.event === hook.event && d.matcher === hook.matcher &&
+                    (d.command === identifier || d.url === identifier || d.prompt === identifier))
             );
             if ((data._hookDescriptions as HookDescriptionEntry[]).length === 0) {
                 delete data._hookDescriptions;
@@ -291,21 +396,28 @@ export class HooksConfigManager {
                 group = { matcher: hook.matcher, hooks: [] };
                 hooksSection[hook.event].push(group);
             }
-            group.hooks.push({ type: 'command', command: hook.command });
+            group.hooks.push(this.buildRawEntry(hook) as RawHookEntry);
 
             // Remove from disabled list
             data._disabledHooks = disabledHooks.filter(
-                d => !(d.event === hook.event && d.matcher === hook.matcher && d.command === hook.command)
+                d => !(d.event === hook.event && d.matcher === hook.matcher && matchDisabledHook(d, { type: hook.type, command: hook.command, url: hook.url, prompt: hook.prompt } as RawHookEntry))
             );
         } else {
             // Disable: remove from hooks section, add to _disabledHooks
             this.removeHookFromSection(hooksSection, hook);
 
-            disabledHooks.push({
+            const disabledEntry: DisabledHookEntry = {
                 event: hook.event,
                 matcher: hook.matcher,
-                command: hook.command
-            });
+                type: hook.type,
+                _rawEntry: hook._rawEntry  // preserve raw data for lossless re-enable
+            };
+            switch (hook.type) {
+                case 'http': disabledEntry.url = hook.url; break;
+                case 'prompt': case 'agent': disabledEntry.prompt = hook.prompt; break;
+                default: disabledEntry.command = hook.command; break;
+            }
+            disabledHooks.push(disabledEntry);
             data._disabledHooks = disabledHooks;
         }
 
@@ -344,11 +456,22 @@ export class HooksConfigManager {
             const updatedHook: Omit<ConfiguredHook, 'id'> = {
                 event: changes.event || hook.event,
                 matcher: changes.matcher !== undefined ? changes.matcher : hook.matcher,
-                type: 'command',
-                command: changes.command || hook.command,
+                type: changes.type || hook.type || 'command',
+                command: changes.command !== undefined ? changes.command : hook.command,
+                url: changes.url !== undefined ? changes.url : hook.url,
+                prompt: changes.prompt !== undefined ? changes.prompt : hook.prompt,
+                if: changes.if !== undefined ? changes.if : hook.if,
+                timeout: changes.timeout !== undefined ? changes.timeout : hook.timeout,
+                statusMessage: changes.statusMessage !== undefined ? changes.statusMessage : hook.statusMessage,
+                once: changes.once !== undefined ? changes.once : hook.once,
+                async: changes.async !== undefined ? changes.async : hook.async,
+                shell: changes.shell !== undefined ? changes.shell : hook.shell,
+                model: changes.model !== undefined ? changes.model : hook.model,
+                headers: changes.headers !== undefined ? changes.headers : hook.headers,
                 description: changes.description !== undefined ? changes.description : hook.description,
                 scope: newScope,
-                enabled: changes.enabled !== undefined ? changes.enabled : hook.enabled
+                enabled: changes.enabled !== undefined ? changes.enabled : hook.enabled,
+                _rawEntry: hook._rawEntry
             };
             await this.addHook(updatedHook);
         } else {
@@ -364,10 +487,15 @@ export class HooksConfigManager {
             // Remove old entry
             this.removeHookFromSection(hooksSection, hook);
 
-            // Add updated entry
-            const newEvent = changes.event || hook.event;
-            const newMatcher = changes.matcher !== undefined ? changes.matcher : hook.matcher;
-            const newCommand = changes.command || hook.command;
+            // Build updated hook preserving all fields
+            const updatedHook: Partial<ConfiguredHook> = {
+                ...hook,
+                ...changes,
+                _rawEntry: hook._rawEntry
+            };
+
+            const newEvent = updatedHook.event || hook.event;
+            const newMatcher = updatedHook.matcher !== undefined ? updatedHook.matcher : hook.matcher;
 
             if (!hooksSection[newEvent]) {
                 hooksSection[newEvent] = [];
@@ -377,13 +505,23 @@ export class HooksConfigManager {
                 group = { matcher: newMatcher, hooks: [] };
                 hooksSection[newEvent].push(group);
             }
-            group.hooks.push({ type: 'command', command: newCommand });
+            group.hooks.push(this.buildRawEntry(updatedHook as ConfiguredHook) as RawHookEntry);
 
-            // Update description in _disabledHooks if needed
+            // Update _disabledHooks if needed
             if (data._disabledHooks) {
                 data._disabledHooks = (data._disabledHooks as DisabledHookEntry[]).map(d => {
-                    if (d.event === hook.event && d.matcher === hook.matcher && d.command === hook.command) {
-                        return { event: newEvent, matcher: newMatcher, command: newCommand };
+                    if (d.event === hook.event && d.matcher === hook.matcher && matchDisabledHook(d, { type: hook.type, command: hook.command, url: hook.url, prompt: hook.prompt } as RawHookEntry)) {
+                        const newDisabled: DisabledHookEntry = {
+                            event: newEvent,
+                            matcher: newMatcher,
+                            type: updatedHook.type || hook.type
+                        };
+                        switch (newDisabled.type) {
+                            case 'http': newDisabled.url = updatedHook.url; break;
+                            case 'prompt': case 'agent': newDisabled.prompt = updatedHook.prompt; break;
+                            default: newDisabled.command = updatedHook.command; break;
+                        }
+                        return newDisabled;
                     }
                     return d;
                 });
@@ -402,18 +540,32 @@ export class HooksConfigManager {
      * Get list of pre-built hook templates
      */
     public getTemplates(): HookTemplate[] {
-        // Detect platform for notification command
+        // Detect platform for platform-specific commands
         const isWin = process.platform === 'win32';
         const isMac = process.platform === 'darwin';
 
+        // 1. Completion Notification (updated with stop_hook_active anti-loop check)
         let notifyCmd: string;
         if (isWin) {
-            notifyCmd = 'powershell -Command "cat | Out-Null; [System.Reflection.Assembly]::LoadWithPartialName(\'System.Windows.Forms\') | Out-Null; [System.Windows.Forms.MessageBox]::Show(\'Claude Code task completed\', \'Claude Code\', 0, 64) | Out-Null; echo \'{}\'"';
+            notifyCmd = 'powershell -Command "$input = [Console]::In.ReadToEnd(); $json = $input | ConvertFrom-Json; if ($json.stop_hook_active) { exit 0 }; [System.Reflection.Assembly]::LoadWithPartialName(\'System.Windows.Forms\') | Out-Null; [System.Windows.Forms.MessageBox]::Show(\'Claude Code task completed\', \'Claude Code\', 0, 64) | Out-Null; echo \'{}\'"';
         } else if (isMac) {
-            notifyCmd = 'bash -c \'cat > /dev/null; osascript -e "display notification \\"Task completed\\" with title \\"Claude Code\\""; echo "{}"\'';
+            notifyCmd = 'bash -c \'input=$(cat); stop_active=$(echo "$input" | grep -o "\\"stop_hook_active\\":true"); if [ -n "$stop_active" ]; then exit 0; fi; osascript -e "display notification \\"Task completed\\" with title \\"Claude Code\\""; echo "{}"\'';
         } else {
-            notifyCmd = 'bash -c \'cat > /dev/null; notify-send "Claude Code" "Task completed"; echo "{}"\'';
+            notifyCmd = 'bash -c \'input=$(cat); stop_active=$(echo "$input" | grep -o "\\"stop_hook_active\\":true"); if [ -n "$stop_active" ]; then exit 0; fi; notify-send "Claude Code" "Task completed"; echo "{}"\'';
         }
+
+        // 2. Auto-Commit Guard
+        let commitGuardCmd: string;
+        if (isWin) {
+            commitGuardCmd = 'powershell -Command "$input = [Console]::In.ReadToEnd(); $json = $input | ConvertFrom-Json; if ($json.stop_hook_active) { exit 0 }; $status = git status --porcelain 2>$null; if ($status) { Write-Error \'Uncommitted changes detected. Please commit before stopping.\'; exit 2 } else { echo \'{}\' }"';
+        } else {
+            commitGuardCmd = 'bash -c \'input=$(cat); stop_active=$(echo "$input" | grep -o "\\"stop_hook_active\\":true"); if [ -n "$stop_active" ]; then exit 0; fi; status=$(git status --porcelain 2>/dev/null); if [ -n "$status" ]; then echo "Uncommitted changes detected. Please commit before stopping." >&2; exit 2; else echo "{}"; fi\'';
+        }
+
+        // 3-5: Cross-platform commands (bash works on all platforms via Git Bash)
+        const blockSensitiveCmd = 'bash -c \'input=$(cat); file=$(echo "$input" | grep -o "\\"file_path\\":\\"[^\\"]*\\"" | head -1 | sed "s/\\"file_path\\":\\"//;s/\\"//"); case "$file" in *.env|*.env.*|*credentials*|*secret*|*.pem|*.key) echo "Blocked: $file is a sensitive file" >&2; exit 2;; esac; echo "{}"\'';
+        const formatOnSaveCmd = 'bash -c \'input=$(cat); file=$(echo "$input" | grep -o "\\"file_path\\":\\"[^\\"]*\\"" | head -1 | sed "s/\\"file_path\\":\\"//;s/\\"//"); if [ -n "$file" ] && command -v npx >/dev/null 2>&1; then npx prettier --write "$file" 2>/dev/null; fi; echo "{}"\'';
+        const logToolCallsCmd = 'bash -c \'input=$(cat); echo "[$(date -Iseconds)] $input" >> "$HOME/.claude/hooks/tool-calls.log"; echo "{}"\'';
 
         return [
             {
@@ -421,7 +573,40 @@ export class HooksConfigManager {
                 description: 'Show a system notification when Claude finishes a task',
                 event: 'Stop',
                 matcher: '',
+                type: 'command',
                 command: notifyCmd
+            },
+            {
+                name: 'Auto-Commit Guard',
+                description: 'Block Claude from stopping if there are uncommitted changes',
+                event: 'Stop',
+                matcher: '',
+                type: 'command',
+                command: commitGuardCmd
+            },
+            {
+                name: 'Block Sensitive Files',
+                description: 'Prevent editing .env, credentials, and key files',
+                event: 'PreToolUse',
+                matcher: 'Edit',
+                type: 'command',
+                command: blockSensitiveCmd
+            },
+            {
+                name: 'Format on Save',
+                description: 'Auto-format files after editing (requires prettier or similar)',
+                event: 'PostToolUse',
+                matcher: 'Edit',
+                type: 'command',
+                command: formatOnSaveCmd
+            },
+            {
+                name: 'Log All Tool Calls',
+                description: 'Log all tool calls to a file for debugging',
+                event: 'PostToolUse',
+                matcher: '',
+                type: 'command',
+                command: logToolCallsCmd
             }
         ];
     }
@@ -433,6 +618,51 @@ export class HooksConfigManager {
         this.cachedHooks = null;
         this.lastLoadTime = 0;
         debugLog('HooksConfigManager', 'Cache cleared');
+    }
+
+    /**
+     * Build a raw hook entry for JSON serialization.
+     * If _rawEntry exists, use it as base to preserve unknown fields.
+     * Otherwise, construct from known fields.
+     */
+    private buildRawEntry(hook: ConfiguredHook | Omit<ConfiguredHook, 'id'>): Record<string, unknown> {
+        // Start from original raw entry if available, to preserve unknown fields
+        const entry: Record<string, unknown> = (hook as ConfiguredHook)._rawEntry
+            ? { ...(hook as ConfiguredHook)._rawEntry }
+            : { type: hook.type || 'command' };
+
+        // Always set type
+        entry.type = hook.type || 'command';
+
+        // Set type-specific primary field
+        switch (hook.type) {
+            case 'http':
+                if (hook.url !== undefined) { entry.url = hook.url; }
+                if (hook.headers !== undefined) { entry.headers = hook.headers; }
+                // Remove command-specific fields if type changed
+                delete entry.command;
+                break;
+            case 'prompt':
+            case 'agent':
+                if (hook.prompt !== undefined) { entry.prompt = hook.prompt; }
+                if (hook.model !== undefined) { entry.model = hook.model; }
+                delete entry.command;
+                break;
+            case 'command':
+            default:
+                if (hook.command !== undefined) { entry.command = hook.command; }
+                if (hook.async !== undefined) { entry.async = hook.async; }
+                if (hook.shell !== undefined) { entry.shell = hook.shell; }
+                break;
+        }
+
+        // Set common optional fields only if explicitly provided
+        if (hook.if !== undefined) { entry.if = hook.if; }
+        if (hook.timeout !== undefined) { entry.timeout = hook.timeout; }
+        if (hook.statusMessage !== undefined) { entry.statusMessage = hook.statusMessage; }
+        if (hook.once !== undefined) { entry.once = hook.once; }
+
+        return entry;
     }
 
     // ── Private helpers ──────────────────────────────────────────────────
@@ -493,9 +723,13 @@ export class HooksConfigManager {
             const disabledHooks: DisabledHookEntry[] = (data._disabledHooks as DisabledHookEntry[]) || [];
             const descriptions: HookDescriptionEntry[] = (data._hookDescriptions as HookDescriptionEntry[]) || [];
 
-            // Helper to find persisted description
-            const findDescription = (event: string, matcher: string, command: string): string => {
-                const entry = descriptions.find(d => d.event === event && d.matcher === matcher && d.command === command);
+            // Helper to find persisted description (supports command/url/prompt matching)
+            const findDescription = (event: string, matcher: string, identifier: string): string => {
+                const entry = descriptions.find(d =>
+                    d.event === event &&
+                    d.matcher === matcher &&
+                    (d.command === identifier || d.url === identifier || d.prompt === identifier)
+                );
                 return entry ? entry.description : '';
             };
 
@@ -503,24 +737,28 @@ export class HooksConfigManager {
                 // Also check for disabled-only hooks
                 if (disabledHooks.length > 0) {
                     for (const disabled of disabledHooks) {
+                        const hookType = (disabled.type || 'command') as HookType;
+                        const identifier = getHookIdentifier({ type: hookType, command: disabled.command, url: disabled.url, prompt: disabled.prompt });
                         hooks.push({
                             id: crypto.randomUUID(),
                             event: disabled.event as HookEvent,
                             matcher: disabled.matcher,
-                            type: 'command',
+                            type: hookType,
                             command: disabled.command,
-                            description: findDescription(disabled.event, disabled.matcher, disabled.command),
+                            url: disabled.url,
+                            prompt: disabled.prompt,
+                            description: findDescription(disabled.event, disabled.matcher, identifier),
                             scope,
-                            enabled: false
+                            enabled: false,
+                            _rawEntry: disabled._rawEntry  // restore raw data if available
                         });
                     }
                 }
                 return hooks;
             }
 
-            // Flatten the nested structure
-            const eventTypes: HookEvent[] = ['PreToolUse', 'PostToolUse', 'Stop', 'SessionStart', 'UserPromptSubmit'];
-            for (const event of eventTypes) {
+            // Flatten the nested structure — dynamically iterate all event keys
+            for (const event of Object.keys(hooksSection)) {
                 const matcherGroups = hooksSection[event];
                 if (!matcherGroups || !Array.isArray(matcherGroups)) {
                     continue;
@@ -532,19 +770,33 @@ export class HooksConfigManager {
                     }
 
                     for (const hookEntry of group.hooks) {
+                        const hookType = (hookEntry.type || 'command') as HookType;
+                        const identifier = getHookIdentifier(hookEntry);
+
                         const isDisabled = disabledHooks.some(
-                            d => d.event === event && d.matcher === group.matcher && d.command === hookEntry.command
+                            d => d.event === event && d.matcher === group.matcher && matchDisabledHook(d, hookEntry)
                         );
 
                         hooks.push({
                             id: crypto.randomUUID(),
-                            event,
+                            event: event as HookEvent,
                             matcher: group.matcher,
-                            type: 'command',
-                            command: hookEntry.command,
-                            description: findDescription(event, group.matcher, hookEntry.command),
+                            type: hookType,
+                            command: hookEntry.command as string | undefined,
+                            url: hookEntry.url as string | undefined,
+                            prompt: hookEntry.prompt as string | undefined,
+                            if: hookEntry.if as string | undefined,
+                            timeout: hookEntry.timeout as number | undefined,
+                            statusMessage: hookEntry.statusMessage as string | undefined,
+                            once: hookEntry.once as boolean | undefined,
+                            async: hookEntry.async as boolean | undefined,
+                            shell: hookEntry.shell as string | undefined,
+                            model: hookEntry.model as string | undefined,
+                            headers: hookEntry.headers as Record<string, string> | undefined,
+                            description: findDescription(event, group.matcher, identifier),
                             scope,
-                            enabled: !isDisabled
+                            enabled: !isDisabled,
+                            _rawEntry: { ...hookEntry }
                         });
                     }
                 }
@@ -552,19 +804,25 @@ export class HooksConfigManager {
 
             // Add disabled-only hooks (those in _disabledHooks but not in hooks section)
             for (const disabled of disabledHooks) {
+                const disabledType = (disabled.type || 'command') as HookType;
+                const disabledAsRaw = { type: disabledType, command: disabled.command, url: disabled.url, prompt: disabled.prompt } as RawHookEntry;
                 const alreadyIncluded = hooks.some(
-                    h => h.event === disabled.event && h.matcher === disabled.matcher && h.command === disabled.command
+                    h => h.event === disabled.event && h.matcher === disabled.matcher && matchDisabledHook(disabled, { type: h.type, command: h.command, url: h.url, prompt: h.prompt } as RawHookEntry)
                 );
                 if (!alreadyIncluded) {
+                    const identifier = getHookIdentifier(disabledAsRaw);
                     hooks.push({
                         id: crypto.randomUUID(),
                         event: disabled.event as HookEvent,
                         matcher: disabled.matcher,
-                        type: 'command',
+                        type: disabledType,
                         command: disabled.command,
-                        description: findDescription(disabled.event, disabled.matcher, disabled.command),
+                        url: disabled.url,
+                        prompt: disabled.prompt,
+                        description: findDescription(disabled.event, disabled.matcher, identifier),
                         scope,
-                        enabled: false
+                        enabled: false,
+                        _rawEntry: disabled._rawEntry  // restore raw data if available
                     });
                 }
             }
@@ -592,7 +850,13 @@ export class HooksConfigManager {
 
         for (const group of matcherGroups) {
             if (group.matcher !== hook.matcher) { continue; }
-            const idx = group.hooks.findIndex(h => h.command === hook.command);
+            const idx = group.hooks.findIndex(h => {
+                switch (hook.type) {
+                    case 'http': return h.url === hook.url;
+                    case 'prompt': case 'agent': return h.prompt === hook.prompt;
+                    default: return h.command === hook.command;
+                }
+            });
             if (idx !== -1) {
                 group.hooks.splice(idx, 1);
                 break;
