@@ -2045,9 +2045,24 @@ export const uiScript = `
 		var hookIdSafe = escapeForOnclick(hook.id);
 		var isDisabled = !hook.enabled;
 		var itemClass = 'skill-item' + (isDisabled ? ' is-disabled' : '');
-		var displayName = hook.description ? escapeHtml(hook.description) : escapeHtml(hook.command);
+		// Get primary field based on hook type
+		var primaryField = hook.command || hook.url || hook.prompt || '';
+		var displayName = hook.description ? escapeHtml(hook.description) : escapeHtml(primaryField);
 		var matcherDisplay = hook.matcher ? escapeHtml(hook.matcher) : '(all)';
-		var commandDisplay = escapeHtml(hook.command);
+		// Build type-aware detail display
+		var detailLabel = 'cmd';
+		var detailValue = primaryField;
+		if (hook.type === 'http') {
+			detailLabel = 'url';
+			detailValue = hook.url || '';
+		} else if (hook.type === 'prompt') {
+			detailLabel = 'prompt';
+			detailValue = hook.prompt || '';
+		} else if (hook.type === 'agent') {
+			detailLabel = 'agent';
+			detailValue = hook.prompt || '';
+		}
+		var commandDisplay = escapeHtml(detailValue);
 		var btnClass = isDisabled ? 'is-disabled' : 'is-enabled';
 		var btnText = isDisabled ? 'Disabled' : 'Enabled';
 
@@ -2063,7 +2078,7 @@ export const uiScript = `
 			'</div>' +
 			'</div>' +
 			'<div class="skill-description" title="' + commandDisplay + '">' +
-			'matcher: ' + matcherDisplay + '  |  cmd: ' + commandDisplay +
+			'matcher: ' + matcherDisplay + '  |  ' + detailLabel + ': ' + commandDisplay +
 			'</div>' +
 			'</div></div>';
 	}
