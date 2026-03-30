@@ -7,7 +7,7 @@
 | Name | `claude-code-chatui` |
 | Display Name | Claude-Code ChatUI for Windows |
 | Publisher | lkbaba |
-| Current Version | 3.1.9 |
+| Current Version | 4.0.5 |
 | VS Code Engine | `>=1.94.0` |
 | License | MIT |
 
@@ -45,7 +45,7 @@ Based on the original [claude-code-chat](https://github.com/andrepimenta/claude-
 - Supports `stdio`, `http`, `sse` transports
 - Workspace + user scope config merging
 - Per-session temp config file generation
-- Gemini API key injection for gemini-assistant MCP
+- AI Assistant credential injection: Gemini (API Key or Vertex AI Service Account), Grok (API Key)
 
 ### Conversation Management
 - Session persistence to workspace state + disk
@@ -173,6 +173,8 @@ All settings are under `claudeCodeChatUI.*`:
 | `api.baseUrl` | string | Custom API base URL |
 | `api.cliCommand` | string | Custom CLI command |
 | `geminiIntegrationEnabled` | boolean | Inject Gemini key into MCP |
+| `grokIntegrationEnabled` | boolean | Inject Grok key into MCP |
+| `gemini.vertexProject` | string | GCP Project ID from imported Vertex AI Service Account JSON |
 | `debug.enabled` | boolean | Enable debug logging |
 | `debug.maxLines` | number | Max debug log lines |
 

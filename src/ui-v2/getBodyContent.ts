@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.0.4</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.0.5</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -100,15 +100,15 @@ export function getBodyContent(): string {
 								</svg>
 							</button>
 
-							<button class="plugins-btn" id="skills-button" onclick="showSkillsModal()" title="View all skills">
-								Skills: All
+							<button class="plugins-btn" id="hooks-button" onclick="showHooksModal()" title="Manage hooks">
+								Hooks: All
 								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
 									<path d="M1 2.5l3 3 3-3"></path>
 								</svg>
 							</button>
 
-							<button class="plugins-btn" id="hooks-button" onclick="showHooksModal()" title="Manage hooks">
-								Hooks: All
+							<button class="plugins-btn" id="skills-button" onclick="showSkillsModal()" title="View all skills">
+								Skills: All
 								<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
 									<path d="M1 2.5l3 3 3-3"></path>
 								</svg>
@@ -193,20 +193,12 @@ export function getBodyContent(): string {
 			</div>
 			<div id="toolsList" class="tools-list">
 				<div class="tool-item">
-					<input type="checkbox" id="tool-task" checked disabled>
-					<label for="tool-task">Task - Launch subagent for complex tasks</label>
-				</div>
-				<div class="tool-item">
-					<input type="checkbox" id="tool-taskoutput" checked disabled>
-					<label for="tool-taskoutput">TaskOutput - Retrieve output from background tasks</label>
+					<input type="checkbox" id="tool-agent" checked disabled>
+					<label for="tool-agent">Agent - Launch subagent for complex tasks</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-bash" checked disabled>
 					<label for="tool-bash">Bash - Execute shell commands</label>
-				</div>
-				<div class="tool-item">
-					<input type="checkbox" id="tool-killshell" checked disabled>
-					<label for="tool-killshell">KillShell - Terminate background shell processes</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-glob" checked disabled>
@@ -217,10 +209,6 @@ export function getBodyContent(): string {
 					<label for="tool-grep">Grep - Search file contents</label>
 				</div>
 				<div class="tool-item">
-					<input type="checkbox" id="tool-ls" checked disabled>
-					<label for="tool-ls">LS - List directory contents</label>
-				</div>
-				<div class="tool-item">
 					<input type="checkbox" id="tool-read" checked disabled>
 					<label for="tool-read">Read - Read file contents</label>
 				</div>
@@ -229,16 +217,8 @@ export function getBodyContent(): string {
 					<label for="tool-edit">Edit - Modify files</label>
 				</div>
 				<div class="tool-item">
-					<input type="checkbox" id="tool-multiedit" checked disabled>
-					<label for="tool-multiedit">MultiEdit - Edit multiple files</label>
-				</div>
-				<div class="tool-item">
 					<input type="checkbox" id="tool-write" checked disabled>
 					<label for="tool-write">Write - Create new files</label>
-				</div>
-				<div class="tool-item">
-					<input type="checkbox" id="tool-notebook-read" checked disabled>
-					<label for="tool-notebook-read">NotebookRead - Read Jupyter notebooks</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-notebook-edit" checked disabled>
@@ -257,16 +237,36 @@ export function getBodyContent(): string {
 					<label for="tool-todowrite">TodoWrite - Manage task lists</label>
 				</div>
 				<div class="tool-item">
+					<input type="checkbox" id="tool-taskoutput" checked disabled>
+					<label for="tool-taskoutput">TaskOutput - Retrieve output from background tasks</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-taskstop" checked disabled>
+					<label for="tool-taskstop">TaskStop - Stop background tasks</label>
+				</div>
+				<div class="tool-item">
 					<input type="checkbox" id="tool-askuserquestion" checked disabled>
 					<label for="tool-askuserquestion">AskUserQuestion - Ask user for clarification</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-enter-plan-mode" checked disabled>
-					<label for="tool-enter-plan-mode">EnterPlanMode - Enter planning mode for task design</label>
+					<label for="tool-enter-plan-mode">EnterPlanMode - Enter planning mode</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-exit-plan-mode" checked disabled>
 					<label for="tool-exit-plan-mode">ExitPlanMode - Exit planning mode</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-enter-worktree" checked disabled>
+					<label for="tool-enter-worktree">EnterWorktree - Create isolated git worktree</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-exit-worktree" checked disabled>
+					<label for="tool-exit-worktree">ExitWorktree - Exit git worktree</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-toolsearch" checked disabled>
+					<label for="tool-toolsearch">ToolSearch - Lazy-load tool definitions</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-skill" checked disabled>

@@ -22,33 +22,40 @@ export type ValidModel = typeof VALID_MODELS[number];
  * Tool status mapping for displaying human-readable status messages
  */
 export const TOOL_STATUS_MAP: Record<string, string> = {
-    // Core tools
-    'Task': 'Exploring project structure',
+    // Core tools (v2.1.72+)
+    'Agent': 'Launching subagent',
+    'Task': 'Launching subagent',              // Legacy alias for Agent
     'Bash': 'Executing command',
     'Read': 'Reading file',
     'Edit': 'Editing file',
     'Write': 'Writing file',
     'Grep': 'Searching files',
     'Glob': 'Finding files',
-    'LS': 'Listing directory',
     'TodoWrite': 'Updating tasks',
-    'TodoRead': 'Reading tasks',
     'WebFetch': 'Fetching web content',
     'WebSearch': 'Searching web',
-    'MultiEdit': 'Editing multiple files',
-    'NotebookRead': 'Reading notebook',
     'NotebookEdit': 'Editing notebook',
-    // Claude Code 2.1.2 added tools
+    'ToolSearch': 'Loading tool definitions',
+    // Task management
     'TaskOutput': 'Getting task output',
-    'KillShell': 'Stopping background task',
+    'TaskStop': 'Stopping task',
+    // User interaction
     'AskUserQuestion': 'Waiting for user input',
     'Skill': 'Executing skill',
+    // Plan mode
     'EnterPlanMode': 'Entering plan mode',
     'ExitPlanMode': 'Exiting plan mode',
+    // Worktree isolation
+    'EnterWorktree': 'Creating worktree',
+    'ExitWorktree': 'Exiting worktree',
+    // Legacy tools (may still appear in older sessions)
+    'MultiEdit': 'Editing multiple files',
+    'KillShell': 'Stopping background task',
+    'NotebookRead': 'Reading notebook',
+    'LS': 'Listing directory',
     // MCP tools
-    'mcp__sequential-thinking__sequentialthinking': 'Analyzing with sequential thinking',
-    'mcp__context7__search': 'Searching documentation via Context7',
-    'mcp__context7__get_context': 'Fetching context via Context7'
+    'mcp__context7__resolve-library-id': 'Resolving library via Context7',
+    'mcp__context7__query-docs': 'Querying docs via Context7'
 };
 
 /**
