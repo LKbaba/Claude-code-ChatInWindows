@@ -22,13 +22,33 @@ The SDK automatically creates todos for:
 - **Non-trivial operations** that benefit from progress tracking
 - **Explicit requests** when users ask for todo organization
 
+## Todo Schema
+
+Each todo object contains the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Unique identifier for the todo item |
+| `content` | `string` | The canonical task description |
+| `status` | `"pending" \| "in_progress" \| "completed"` | Current lifecycle state |
+| `activeForm` | `string \| undefined` | Current active form text shown while in progress (e.g. `"Cloning repo..."`, `"Running tests..."`). Replaces the old `priority` field for display purposes. Present only when `status` is `"in_progress"`. |
+
+> **Note**: The `activeForm` field replaced the legacy `priority` field. When rendering an in-progress todo, prefer `activeForm` over `content` — it reflects what the agent is actually doing at that moment.
+
+## Hook Events
+
+The SDK fires two hook events related to todo lifecycle transitions:
+
+- **`TaskCreated`**: Fired when a new todo item is created (transitions to `pending`). Receives the full todo object as payload.
+- **`TaskCompleted`**: Fired when a todo item transitions to `completed`. Useful for triggering downstream actions or notifications.
+
 ## Examples
 
 ### Monitoring Todo Changes
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Optimize my React app performance and track progress with todos",
@@ -39,7 +59,7 @@ for await (const message of query({
   // Todo updates are reflected in the message stream
   if (message.type === "tool_use" && message.name === "TodoWrite") {
     const todos = message.input.todos;
-    
+
     console.log("Todo Status Update:");
     todos.forEach((todo, index) => {
       const status = todo.status === "completed" ? "✅" :
@@ -52,7 +72,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 async for message in query(
     prompt="Optimize my React app performance and track progress with todos",
@@ -63,7 +83,7 @@ async for message in query(
     # Todo updates are reflected in the message stream
     if message["type"] == "tool_use" and message["name"] == "TodoWrite":
         todos = message["input"]["todos"]
-        
+
         print("Todo Status Update:")
         for index, todo in enumerate(todos, 1):
             status = "✅" if todo["status"] == "completed" else \
@@ -75,21 +95,21 @@ async for message in query(
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 class TodoTracker {
   private todos: any[] = [];
-  
+
   displayProgress() {
     if (this.todos.length === 0) return;
-    
+
     const completed = this.todos.filter(t => t.status === "completed").length;
     const inProgress = this.todos.filter(t => t.status === "in_progress").length;
     const total = this.todos.length;
-    
+
     console.log(`\nProgress: ${completed}/${total} completed`);
     console.log(`Currently working on: ${inProgress} task(s)\n`);
-    
+
     this.todos.forEach((todo, index) => {
       const icon = todo.status === "completed" ? "✅" :
                   todo.status === "in_progress" ? "🔧" : "❌";
@@ -97,7 +117,7 @@ class TodoTracker {
       console.log(`${index + 1}. ${icon} ${text}`);
     });
   }
-  
+
   async trackQuery(prompt: string) {
     for await (const message of query({
       prompt,
@@ -118,29 +138,29 @@ await tracker.trackQuery("Build a complete authentication system with todos");
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 class TodoTracker:
     def __init__(self):
         self.todos = []
-    
+
     def display_progress(self):
         if len(self.todos) == 0:
             return
-        
+
         completed = len([t for t in self.todos if t["status"] == "completed"])
         in_progress = len([t for t in self.todos if t["status"] == "in_progress"])
         total = len(self.todos)
-        
+
         print(f"\nProgress: {completed}/{total} completed")
         print(f"Currently working on: {in_progress} task(s)\n")
-        
+
         for index, todo in enumerate(self.todos, 1):
             icon = "✅" if todo["status"] == "completed" else \
                   "🔧" if todo["status"] == "in_progress" else "❌"
             text = todo["activeForm"] if todo["status"] == "in_progress" else todo["content"]
             print(f"{index}. {icon} {text}")
-    
+
     async def track_query(self, prompt: str):
         async for message in query(
             prompt=prompt,

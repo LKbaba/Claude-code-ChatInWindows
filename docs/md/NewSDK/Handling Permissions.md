@@ -1,19 +1,19 @@
 # Handling Permissions
 
-Control tool usage and permissions in the Claude Code SDK
+Control tool usage and permissions in the Claude Agent SDK
 
 ## SDK Permissions
 
-The Claude Code SDK provides powerful permission controls that allow you to manage how Claude uses tools in your application.
+The Claude Agent SDK provides powerful permission controls that allow you to manage how Claude uses tools in your application.
 
 This guide covers how to implement permission systems using the `canUseTool` callback, hooks, and settings.json permission rules. For complete API documentation, see the [TypeScript SDK reference](/en/docs/claude-code/sdk/sdk-typescript).
 
 ## Overview
 
-The Claude Code SDK provides four complementary ways to control tool usage:
+The Claude Agent SDK provides four complementary ways to control tool usage:
 
 1. **Permission Modes** - Global permission behavior settings that affect all tools
-2. **canUseTool callback** - Runtime permission handler for cases not covered by other rules  
+2. **canUseTool callback** - Runtime permission handler for cases not covered by other rules
 3. **Hooks** - Fine-grained control over every tool execution with custom logic
 4. **Permission rules (settings.json)** - Declarative allow/deny rules with integrated bash command parsing
 
@@ -31,25 +31,25 @@ flowchart TD
     Start([Tool Request]) --> PreHook{PreToolUse Hook}
     PreHook -->|Block| Denied([Tool Denied])
     PreHook -->|Continue| AskRules{Ask Rules Match?}
-    
+
     AskRules -->|Yes| UserPrompt[Prompt User]
     UserPrompt -->|Deny| Denied
     UserPrompt -->|Allow| Execute([Execute Tool])
-    
+
     AskRules -->|No| DenyRules{Deny Rules Match?}
     DenyRules -->|Yes| Denied
     DenyRules -->|No| PermMode{Permission Mode}
-    
+
     PermMode -->|bypassPermissions| Execute
     PermMode -->|acceptEdits & File Op| Execute
     PermMode -->|Other| AllowRules{Allow Rules Match?}
-    
+
     AllowRules -->|Yes| Execute
     AllowRules -->|No| CanUseTool{canUseTool Callback}
-    
+
     CanUseTool -->|Allow| Execute
     CanUseTool -->|Deny| Denied
-    
+
     Execute --> PostHook{PostToolUse Hook}
     PostHook --> Complete([Tool Complete])
 ```
@@ -63,7 +63,7 @@ Permission modes provide global control over how Claude uses tools. You can set 
 
 ### Available Modes
 
-The SDK supports four permission modes, each with different behavior:
+The SDK supports five permission modes, each with different behavior:
 
 | Mode | Description | Tool Behavior |
 |------|-------------|--------------|
@@ -71,6 +71,9 @@ The SDK supports four permission modes, each with different behavior:
 | `plan` | Planning mode - no execution | Claude can only use read-only tools; presents a plan before execution (Not currently supported in SDK) |
 | `acceptEdits` | Auto-accept file edits | File edits and filesystem operations are automatically approved |
 | `bypassPermissions` | Bypass all permission checks | All tools run without permission prompts (use with caution) |
+| `dontAsk` | Silent deny for unresolved prompts | Does not prompt the user — anything not pre-approved by allow rules is denied. This is **not** an auto-approve mode; it prevents the interactive prompt from appearing without granting additional access. |
+
+> **`dontAsk` vs `bypassPermissions`:** `bypassPermissions` approves everything not explicitly denied. `dontAsk` denies everything not explicitly allowed — it simply suppresses the interactive prompt rather than granting broad access. Use `dontAsk` in headless or CI environments where user interaction is impossible.
 
 ### Setting Permission Mode
 
@@ -82,7 +85,7 @@ Set the mode when creating a query:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 const result = await query({
   prompt: "Help me refactor this code",
@@ -94,7 +97,7 @@ const result = await query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 result = await query(
     prompt="Help me refactor this code",
@@ -110,7 +113,7 @@ Change the mode during a streaming session:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Create an async generator for streaming input
 async function* streamInput() {
@@ -121,7 +124,7 @@ async function* streamInput() {
       content: "Let's start with default permissions"
     }
   };
-  
+
   // Later in the conversation...
   yield {
     type: 'user',
@@ -150,7 +153,7 @@ for await (const message of q) {
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Create an async generator for streaming input
 async def stream_input():
@@ -161,7 +164,7 @@ async def stream_input():
             "content": "Let's start with default permissions"
         }
     }
-    
+
     # Later in the conversation...
     yield {
         "type": "user",
@@ -211,6 +214,14 @@ In bypass permissions mode:
 - **Use with extreme caution** - Claude has full system access
 - Recommended only for controlled environments
 
+#### Don't Ask Mode (`dontAsk`)
+
+In don't ask mode:
+- Permission prompts are suppressed entirely — no interactive dialog is shown
+- Anything not already covered by an explicit allow rule is **denied**, not approved
+- Useful in headless or CI environments where there is no human operator to respond to prompts
+- Combine with allow rules in `settings.json` to pre-approve a specific set of operations
+
 ### Mode Priority in Permission Flow
 
 Permission modes are evaluated at a specific point in the permission flow:
@@ -231,6 +242,7 @@ This means:
 
 - **Use default mode** for controlled execution with normal permission checks
 - **Use acceptEdits mode** when working on isolated files or directories
+- **Use dontAsk mode** in CI/headless pipelines combined with explicit allow rules
 - **Avoid bypassPermissions** in production or on systems with sensitive data
 - **Combine modes with hooks** for fine-grained control
 - **Switch modes dynamically** based on task progress and confidence
@@ -246,7 +258,7 @@ await q.setPermissionMode('acceptEdits')
 
 ## canUseTool
 
-The `canUseTool` callback is passed as an option when calling the `query` function. It receives the tool name and input parameters, and must return a decision- either allow or deny.
+The `canUseTool` callback is passed as an option when calling the `query` function. It receives the tool name and input parameters, and must return a decision — either allow or deny.
 
 canUseTool fires whenever Claude Code would show a permission prompt to a user, e.g. hooks and permission rules do not cover it and it is not in autoaccept mode.
 
@@ -254,12 +266,12 @@ Here's a complete example showing how to implement interactive tool approval:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 async function promptForToolApproval(toolName: string, input: any) {
-  console.log("\n🔧 Tool Request:");
+  console.log("\nTool Request:");
   console.log(`   Tool: ${toolName}`);
-  
+
   // Display tool parameters
   if (input && Object.keys(input).length > 0) {
     console.log("   Parameters:");
@@ -273,15 +285,15 @@ async function promptForToolApproval(toolName: string, input: any) {
       console.log(`     ${key}: ${displayValue}`);
     }
   }
-  
+
   // Get user approval (replace with your UI logic)
   const approved = await getUserApproval();
-  
+
   if (approved) {
-    console.log("   ✅ Approved\n");
+    console.log("   Approved\n");
     return { behavior: "allow", updatedInput: input };
   } else {
-    console.log("   ❌ Denied\n");
+    console.log("   Denied\n");
     return { behavior: "deny", message: "User denied permission for this tool" };
   }
 }
@@ -299,13 +311,13 @@ const result = await query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 import asyncio
 
 async def prompt_for_tool_approval(tool_name, input_data):
-    print(f"\n🔧 Tool Request:")
+    print(f"\nTool Request:")
     print(f"   Tool: {tool_name}")
-    
+
     # Display tool parameters
     if input_data and len(input_data) > 0:
         print("   Parameters:")
@@ -316,15 +328,15 @@ async def prompt_for_tool_approval(tool_name, input_data):
             elif isinstance(value, dict) or isinstance(value, list):
                 display_value = json.dumps(value, indent=2)
             print(f"     {key}: {display_value}")
-    
+
     # Get user approval (replace with your UI logic)
     approved = await get_user_approval()
-    
+
     if approved:
-        print("   ✅ Approved\n")
+        print("   Approved\n")
         return {"behavior": "allow", "updated_input": input_data}
     else:
-        print("   ❌ Denied\n")
+        print("   Denied\n")
         return {"behavior": "deny", "message": "User denied permission for this tool"}
 
 # Use the permission callback
@@ -344,7 +356,7 @@ Hooks provide programmatic control over tool execution at various stages. Hooks 
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 const result = await query({
   prompt: "Help me refactor this code",
@@ -355,7 +367,7 @@ const result = await query({
           hooks: [
             async (input, toolUseId, { signal }) => {
               console.log(`Tool request: ${input.tool_name}`);
-              
+
               // Parse and validate tool input yourself
               if (input.tool_name === "Bash") {
                 const command = input.tool_input.command;
@@ -363,7 +375,7 @@ const result = await query({
                   return { decision: "block", reason: "Dangerous command blocked" };
                 }
               }
-              
+
               return { continue: true };
             }
           ]
@@ -387,17 +399,17 @@ const result = await query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 async def pre_tool_hook(input_data, tool_use_id, context):
     print(f"Tool request: {input_data['tool_name']}")
-    
+
     # Parse and validate tool input yourself
     if input_data["tool_name"] == "Bash":
         command = input_data["tool_input"]["command"]
         if command.startswith("rm -rf"):
             return {"decision": "block", "reason": "Dangerous command blocked"}
-    
+
     return {"continue": True}
 
 async def post_tool_hook(input_data, tool_use_id, context):
@@ -429,6 +441,80 @@ result = await query(
 - **Scope**: Hooks are called for all tool uses; `canUseTool` handles cases not covered by permission rules
 - **Control**: Hooks require parsing and validating inputs yourself
 - **Events**: Hooks support multiple events (PreToolUse, PostToolUse, etc.) for different stages
+
+### PermissionRequest Hook Event
+
+In addition to `PreToolUse` and `PostToolUse`, hooks can listen for `PermissionRequest` events. A `PermissionRequest` event fires specifically when the SDK is about to show an interactive permission prompt — that is, when no allow/deny rule or mode has already resolved the request.
+
+A `PermissionRequest` hook can auto-approve the prompt programmatically, which is useful for building custom approval UIs or for applying context-aware auto-approval logic without running in `bypassPermissions` mode.
+
+**TypeScript**
+```typescript
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+const result = await query({
+  prompt: "Run the test suite",
+  options: {
+    hooks: {
+      PermissionRequest: [
+        {
+          hooks: [
+            async (input, toolUseId, { signal }) => {
+              const { tool_name, tool_input } = input;
+
+              // Auto-approve safe read operations
+              if (tool_name === "Read" || tool_name === "Glob" || tool_name === "Grep") {
+                return { decision: "approve" };
+              }
+
+              // Auto-approve npm test commands
+              if (tool_name === "Bash" && tool_input.command?.startsWith("npm test")) {
+                return { decision: "approve" };
+              }
+
+              // Fall through to the normal prompt for everything else
+              return { continue: true };
+            }
+          ]
+        }
+      ]
+    }
+  }
+});
+```
+
+**Python**
+```python
+from claude_agent_sdk import query
+
+async def permission_request_hook(input_data, tool_use_id, context):
+    tool_name = input_data["tool_name"]
+    tool_input = input_data.get("tool_input", {})
+
+    # Auto-approve safe read operations
+    if tool_name in ("Read", "Glob", "Grep"):
+        return {"decision": "approve"}
+
+    # Auto-approve npm test commands
+    if tool_name == "Bash" and tool_input.get("command", "").startswith("npm test"):
+        return {"decision": "approve"}
+
+    # Fall through to the normal prompt for everything else
+    return {"continue": True}
+
+result = await query(
+    prompt="Run the test suite",
+    options={
+        "hooks": {
+            "PermissionRequest": [
+                {
+                    "hooks": [permission_request_hook]
+                }
+            ]
+        }
+    }
+)
+```
 
 ## Using Permission Rules (settings.json)
 
@@ -466,6 +552,35 @@ Permission rules follow the pattern: `ToolName(pattern)`
 - **File rules**: Support glob patterns. Example: `Read(./src/**/*.ts)` matches TypeScript files in src
 - **Tool-only rules**: Omit parentheses to control entire tools. Example: `WebFetch` blocks all web fetches
 
+### Argument-Level Filtering with the `if` Field (v2.1.85+)
+
+Permission rules support an optional `if` field that applies argument-level filtering using the same rule syntax as the outer pattern. This lets you match a tool only when specific arguments satisfy a secondary condition, without writing a separate rule for every variant.
+
+```json
+{
+  "permissions": {
+    "allow": [
+      {
+        "tool": "Bash",
+        "if": "Bash(git *)"
+      }
+    ],
+    "deny": [
+      {
+        "tool": "Bash",
+        "if": "Bash(git push --force*)"
+      }
+    ]
+  }
+}
+```
+
+In the example above:
+- The allow rule permits any `Bash` invocation whose command matches `git *` (i.e., any git subcommand).
+- The deny rule blocks `Bash` when the command matches `git push --force*`, which takes precedence over the allow rule (deny is evaluated first).
+
+The `if` field uses the same `ToolName(pattern)` syntax as top-level rules, so all glob and prefix-matching semantics apply.
+
 ### Using with SDK
 
 While rules cannot be set programmatically in the SDK yet, they will be read from the settings.json file in the path that the SDK is loaded in.
@@ -496,4 +611,5 @@ Example of how bash patterns work:
 2. **Use permission rules** for static policies, especially bash commands (see [permission settings](/en/docs/claude-code/configuration/settings#permissions))
 3. **Use hooks** to log, audit, or transform all tool uses (see [hook types](/en/docs/claude-code/hooks#hook-types))
 4. **Use canUseTool** for dynamic decisions on uncovered cases (see [CanUseTool type](/en/docs/claude-code/sdk/sdk-typescript#canuseTool))
-5. **Layer defenses** by combining modes, rules, hooks, and callbacks for critical applications
+5. **Use PermissionRequest hooks** to build custom auto-approval logic without enabling `bypassPermissions`
+6. **Layer defenses** by combining modes, rules, hooks, and callbacks for critical applications

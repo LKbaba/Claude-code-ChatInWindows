@@ -1,8 +1,10 @@
 # Custom Tools
 
-Build and integrate custom tools to extend Claude Code SDK functionality
+Build and integrate custom tools to extend Claude Agent SDK functionality
 
-Custom tools allow you to extend Claude Code's capabilities with your own functionality through in-process MCP servers, enabling Claude to interact with external services, APIs, or perform specialized operations.
+Custom tools allow you to extend Claude's capabilities with your own functionality through in-process MCP servers, enabling Claude to interact with external services, APIs, or perform specialized operations.
+
+> **Note — Tool Runner (beta):** The SDK also ships a lighter-weight alternative called the **Tool Runner**. In TypeScript use `betaZodTool`; in Python use the `@tool` decorator directly without an MCP server. The Tool Runner is suitable when you need a small number of ad-hoc tools without the full MCP server setup. The MCP server approach (documented below) remains the recommended path for production use-cases that require versioning, multi-tool collections, and server-level configuration.
 
 ## Creating Custom Tools
 
@@ -10,7 +12,7 @@ Use the `createSdkMcpServer` and `tool` helper functions to define type-safe cus
 
 **TypeScript**
 ```typescript
-import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-code";
+import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
 // Create an SDK MCP server with custom tools
@@ -31,7 +33,7 @@ const customServer = createSdkMcpServer({
           `https://api.weather.com/v1/current?q=${args.location}&units=${args.units}`
         );
         const data = await response.json();
-        
+
         return {
           content: [
             {
@@ -47,8 +49,11 @@ const customServer = createSdkMcpServer({
 ```
 
 **Python**
+
+The `@tool` decorator is the idiomatic Python way to define custom tools. It wraps a Pydantic-typed async function and registers it with the MCP server:
+
 ```python
-from claude_code import query, tool, create_sdk_mcp_server
+from claude_agent_sdk import query, tool, create_sdk_mcp_server
 from pydantic import BaseModel, Field
 from enum import Enum
 import httpx
@@ -70,7 +75,7 @@ async def get_weather(args: WeatherInput):
             params={"q": args.location, "units": args.units}
         )
         data = response.json()
-    
+
     return {
         "content": [
             {
@@ -107,7 +112,7 @@ You can control which tools Claude can use via the `allowedTools` option:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Use the custom tools in your query with streaming input
 async function* generateMessages() {
@@ -142,7 +147,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Use the custom tools in your query with streaming input
 async def generate_messages():
@@ -276,7 +281,7 @@ tool(
     // args is fully typed based on the schema
     // TypeScript knows: args.data.name is string, args.data.age is number, etc.
     console.log(`Processing ${args.data.name}'s data as ${args.format}`);
-    
+
     // Your processing logic here
     return {
       content: [{ type: "text", text: `Processed data for ${args.data.name}` }]
@@ -304,7 +309,7 @@ class ProcessDataInput(BaseModel):
 async def process_data(args: ProcessDataInput):
     # args is fully typed based on the Pydantic model
     print(f"Processing {args.data.name}'s data as {args.format}")
-    
+
     # Your processing logic here
     return {
         "content": [{"type": "text", "text": f"Processed data for {args.data.name}"}]
@@ -326,7 +331,7 @@ tool(
   async (args) => {
     try {
       const response = await fetch(args.endpoint);
-      
+
       if (!response.ok) {
         return {
           content: [
@@ -337,7 +342,7 @@ tool(
           ]
         };
       }
-      
+
       const data = await response.json();
       return {
         content: [
@@ -374,7 +379,7 @@ async def fetch_data(args: FetchDataInput):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(str(args.endpoint))
-            
+
             if response.status_code != 200:
                 return {
                     "content": [
@@ -384,7 +389,7 @@ async def fetch_data(args: FetchDataInput):
                         }
                     ]
                 }
-            
+
             data = response.json()
             return {
                 "content": [
@@ -424,7 +429,7 @@ const databaseServer = createSdkMcpServer({
       },
       async (args) => {
         const results = await db.query(args.query, args.params || []);
-        
+
         return {
           content: [
             {
@@ -451,7 +456,7 @@ class QueryDatabaseInput(BaseModel):
 @tool("query_database", "Execute a database query", QueryDatabaseInput)
 async def query_database(args: QueryDatabaseInput):
     results = await db.query(args.query, args.params or [])
-    
+
     return {
         "content": [
             {
@@ -493,14 +498,14 @@ const apiGatewayServer = createSdkMcpServer({
           openai: { baseUrl: "https://api.openai.com/v1", key: process.env.OPENAI_KEY },
           slack: { baseUrl: "https://slack.com/api", key: process.env.SLACK_TOKEN }
         };
-        
+
         const { baseUrl, key } = config[args.service];
         const url = new URL(`${baseUrl}${args.endpoint}`);
-        
+
         if (args.query) {
           Object.entries(args.query).forEach(([k, v]) => url.searchParams.set(k, v));
         }
-        
+
         const response = await fetch(url, {
           method: args.method,
           headers: {
@@ -509,7 +514,7 @@ const apiGatewayServer = createSdkMcpServer({
           },
           body: args.body ? JSON.stringify(args.body) : undefined
         });
-        
+
         const data = await response.json();
         return {
           content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
@@ -540,7 +545,7 @@ const calculatorServer = createSdkMcpServer({
           // Use a safe math evaluation library in production
           const result = eval(args.expression); // Example only!
           const formatted = Number(result).toFixed(args.precision);
-          
+
           return {
             content: [{ type: "text", text: `${args.expression} = ${formatted}` }]
           };
@@ -563,7 +568,7 @@ const calculatorServer = createSdkMcpServer({
       async (args) => {
         const amount = args.principal * Math.pow(1 + args.rate/args.n, args.n * args.time);
         const interest = amount - args.principal;
-        
+
         return {
           content: [
             {

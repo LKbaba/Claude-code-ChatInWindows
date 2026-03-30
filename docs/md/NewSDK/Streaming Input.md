@@ -24,26 +24,26 @@ sequenceDiagram
     participant App as Your Application
     participant Agent as Claude Agent
     participant Tools as Tools/Hooks
-    
+
     App->>Agent: Initialize with AsyncGenerator
     activate Agent
-    
+
     App->>Agent: Yield Message 1
     Agent->>Tools: Execute tools
     Agent-->>App: Stream partial response
     Agent-->>App: Stream more content...
     Agent->>App: Complete Message 1
-    
+
     App->>Agent: Yield Message 2 + Image
     Agent->>Tools: Process image & execute
     Agent-->>App: Stream response 2
-    
+
     App->>Agent: Queue Message 3
     App->>Agent: Interrupt/Cancel
     Agent->>App: Handle interruption
-    
+
     Note over App,Agent: Session stays alive
-    
+
     deactivate Agent
 ```
 
@@ -79,7 +79,7 @@ sequenceDiagram
 
 <CodeGroup>
   ```typescript TypeScript
-  import { query } from "@anthropic-ai/claude-code";
+  import { query } from "@anthropic-ai/claude-agent-sdk";
   import { readFileSync } from "fs";
 
   async function* generateMessages() {
@@ -91,10 +91,10 @@ sequenceDiagram
         content: "Analyze this codebase for security issues"
       }
     };
-    
+
     // Wait for conditions or user input
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     // Follow-up with image
     yield {
       type: "user" as const,
@@ -133,7 +133,7 @@ sequenceDiagram
   ```
 
   ```python Python
-  from anthropic_claude_code import query, ClaudeCodeOptions
+  from claude_agent_sdk import query, ClaudeAgentOptions
   import asyncio
 
   async def streaming_analysis():
@@ -146,23 +146,23 @@ sequenceDiagram
                   "content": "Analyze this codebase for security issues"
               }
           }
-          
+
           # Wait for conditions
           await asyncio.sleep(2)
-          
+
           # Follow-up message
           yield {
-              "type": "user", 
+              "type": "user",
               "message": {
                   "role": "user",
                   "content": "Check for authentication vulnerabilities"
               }
           }
-      
+
       # Process streaming responses
       async for message in query(
           prompt=message_generator(),
-          options=ClaudeCodeOptions(
+          options=ClaudeAgentOptions(
               max_turns=10,
               allowed_tools=["Read", "Grep"]
           )
@@ -200,7 +200,7 @@ Use single message input when:
 
 <CodeGroup>
   ```typescript TypeScript
-  import { query } from "@anthropic-ai/claude-code";
+  import { query } from "@anthropic-ai/claude-agent-sdk";
 
   // Simple one-shot query
   for await (const message of query({
@@ -230,12 +230,12 @@ Use single message input when:
   ```
 
   ```python Python
-  from anthropic_claude_code import query, ClaudeCodeOptions
+  from claude_agent_sdk import query, ClaudeAgentOptions
 
   # Simple one-shot query
   async for message in query(
       prompt="Explain the authentication flow",
-      options=ClaudeCodeOptions(
+      options=ClaudeAgentOptions(
           max_turns=1,
           allowed_tools=["Read", "Grep"]
       )
@@ -246,7 +246,7 @@ Use single message input when:
   # Continue with session management
   async for message in query(
       prompt="Now explain the authorization process",
-      options=ClaudeCodeOptions(
+      options=ClaudeAgentOptions(
           continue_conversation=True,
           max_turns=1
       )
@@ -255,3 +255,36 @@ Use single message input when:
           print(message.result)
   ```
 </CodeGroup>
+
+## System Message Types
+
+The SDK emits `system` typed messages at key points in the conversation. The following subtypes are defined:
+
+| Subtype | When emitted | Key fields |
+|---------|--------------|------------|
+| `init` | Once at session start | `mcp_servers`, `session_id`, `tools` |
+| `result` | At conversation end | `total_cost_usd`, `duration_ms`, `num_turns` |
+| `task_started` | When a new sub-task begins | `task_id`, `description` |
+| `task_progress` | Periodic progress updates within a task | `task_id`, `progress`, `summary` (when `agentProgressSummaries` is enabled) |
+| `task_notification` | One-off informational event from the agent | `task_id`, `message` |
+
+### agentProgressSummaries Option
+
+When the `agentProgressSummaries` option is set to `true`, the SDK requests that the agent populate the `summary` field of each `task_progress` system message with an AI-generated plain-language description of what it is currently doing. This is useful for surfacing progress to end users without having to parse raw tool calls.
+
+```typescript
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+for await (const message of query({
+  prompt: "Refactor the authentication module",
+  options: {
+    maxTurns: 20,
+    agentProgressSummaries: true
+  }
+})) {
+  if (message.type === "system" && message.subtype === "task_progress") {
+    // summary is populated because agentProgressSummaries is enabled
+    console.log(`[Progress] ${message.summary ?? "working..."}`);
+  }
+}
+```

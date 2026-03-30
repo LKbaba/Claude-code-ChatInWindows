@@ -1,29 +1,29 @@
 # Session Management
 
-Understanding how the Claude Code SDK handles sessions, session files, and session resumption
+Understanding how the Claude Agent SDK handles sessions, session files, and session resumption
 
 ## Session Management
 
-The Claude Code SDK provides session management capabilities for handling conversation state, persistence, and resumption. This guide covers how sessions are created, managed, persisted to files, and resumed within the SDK.
+The Claude Agent SDK provides session management capabilities for handling conversation state, persistence, and resumption. This guide covers how sessions are created, managed, persisted to files, and resumed within the SDK.
 
 ## Session Architecture
 
-The Claude Code SDK implements a file-based session management system that handles conversation persistence and state restoration.
+The Claude Agent SDK implements a file-based session management system that handles conversation persistence and state restoration.
 
 ```mermaid
 flowchart TD
     Start([New Conversation]) --> CreateSession[Create Session ID]
     CreateSession --> InitFiles[Initialize Session Files]
     InitFiles --> Conversation[Conversation Flow]
-    
+
     Conversation --> SaveMessage[Save Message to Transcript]
     SaveMessage --> UpdateMetadata[Update Session Metadata]
     UpdateMetadata --> Conversation
-    
+
     Conversation --> End{Session End}
     End -->|Complete| MarkComplete[Mark Session Complete]
     End -->|Interrupt| MarkInterrupted[Mark Session Interrupted]
-    
+
     Resume([Resume Session]) --> LoadMetadata[Load Session Metadata]
     LoadMetadata --> LoadTranscript[Load Transcript File]
     LoadTranscript --> RestoreContext[Restore Context]
@@ -116,7 +116,7 @@ The session ID is provided in the initial system message when you start a conver
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code"
+import { query } from "@anthropic-ai/claude-agent-sdk"
 
 let sessionId: string | undefined
 
@@ -134,7 +134,7 @@ for await (const message of response) {
     console.log(`Session started with ID: ${sessionId}`)
     // You can save this ID for later resumption
   }
-  
+
   // Process other messages...
   console.log(message)
 }
@@ -152,7 +152,7 @@ if (sessionId) {
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 session_id = None
 
@@ -169,7 +169,7 @@ async for message in response:
         session_id = message["session_id"]
         print(f"Session started with ID: {session_id}")
         # You can save this ID for later resumption
-    
+
     # Process other messages...
     print(message)
 
@@ -200,7 +200,7 @@ The SDK supports resuming sessions from previous conversation states, enabling c
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code"
+import { query } from "@anthropic-ai/claude-agent-sdk"
 
 // Resume a previous session using its ID
 const response = query({
@@ -220,7 +220,7 @@ for await (const message of response) {
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Resume a previous session using its ID
 response = query(
@@ -237,13 +237,223 @@ async for message in response:
     print(message)
 ```
 
+## Session History API
+
+The SDK exposes a set of read-only functions for querying stored sessions without starting a new conversation. All functions are async and return plain objects.
+
+### `listSessions`
+
+Returns a paginated list of past sessions ordered by most-recently-updated.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | `number` (optional) | Maximum number of sessions to return. Defaults to 20. |
+| `offset` | `number` (optional) | Number of sessions to skip. Use with `limit` for pagination. |
+
+**TypeScript**
+```typescript
+import { listSessions } from "@anthropic-ai/claude-agent-sdk"
+
+// Fetch the 10 most recent sessions
+const sessions = await listSessions({ limit: 10, offset: 0 })
+
+for (const session of sessions) {
+  console.log(`${session.id}  ${session.name}  (${session.status})`)
+}
+
+// Next page
+const nextPage = await listSessions({ limit: 10, offset: 10 })
+```
+
+**Python**
+```python
+from claude_agent_sdk import list_sessions
+
+# Fetch the 10 most recent sessions
+sessions = await list_sessions(limit=10, offset=0)
+
+for session in sessions:
+    print(f"{session['id']}  {session['name']}  ({session['status']})")
+
+# Next page
+next_page = await list_sessions(limit=10, offset=10)
+```
+
+### `getSessionMessages`
+
+Retrieves the messages stored in a session transcript, with optional pagination for long conversations.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `sessionId` | `string` | The session ID to retrieve messages from. |
+| `limit` | `number` (optional) | Maximum number of messages to return. |
+| `offset` | `number` (optional) | Number of messages to skip from the beginning of the transcript. |
+
+**TypeScript**
+```typescript
+import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk"
+
+const messages = await getSessionMessages("session-xyz", { limit: 50, offset: 0 })
+
+for (const msg of messages) {
+  console.log(`[${msg.type}] ${JSON.stringify(msg.message).slice(0, 80)}`)
+}
+```
+
+**Python**
+```python
+from claude_agent_sdk import get_session_messages
+
+messages = await get_session_messages("session-xyz", limit=50, offset=0)
+
+for msg in messages:
+    print(f"[{msg['type']}] {str(msg.get('message', ''))[:80]}")
+```
+
+### `getSessionInfo`
+
+Returns lightweight metadata for a single session without loading the full transcript.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Unique session identifier |
+| `tag` | `string \| null` | User-assigned tag, or `null` if untagged |
+| `createdAt` | `Date` | When the session was first created |
+
+**TypeScript**
+```typescript
+import { getSessionInfo } from "@anthropic-ai/claude-agent-sdk"
+
+const info = await getSessionInfo("session-xyz")
+
+console.log(`Session: ${info.id}`)
+console.log(`Tag:     ${info.tag ?? "(none)"}`)
+console.log(`Created: ${info.createdAt.toISOString()}`)
+```
+
+**Python**
+```python
+from claude_agent_sdk import get_session_info
+
+info = await get_session_info("session-xyz")
+
+print(f"Session: {info['id']}")
+print(f"Tag:     {info.get('tag') or '(none)'}")
+print(f"Created: {info['created_at'].isoformat()}")
+```
+
+## Session Mutations
+
+In addition to reading session data, the SDK provides functions to modify session metadata and branch conversation history.
+
+### `renameSession`
+
+Assigns a human-readable name to an existing session, replacing any previous name.
+
+**TypeScript**
+```typescript
+import { renameSession } from "@anthropic-ai/claude-agent-sdk"
+
+await renameSession("session-xyz", "Auth refactor — March 2025")
+console.log("Session renamed.")
+```
+
+**Python**
+```python
+from claude_agent_sdk import rename_session
+
+await rename_session("session-xyz", "Auth refactor — March 2025")
+print("Session renamed.")
+```
+
+### `tagSession`
+
+Attaches a short tag to a session for grouping or filtering purposes. Pass `null` (TypeScript) or `None` (Python) to clear an existing tag.
+
+**TypeScript**
+```typescript
+import { tagSession } from "@anthropic-ai/claude-agent-sdk"
+
+// Set a tag
+await tagSession("session-xyz", "production")
+
+// Clear the tag
+await tagSession("session-xyz", null)
+```
+
+**Python**
+```python
+from claude_agent_sdk import tag_session
+
+# Set a tag
+await tag_session("session-xyz", "production")
+
+# Clear the tag
+await tag_session("session-xyz", None)
+```
+
+### `forkSession`
+
+Creates a new session branched from an existing one at its current state. The forked session contains a full copy of the transcript up to the fork point; subsequent messages in either session do not affect the other.
+
+This is useful for exploring alternative continuations of a conversation without losing the original thread.
+
+**TypeScript**
+```typescript
+import { forkSession, query } from "@anthropic-ai/claude-agent-sdk"
+
+// Branch the conversation at its current state
+const forkedId = await forkSession("session-xyz")
+console.log(`Forked session ID: ${forkedId}`)
+
+// Continue the original session unchanged
+const original = query({
+  prompt: "Keep going with the original approach",
+  options: { resume: "session-xyz" }
+})
+
+// Explore an alternative in the fork
+const fork = query({
+  prompt: "Try a completely different implementation strategy",
+  options: { resume: forkedId }
+})
+
+for await (const msg of fork) {
+  console.log(msg)
+}
+```
+
+**Python**
+```python
+from claude_agent_sdk import fork_session, query
+
+# Branch the conversation at its current state
+forked_id = await fork_session("session-xyz")
+print(f"Forked session ID: {forked_id}")
+
+# Continue the original session unchanged
+original = query(
+    prompt="Keep going with the original approach",
+    options={"resume": "session-xyz"}
+)
+
+# Explore an alternative in the fork
+fork = query(
+    prompt="Try a completely different implementation strategy",
+    options={"resume": forked_id}
+)
+
+async for msg in fork:
+    print(msg)
+```
+
 ## Error Handling and Recovery
 
 ### Handling Interrupted Sessions
 
 **TypeScript**
 ```typescript
-import { query } from '@anthropic-ai/claude-code'
+import { query } from '@anthropic-ai/claude-agent-sdk'
 import { readFile } from 'fs/promises'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -252,22 +462,22 @@ import { join } from 'path'
 const checkSessionStatus = async (sessionId: string) => {
   const metadataPath = join(homedir(), '.config/claude/sessions/sessions.json')
   const metadata = JSON.parse(await readFile(metadataPath, 'utf-8'))
-  
+
   const session = metadata.find(s => s.id === sessionId)
-  
+
   if (session?.status === 'interrupted') {
     console.log('Session was interrupted. Ready for resumption...')
     // The SDK handles loading the transcript internally
     return { canResume: true, sessionId: sessionId }
   }
-  
+
   return { canResume: false }
 }
 
 // Resume an interrupted session
 const resumeInterrupted = async (sessionId: string) => {
   const status = await checkSessionStatus(sessionId)
-  
+
   if (status.canResume) {
     const response = query({
       prompt: "Let's continue from where we left off",
@@ -275,7 +485,7 @@ const resumeInterrupted = async (sessionId: string) => {
         resume: status.sessionId
       }
     })
-    
+
     for await (const message of response) {
       console.log(message)
     }
@@ -285,7 +495,7 @@ const resumeInterrupted = async (sessionId: string) => {
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 import json
 import asyncio
 from pathlib import Path
@@ -293,23 +503,23 @@ from pathlib import Path
 # Check if a session was interrupted
 async def check_session_status(session_id: str):
     metadata_path = Path.home() / ".config/claude/sessions/sessions.json"
-    
+
     with open(metadata_path, 'r') as f:
         metadata = json.load(f)
-    
+
     session = next((s for s in metadata if s["id"] == session_id), None)
-    
+
     if session and session.get("status") == "interrupted":
         print("Session was interrupted. Ready for resumption...")
         # The SDK handles loading the transcript internally
         return {"can_resume": True, "session_id": session_id}
-    
+
     return {"can_resume": False}
 
 # Resume an interrupted session
 async def resume_interrupted(session_id: str):
     status = await check_session_status(session_id)
-    
+
     if status["can_resume"]:
         response = query(
             prompt="Let's continue from where we left off",
@@ -317,9 +527,9 @@ async def resume_interrupted(session_id: str):
                 "resume": status["session_id"]
             }
         )
-        
+
         async for message in response:
             print(message)
 ```
 
-The Claude Code SDK's session management system provides a robust foundation for maintaining conversation state and enabling seamless resumption of development tasks, all through a simple file-based approach that requires no external infrastructure.
+The Claude Agent SDK's session management system provides a robust foundation for maintaining conversation state and enabling seamless resumption of development tasks, all through a simple file-based approach that requires no external infrastructure.

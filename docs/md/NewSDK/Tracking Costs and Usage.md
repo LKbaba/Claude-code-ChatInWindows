@@ -26,7 +26,7 @@ When Claude executes tools, the usage reporting differs based on whether tools a
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Example: Tracking usage in a conversation
 const result = await query({
@@ -44,7 +44,7 @@ const result = await query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Example: Tracking usage in a conversation
 result = await query(
@@ -119,12 +119,12 @@ Here's a complete example of implementing a cost tracking system:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 class CostTracker {
   private processedMessageIds = new Set<string>();
   private stepUsages: Array<any> = [];
-  
+
   async trackConversation(prompt: string) {
     const result = await query({
       prompt,
@@ -134,25 +134,25 @@ class CostTracker {
         }
       }
     });
-    
+
     return {
       result,
       stepUsages: this.stepUsages,
       totalCost: result.usage?.total_cost_usd || 0
     };
   }
-  
+
   private processMessage(message: any) {
     // Only process assistant messages with usage
     if (message.type !== 'assistant' || !message.usage) {
       return;
     }
-    
+
     // Skip if we've already processed this message ID
     if (this.processedMessageIds.has(message.id)) {
       return;
     }
-    
+
     // Mark as processed and record usage
     this.processedMessageIds.add(message.id);
     this.stepUsages.push({
@@ -162,15 +162,16 @@ class CostTracker {
       costUSD: this.calculateCost(message.usage)
     });
   }
-  
+
   private calculateCost(usage: any): number {
     // Implement your pricing calculation here
     // This is a simplified example
     const inputCost = usage.input_tokens * 0.00003;
     const outputCost = usage.output_tokens * 0.00015;
     const cacheReadCost = (usage.cache_read_input_tokens || 0) * 0.0000075;
-    
-    return inputCost + outputCost + cacheReadCost;
+    const cacheCreationCost = (usage.cache_creation_input_tokens || 0) * 0.0000375;
+
+    return inputCost + outputCost + cacheReadCost + cacheCreationCost;
   }
 }
 
@@ -186,14 +187,14 @@ console.log(`Total cost: $${totalCost.toFixed(4)}`);
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 from datetime import datetime
 
 class CostTracker:
     def __init__(self):
         self.processed_message_ids = set()
         self.step_usages = []
-    
+
     async def track_conversation(self, prompt: str):
         result = await query(
             prompt=prompt,
@@ -201,22 +202,22 @@ class CostTracker:
                 "on_message": lambda message: self.process_message(message)
             }
         )
-        
+
         return {
             "result": result,
             "step_usages": self.step_usages,
             "total_cost": result.get("usage", {}).get("total_cost_usd", 0)
         }
-    
+
     def process_message(self, message):
         # Only process assistant messages with usage
         if message["type"] != "assistant" or "usage" not in message:
             return
-        
+
         # Skip if we've already processed this message ID
         if message["id"] in self.processed_message_ids:
             return
-        
+
         # Mark as processed and record usage
         self.processed_message_ids.add(message["id"])
         self.step_usages.append({
@@ -225,15 +226,16 @@ class CostTracker:
             "usage": message["usage"],
             "cost_usd": self.calculate_cost(message["usage"])
         })
-    
+
     def calculate_cost(self, usage):
         # Implement your pricing calculation here
         # This is a simplified example
         input_cost = usage["input_tokens"] * 0.00003
         output_cost = usage["output_tokens"] * 0.00015
         cache_read_cost = usage.get("cache_read_input_tokens", 0) * 0.0000075
-        
-        return input_cost + output_cost + cache_read_cost
+        cache_creation_cost = usage.get("cache_creation_input_tokens", 0) * 0.0000375
+
+        return input_cost + output_cost + cache_read_cost + cache_creation_cost
 
 # Usage
 tracker = CostTracker()
@@ -268,6 +270,10 @@ interface CacheUsage {
 }
 ```
 
+`cache_creation_input_tokens` counts tokens written into a new cache entry (charged at a higher rate than regular input). `cache_read_input_tokens` counts tokens served from an existing cache entry (charged at a discounted rate). Both fields are included in the per-message `usage` object whenever caching is active.
+
+For a full explanation of how prompt caching works and how to enable it, see [Prompt Caching](/en/docs/claude-code/sdk/prompt-caching).
+
 ## Best Practices
 
 1. **Use Message IDs for Deduplication**: Always track processed message IDs to avoid double-charging
@@ -282,10 +288,22 @@ Each usage object contains:
 
 - `input_tokens`: Base input tokens processed
 - `output_tokens`: Tokens generated in the response
-- `cache_creation_input_tokens`: Tokens used to create cache entries
-- `cache_read_input_tokens`: Tokens read from cache
+- `cache_creation_input_tokens`: Tokens written to a new prompt cache entry (billed at a premium over standard input rates)
+- `cache_read_input_tokens`: Tokens served from an existing prompt cache entry (billed at a discount vs. standard input rates)
 - `service_tier`: The service tier used (e.g., "standard")
 - `total_cost_usd`: Total cost in USD (only in result message)
+
+## Model Pricing Reference
+
+Current pricing for models supported by the SDK:
+
+| Model | Input (per 1M tokens) | Output (per 1M tokens) |
+|-------|-----------------------|------------------------|
+| claude-opus-4-6 | $5.00 | $25.00 |
+| claude-sonnet-4-6 | $3.00 | $15.00 |
+| claude-haiku-4-5 | $1.00 | $5.00 |
+
+> **Note**: Cache read tokens are billed at approximately 10% of the standard input rate. Cache creation tokens are billed at approximately 125% of the standard input rate. Verify current rates in the [Anthropic pricing page](https://www.anthropic.com/pricing).
 
 ## Example: Building a Billing Dashboard
 
@@ -298,32 +316,32 @@ class BillingAggregator {
     totalCost: number;
     conversations: number;
   }>();
-  
+
   async processUserRequest(userId: string, prompt: string) {
     const tracker = new CostTracker();
     const { result, stepUsages, totalCost } = await tracker.trackConversation(prompt);
-    
+
     // Update user totals
     const current = this.userUsage.get(userId) || {
       totalTokens: 0,
       totalCost: 0,
       conversations: 0
     };
-    
+
     const totalTokens = stepUsages.reduce(
       (sum, step) => sum + step.usage.input_tokens + step.usage.output_tokens,
       0
     );
-    
+
     this.userUsage.set(userId, {
       totalTokens: current.totalTokens + totalTokens,
       totalCost: current.totalCost + totalCost,
       conversations: current.conversations + 1
     });
-    
+
     return result;
   }
-  
+
   getUserBilling(userId: string) {
     return this.userUsage.get(userId) || {
       totalTokens: 0,
@@ -339,3 +357,4 @@ class BillingAggregator {
 - [TypeScript SDK Reference](/en/docs/claude-code/sdk/sdk-typescript) - Complete API documentation
 - [SDK Overview](/en/docs/claude-code/sdk) - Getting started with the SDK
 - [SDK Permissions](/en/docs/claude-code/sdk/sdk-permissions) - Managing tool permissions
+- [Prompt Caching](/en/docs/claude-code/sdk/prompt-caching) - Reduce costs with prompt caching
