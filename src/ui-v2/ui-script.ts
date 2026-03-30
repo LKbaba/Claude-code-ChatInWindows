@@ -229,11 +229,19 @@ export const uiScript = `
 				
 				// Handle TodoWrite specially or format raw input
 				if (data.toolName === 'TodoWrite' && data.rawInput.todos) {
+					let todos = data.rawInput.todos;
+					// When ToolSearch hasn't loaded the schema, todos arrives as a JSON string instead of array
+					if (typeof todos === 'string') {
+						try { todos = JSON.parse(todos); } catch(e) { todos = null; }
+					}
 					let todoHtml = 'Todo List Update:';
-					for (const todo of data.rawInput.todos) {
-						const status = todo.status === 'completed' ? '✅' :
-							todo.status === 'in_progress' ? '🔄' : '⏳';
-						todoHtml += '\\n' + status + ' ' + todo.content + ' <span class="priority-badge ' + todo.priority + '">' + todo.priority + '</span>';
+					if (Array.isArray(todos)) {
+						for (const todo of todos) {
+							const status = todo.status === 'completed' ? '✅' :
+								todo.status === 'in_progress' ? '🔄' : '⏳';
+							const label = todo.activeForm || todo.content || '';
+							todoHtml += '\\n' + status + ' ' + escapeHtml(label);
+						}
 					}
 					contentDiv.innerHTML = todoHtml;
 				} else {
