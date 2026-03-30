@@ -481,10 +481,15 @@ export class McpConfigManager {
                     // Vertex AI mode: set the flags the Gemini MCP server expects
                     serverConfig.env.GOOGLE_GENAI_USE_VERTEXAI = 'true';
                     serverConfig.env.GOOGLE_CREDENTIALS_JSON = vertexCredentials;
-                    if (vertexProject) {
-                        serverConfig.env.GOOGLE_CLOUD_PROJECT = vertexProject;
+                    // Resolve project: config/globalState first, then extract from credentials JSON
+                    let project = vertexProject;
+                    if (!project) {
+                        try { project = JSON.parse(vertexCredentials).project_id || ''; } catch { /* ignore */ }
                     }
-                    debugLog('McpConfigManager', `Injected Vertex AI credentials into server '${serverName}' (project: ${vertexProject})`);
+                    if (project) {
+                        serverConfig.env.GOOGLE_CLOUD_PROJECT = project;
+                    }
+                    debugLog('McpConfigManager', `Injected Vertex AI credentials into server '${serverName}' (project: ${project})`);
                 }
                 injectedCount++;
             }

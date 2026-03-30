@@ -35,6 +35,13 @@ const CONFIG_KEYS = {
     VERTEX_PROJECT: 'claudeCodeChatUI.gemini.vertexProject'
 } as const;
 
+// GlobalState fallback keys — used when VS Code config keys are not yet
+// registered (e.g. right after a VSIX upgrade, before window reload).
+const FALLBACK_KEYS = {
+    GROK_ENABLED: 'configFallback.grokEnabled',
+    VERTEX_PROJECT: 'configFallback.vertexProject'
+} as const;
+
 /**
  * Gemini Integration Configuration Interface
  */
@@ -83,6 +90,12 @@ export class SecretService {
         this.context = context;
         this.secrets = context.secrets;
         debugLog('SecretService', 'Initialized successfully');
+
+        // Migrate any globalState fallback values written during a previous
+        // session where newly-added config keys were not yet registered.
+        this.migrateConfigFallbacks().catch(err =>
+            debugError('SecretService', 'Config fallback migration failed', err)
+        );
     }
 
     /**
@@ -91,6 +104,69 @@ export class SecretService {
     private ensureInitialized(): void {
         if (!this.secrets || !this.context) {
             throw new Error('[SecretService] Service not initialized. Please call initialize() method first.');
+        }
+    }
+
+    // ==================== Config Fallback Helpers ====================
+    // After a VSIX upgrade that adds new configuration keys, VS Code / Cursor
+    // may not register those keys until the window is reloaded. During that
+    // window, config.update() throws "configuration not registered".  These
+    // helpers transparently fall back to context.globalState so user actions
+    // still succeed.  On the *next* activation (after reload) the values are
+    // migrated back to VS Code config and the fallback keys are cleaned up.
+
+    /**
+     * Write a value to VS Code config; on failure, persist in globalState.
+     */
+    private async safeConfigUpdate(configKey: string, value: any, fallbackKey: string): Promise<void> {
+        try {
+            const config = vscode.workspace.getConfiguration();
+            await config.update(configKey, value, vscode.ConfigurationTarget.Global);
+            // Write succeeded — clear any stale fallback
+            await this.context!.globalState.update(fallbackKey, undefined);
+        } catch {
+            debugLog('SecretService', `Config key "${configKey}" not registered yet, storing in globalState fallback`);
+            await this.context!.globalState.update(fallbackKey, value);
+        }
+    }
+
+    /**
+     * Read from VS Code config; if it returns the schema default, also check
+     * globalState for a fallback value written during a previous failed update.
+     */
+    private safeConfigGet<T>(configKey: string, defaultValue: T, fallbackKey: string): T {
+        const config = vscode.workspace.getConfiguration();
+        const value = config.get<T>(configKey);
+        if (value !== undefined && value !== defaultValue) {
+            return value;
+        }
+        const fallback = this.context!.globalState.get<T>(fallbackKey);
+        return fallback !== undefined ? fallback : defaultValue;
+    }
+
+    /**
+     * Migrate globalState fallback values back to VS Code config.
+     * Called on initialize() — by that point the window has reloaded and
+     * newly-added config keys should be registered.
+     */
+    private async migrateConfigFallbacks(): Promise<void> {
+        const migrations: { configKey: string; fallbackKey: string }[] = [
+            { configKey: CONFIG_KEYS.GROK_ENABLED, fallbackKey: FALLBACK_KEYS.GROK_ENABLED },
+            { configKey: CONFIG_KEYS.VERTEX_PROJECT, fallbackKey: FALLBACK_KEYS.VERTEX_PROJECT },
+        ];
+
+        for (const { configKey, fallbackKey } of migrations) {
+            const fallbackValue = this.context!.globalState.get(fallbackKey);
+            if (fallbackValue !== undefined) {
+                try {
+                    const config = vscode.workspace.getConfiguration();
+                    await config.update(configKey, fallbackValue, vscode.ConfigurationTarget.Global);
+                    await this.context!.globalState.update(fallbackKey, undefined);
+                    debugLog('SecretService', `Migrated fallback "${fallbackKey}" → config "${configKey}"`);
+                } catch {
+                    debugLog('SecretService', `Config key "${configKey}" still not registered, keeping fallback`);
+                }
+            }
         }
     }
 
@@ -235,8 +311,14 @@ export class SecretService {
     public async getGeminiIntegrationConfig(): Promise<GeminiIntegrationConfig> {
         const enabled = this.getGeminiIntegrationEnabled();
         const apiKey = await this.getGeminiApiKey();
-        const hasVertexCredentials = await this.hasVertexCredentials();
-        const vertexProject = this.getVertexProject();
+        const vertexCredentials = await this.getVertexCredentials();
+        const hasVertexCredentials = !!vertexCredentials;
+        let vertexProject = this.getVertexProject();
+
+        // Last-resort fallback: extract project_id from stored credentials JSON
+        if (!vertexProject && vertexCredentials) {
+            try { vertexProject = JSON.parse(vertexCredentials).project_id || ''; } catch { /* ignore */ }
+        }
 
         return {
             enabled,
@@ -283,16 +365,14 @@ export class SecretService {
      * Get Grok Integration enabled status
      */
     public getGrokIntegrationEnabled(): boolean {
-        const config = vscode.workspace.getConfiguration();
-        return config.get<boolean>(CONFIG_KEYS.GROK_ENABLED, false);
+        return this.safeConfigGet<boolean>(CONFIG_KEYS.GROK_ENABLED, false, FALLBACK_KEYS.GROK_ENABLED);
     }
 
     /**
      * Set Grok Integration enabled status
      */
     public async setGrokIntegrationEnabled(enabled: boolean): Promise<void> {
-        const config = vscode.workspace.getConfiguration();
-        await config.update(CONFIG_KEYS.GROK_ENABLED, enabled, vscode.ConfigurationTarget.Global);
+        await this.safeConfigUpdate(CONFIG_KEYS.GROK_ENABLED, enabled, FALLBACK_KEYS.GROK_ENABLED);
         debugLog('SecretService', `Grok Integration status updated: ${enabled}`);
     }
 
@@ -338,19 +418,17 @@ export class SecretService {
     }
 
     /**
-     * Get Vertex AI project ID from VS Code config
+     * Get Vertex AI project ID from VS Code config (with globalState fallback)
      */
     public getVertexProject(): string {
-        const config = vscode.workspace.getConfiguration();
-        return config.get<string>(CONFIG_KEYS.VERTEX_PROJECT, '');
+        return this.safeConfigGet<string>(CONFIG_KEYS.VERTEX_PROJECT, '', FALLBACK_KEYS.VERTEX_PROJECT);
     }
 
     /**
-     * Set Vertex AI project ID in VS Code config
+     * Set Vertex AI project ID in VS Code config (with globalState fallback)
      */
     public async setVertexProject(project: string): Promise<void> {
-        const config = vscode.workspace.getConfiguration();
-        await config.update(CONFIG_KEYS.VERTEX_PROJECT, project, vscode.ConfigurationTarget.Global);
+        await this.safeConfigUpdate(CONFIG_KEYS.VERTEX_PROJECT, project, FALLBACK_KEYS.VERTEX_PROJECT);
         debugLog('SecretService', `Vertex AI project updated: ${project}`);
     }
 

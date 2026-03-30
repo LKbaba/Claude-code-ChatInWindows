@@ -498,8 +498,18 @@ export class MessageProcessor {
                     }
                 }
                 break;
-            // Claude Code 2.1.2+ new tools
+            // Subagent tools
+            case 'Agent':
+            case 'Task': // Legacy alias
+                if (content.input?.description) {
+                    details = ` • ${content.input.description}`;
+                } else if (content.input?.prompt) {
+                    const prompt = content.input.prompt.substring(0, 50);
+                    details = ` • ${prompt}${content.input.prompt.length > 50 ? '...' : ''}`;
+                }
+                break;
             case 'TaskOutput':
+            case 'TaskStop':
                 if (content.input?.task_id) {
                     details = ` • task: ${content.input.task_id}`;
                 }
@@ -508,6 +518,14 @@ export class MessageProcessor {
                 if (content.input?.shell_id) {
                     details = ` • shell: ${content.input.shell_id}`;
                 }
+                break;
+            case 'ToolSearch':
+                if (content.input?.query) {
+                    details = ` • ${content.input.query}`;
+                }
+                break;
+            case 'EnterWorktree':
+                details = ' • creating isolated worktree';
                 break;
             case 'AskUserQuestion':
                 if (content.input?.questions?.length) {

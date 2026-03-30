@@ -2,6 +2,43 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.0.5] - 2026-03-30
+
+### New Features
+- **AI Assistant Panel — Grok + Vertex AI Support**
+  - Unified 🦾 AI Assistant settings panel with Gemini and Grok sub-sections
+  - Gemini: Radio toggle between API Key and Vertex AI Service Account authentication
+  - Vertex AI: Import/delete GCP Service Account JSON with project ID extraction
+  - Grok: API Key management with enable/disable toggle
+  - Delete buttons for all credential types with confirmation
+  - `SecretService`: Added Grok API Key and Vertex AI credentials management with format validation
+  - `McpConfigManager`: Generic `isServerForProvider()` matcher; runtime injection for Grok/Gemini/Vertex credentials into MCP server env
+
+### Changed
+- **Tools panel updated for Claude Code v2.1.72+**
+  - Renamed: `Task` → `Agent` (subagent launcher)
+  - Removed deprecated: `MultiEdit`, `LS`, `NotebookRead`, `KillShell`
+  - Added new: `ToolSearch`, `EnterWorktree`/`ExitWorktree`, `TaskStop`
+  - Updated tool icons, colors, and status mappings with legacy backward compatibility
+- **Toolbar button order**: swapped Skills and Hooks positions (now: Plugins | Hooks | Skills)
+
+### Fixed
+- **Cross-platform scroll pinning** — chat auto-scroll now works on macOS
+  - Old approach: detected scrollbar clicks via pixel position (`clickX >= clientWidth`); macOS overlay scrollbars have zero width, so this never triggered — auto-scroll was always on
+  - New approach: `scroll` event listener checks distance from bottom; works with mouse wheel, trackpad, scrollbar drag, keyboard on all platforms
+  - User scrolls up → auto-scroll pauses; scrolls back to bottom (within 50px) → auto-scroll resumes
+- **VSIX Upgrade Config Registration Issue**
+  - After upgrading VSIX that adds new configuration keys (`grokIntegrationEnabled`, `gemini.vertexProject`), VS Code/Cursor did not register them until window reload
+  - `config.update()` threw "configuration not registered" error, causing Vertex AI import and Grok enable to silently fail
+  - **Fix**: `SecretService` now uses `context.globalState` as transparent fallback storage via `safeConfigUpdate()` / `safeConfigGet()` helpers
+  - On next window reload, `migrateConfigFallbacks()` automatically migrates values back to VS Code config
+  - `McpConfigManager` and `getGeminiIntegrationConfig()` extract `project_id` from stored credentials JSON as last-resort fallback
+  - This also fixes: Grok delete (✕) button causing the enabled checkbox to uncheck (same root cause — config key not registered returned `false`)
+- **Hooks UI simplification** (from 4.0.3 cycle)
+  - Removed Add/Edit buttons, two-level scope selector, template scope selector
+  - Fixed hooks description persistence and template dismiss behavior
+  - Fixed scope collapse state
+
 ## [4.0.3] - 2026-03-29
 
 ### Improvements

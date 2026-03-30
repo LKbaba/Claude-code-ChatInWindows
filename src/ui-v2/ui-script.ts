@@ -33,52 +33,39 @@ export const uiScript = `
 		let historyPosition = 0;
 		let isUpdatingFromHistory = false;
 
-		// Scroll control: pause auto-scroll when user is holding the scrollbar
-		let isUserHoldingScrollbar = false;  // Whether user is holding the scrollbar
-		let autoScrollEnabled = true;        // Whether auto-scroll is enabled
+		// Scroll control: auto-scroll is disabled when the user scrolls up,
+		// and re-enabled when they scroll back near the bottom.
+		// Works cross-platform (Windows visible scrollbar, macOS overlay scrollbar,
+		// mouse wheel, trackpad, keyboard — all trigger the scroll event).
+		let autoScrollEnabled = true;
+		let isProgrammaticScroll = false;
+		const SCROLL_BOTTOM_THRESHOLD = 50; // px from bottom to re-enable auto-scroll
 
 		// Compact state flag: used to determine whether to show compacting message when sessionCleared
 		let isCompacting = false;
 
 		/**
-		 * Smart scroll to bottom
-		 * Only scrolls when user is not holding the scrollbar
+		 * Smart scroll to bottom — only scrolls when user hasn't scrolled up
 		 */
 		function scrollToBottom() {
-			if (autoScrollEnabled && !isUserHoldingScrollbar) {
+			if (autoScrollEnabled) {
+				isProgrammaticScroll = true;
 				messagesDiv.scrollTop = messagesDiv.scrollHeight;
+				requestAnimationFrame(() => { isProgrammaticScroll = false; });
 			}
 		}
 
 		/**
-		 * Initialize scrollbar interaction listener
-		 * Detects when user holds the scrollbar and pauses auto-scroll
+		 * Initialize scroll-pinning behavior via the scroll event.
+		 * If the user scrolls up (away from the bottom), auto-scroll is paused.
+		 * When they scroll back to within SCROLL_BOTTOM_THRESHOLD of the bottom,
+		 * auto-scroll resumes.
 		 */
 		function initScrollbarInteraction() {
-			// Listen for mousedown events
-			messagesDiv.addEventListener('mousedown', (e) => {
-				// Detect if click is in the scrollbar area
-				// clientWidth is content width (excluding scrollbar), if click position exceeds clientWidth, it's on the scrollbar
-				const rect = messagesDiv.getBoundingClientRect();
-				const clickX = e.clientX - rect.left;
-
-				// Check if click is in the scrollbar area (right edge)
-				if (clickX >= messagesDiv.clientWidth) {
-					console.log('[Scroll] User is holding scrollbar, pausing auto-scroll');
-					isUserHoldingScrollbar = true;
-					autoScrollEnabled = false;
-				}
-			});
-
-			// Listen for mouseup events (on document, since user may release outside the container)
-			document.addEventListener('mouseup', () => {
-				if (isUserHoldingScrollbar) {
-					console.log('[Scroll] User released scrollbar, resuming auto-scroll');
-					isUserHoldingScrollbar = false;
-					autoScrollEnabled = true;
-					// Optionally scroll to bottom immediately after release
-					// scrollToBottom();
-				}
+			messagesDiv.addEventListener('scroll', () => {
+				if (isProgrammaticScroll) return;
+				const distanceFromBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop - messagesDiv.clientHeight;
+				autoScrollEnabled = distanceFromBottom < SCROLL_BOTTOM_THRESHOLD;
 			});
 		}
 		
@@ -1097,31 +1084,35 @@ export const uiScript = `
 		
 		function getToolStatusIcon(toolName) {
 			const iconMap = {
-				// Core tools
-				'Task': '👻',            // Ghost icon for AI agent tasks
-				'Bash': '💻',            // Keep
-				'Read': '📖',            // Keep
-				'Edit': '✏️',            // Keep
-				'Write': '📝',           // Keep
-				'Grep': '🔎',            // Keep
-				'Glob': '📁',            // Keep
-				'LS': '📂',              // Keep
-				'TodoWrite': '✅',        // Keep
-				'TodoRead': '📋',         // Keep
-				'WebFetch': '🌐',        // Keep
-				'WebSearch': '🔍',       // Keep search icon
-				'MultiEdit': '📑',       // Multi-page document icon
-				'NotebookRead': '📓',    // Keep
-				'NotebookEdit': '📔',    // Slightly different notebook icon
-				// Claude Code 2.1.2 new tools
-				'TaskOutput': '📤',      // Get task output
-				'KillShell': '💀',       // Skull icon for kill process
-				'AskUserQuestion': '🤔', // Thinking face for asking user
-				'Skill': '🛠️',           // Tools for skill/command
-				'EnterPlanMode': '📐',   // Ruler/design icon for planning
-				'ExitPlanMode': '🚀',    // Rocket for launch/execute
-				// MCP tools
-				'mcp__sequential-thinking__sequentialthinking': '🧠'  // Brain icon for thinking tool
+				// Core tools (v2.1.72+)
+				'Agent': '👻',           // Ghost icon for AI subagent
+				'Task': '👻',            // Legacy alias for Agent
+				'Bash': '💻',
+				'Read': '📖',
+				'Edit': '✏️',
+				'Write': '📝',
+				'Grep': '🔎',
+				'Glob': '📁',
+				'TodoWrite': '✅',
+				'WebFetch': '🌐',
+				'WebSearch': '🔍',
+				'NotebookEdit': '📔',
+				'ToolSearch': '🔎',
+				// Task management
+				'TaskOutput': '📤',
+				'TaskStop': '💀',
+				// User interaction & modes
+				'AskUserQuestion': '🤔',
+				'Skill': '🛠️',
+				'EnterPlanMode': '📐',
+				'ExitPlanMode': '🚀',
+				'EnterWorktree': '🌿',
+				'ExitWorktree': '🔙',
+				// Legacy tools (backward compat)
+				'MultiEdit': '📑',
+				'KillShell': '💀',
+				'NotebookRead': '📓',
+				'LS': '📂'
 			};
 			// Handle other MCP tools
 			if (toolName && toolName.startsWith('mcp__')) {
@@ -1143,11 +1134,15 @@ export const uiScript = `
 			const colorMap = {
 				// Special tools with unique colors (darker/muted for dark mode)
 				'AskUserQuestion': 'linear-gradient(135deg, #be185d 0%, #9d174d 100%)',  // Dark pink - user interaction
-				'Task': 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',             // Muted violet - AI agent
+				'Agent': 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',            // Muted violet - AI subagent
+				'Task': 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',             // Legacy alias for Agent
 				'EnterPlanMode': 'linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%)',    // Darker blue - planning
 				'ExitPlanMode': 'linear-gradient(135deg, #64748b 0%, #475569 100%)',     // Darker gray - neutral
-				'KillShell': 'linear-gradient(135deg, #64748b 0%, #475569 100%)',        // Darker gray - utility cleanup
+				'EnterWorktree': 'linear-gradient(135deg, #059669 0%, #047857 100%)',    // Green - worktree
+				'ExitWorktree': 'linear-gradient(135deg, #64748b 0%, #475569 100%)',     // Gray - exit
 				'TaskOutput': 'linear-gradient(135deg, #059669 0%, #047857 100%)',       // Darker green - output
+				'TaskStop': 'linear-gradient(135deg, #64748b 0%, #475569 100%)',         // Darker gray - utility cleanup
+				'ToolSearch': 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)',       // Cyan - search/load
 				'Skill': 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',            // Industrial orange - skill/tool
 				// Default purple gradient for other tools (slightly darker)
 				'default': 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'
