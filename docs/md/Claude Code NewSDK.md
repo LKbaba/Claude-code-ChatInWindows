@@ -77,6 +77,202 @@ LSP (Language Server Protocol) tool for code intelligence features like go-to-de
 ### Named Session Support
 Use `/rename` to name sessions, `/resume <name>` in REPL or `claude --resume <name>` from terminal (added in v2.0.64).
 
+## What's New Since v2.1.0
+
+### Expanded Hook Event System (25+ Events)
+
+Hooks now cover the full agent lifecycle. The complete list of supported hook events:
+
+| Category | Events |
+|----------|--------|
+| Session lifecycle | `SessionStart`, `SessionEnd` |
+| User interaction | `UserPromptSubmit`, `Notification`, `Elicitation`, `ElicitationResult` |
+| Tool execution | `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest` |
+| Agent lifecycle | `SubagentStart`, `SubagentStop`, `Stop`, `StopFailure`, `TeammateIdle` |
+| Task lifecycle | `TaskCreated`, `TaskCompleted` |
+| Configuration | `InstructionsLoaded`, `ConfigChange` |
+| File system | `CwdChanged`, `FileChanged`, `WorktreeCreate`, `WorktreeRemove` |
+| Compaction | `PreCompact`, `PostCompact` |
+
+> Note: `PostToolUseFailure` fires when a tool call returns an error result, distinct from `PostToolUse` which fires on success. `StopFailure` fires when the agent aborts due to an unrecoverable error.
+
+### New Hook Types
+
+Three hook execution models are now supported:
+
+| Type | Description |
+|------|-------------|
+| `command` | Execute a shell command (original behavior) |
+| `prompt` | Single-turn LLM evaluation — Claude reads the hook output and decides whether to proceed |
+| `agent` | Multi-turn verification with full tool access — a sub-agent runs to completion before the main flow continues |
+| `http` | POST the event payload to a URL; response body is fed back to the agent |
+
+```json
+// settings.json — hook type examples
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Review the bash command for safety. Reply BLOCK if it should not run."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://my-audit-service.example.com/hook"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Argument-Level Hook Filtering with `if` Field (v2.1.85+)
+
+The `if` field on a hook entry provides a secondary filter evaluated against the tool arguments after `matcher` selects the tool name. Supports glob patterns and simple expressions.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'git push detected'",
+            "if": "input.command contains 'git push'"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Session History API
+
+Read past sessions programmatically without reopening them:
+
+```typescript
+import { listSessions, getSessionMessages, getSessionInfo } from '@anthropic-ai/claude-agent-sdk';
+
+// List all sessions for a project
+const sessions = await listSessions({ projectPath: '/path/to/project' });
+
+// Get all messages from a session
+const messages = await getSessionMessages(sessionId);
+
+// Get metadata (model, timestamps, token counts)
+const info = await getSessionInfo(sessionId);
+```
+
+### Session Mutations API
+
+Manage sessions from SDK code rather than the REPL:
+
+```typescript
+import { renameSession, tagSession, forkSession } from '@anthropic-ai/claude-agent-sdk';
+
+await renameSession(sessionId, 'my-refactor-session');
+await tagSession(sessionId, ['approved', 'production']);
+
+// Fork creates a new session branching from a specific message index
+const forkedId = await forkSession(sessionId, { fromMessageIndex: 42 });
+```
+
+### MCP Server Runtime Management
+
+Inspect and control MCP servers at runtime without restarting the agent:
+
+```typescript
+import { mcpServerStatus, reconnectMcpServer, toggleMcpServer } from '@anthropic-ai/claude-agent-sdk';
+
+// Check current state of all configured MCP servers
+const statuses = await mcpServerStatus();
+
+// Reconnect a server that dropped its connection
+await reconnectMcpServer('my-database-server');
+
+// Disable/enable a server without removing its config
+await toggleMcpServer('my-database-server', false);
+```
+
+### Task Progress Events
+
+Long-running agents now emit structured progress events you can stream:
+
+| Event | When it fires |
+|-------|--------------|
+| `task_started` | Agent begins a new top-level task |
+| `task_progress` | Periodic update with percentage and current step description |
+| `task_notification` | Agent wants to surface a message without blocking |
+
+```typescript
+for await (const event of agent.stream()) {
+  if (event.type === 'task_progress') {
+    console.log(`${event.percent}% — ${event.step}`);
+  }
+}
+```
+
+Enable progress summaries by setting `agentProgressSummaries: true` in options. When enabled, the agent periodically emits a human-readable summary of what it has accomplished so far.
+
+### Effort Parameter (GA)
+
+The `effort` parameter graduated from beta to general availability. Set it via `output_config`:
+
+```typescript
+const result = await query({
+  prompt: 'Refactor this module for testability',
+  output_config: {
+    effort: 'high'   // 'low' | 'medium' | 'high' | 'max'
+  }
+});
+```
+
+| Level | Behavior |
+|-------|----------|
+| `low` | Minimal reasoning, fastest and cheapest |
+| `medium` | Balanced (default) |
+| `high` | Extended reasoning, higher quality on complex tasks |
+| `max` | Maximum reasoning budget — use for the hardest tasks |
+
+> See also: [Thinking and Effort.md](Thinking%20and%20Effort.md) for budget_tokens migration notes.
+
+### Adaptive Thinking (Opus 4.6 / Sonnet 4.6)
+
+On `claude-opus-4-6` and `claude-sonnet-4-6`, setting `effort` activates **adaptive thinking** rather than a fixed `budget_tokens` value. The model dynamically decides how much reasoning to apply based on task complexity. Explicit `budget_tokens` is still accepted for backward compatibility but is ignored on these models when `effort` is also set.
+
+> See: [Models Reference.md](Models%20Reference.md) for the full model capability matrix.
+
+### Compaction (Beta)
+
+Server-side context compression for long-running conversations. When the context window approaches its limit, the server condenses earlier turns into a compact summary rather than truncating them. Opt in per-request:
+
+```typescript
+const result = await query({
+  prompt: '...',
+  compaction: { enabled: true, strategy: 'auto' }
+});
+```
+
+Hook events `PreCompact` and `PostCompact` fire before and after each compaction cycle, letting you inspect or veto the operation.
+
+### Commands Merged into Skills
+
+Slash commands and skills are now unified under the Skills system. Files in `.claude/commands/` continue to work but are treated as skills with `user-invocable: true` set implicitly. Going forward, place all slash-command definitions in `.claude/skills/` with explicit frontmatter.
+
 ## Why use the Claude Agent SDK?
 
 Built on top of the agent harness that powers Claude Code, the Claude Agent SDK provides all the building blocks you need to build production-ready agents.
@@ -125,9 +321,10 @@ For detailed configuration instructions for third-party providers, see the [Amaz
 The SDK provides access to all the default features available in Claude Code, leveraging the same file system-based configuration:
 
 * **Subagents**: Launch specialized agents stored as Markdown files in `./.claude/agents/`
-* **Skills**: Custom skills with hot-reload support from `~/.claude/skills/` or `./.claude/skills/`
-* **Hooks**: Execute custom commands configured in `./.claude/settings.json` that respond to tool events (supports PreToolUse, PostToolUse, Stop, SubagentStop, SessionStart, SessionEnd, Notification, PreCompact)
-* **Slash Commands**: Use custom commands defined as Markdown files in `./.claude/commands/`
+* **Skills**: Custom skills with hot-reload support from `~/.claude/skills/` or `./.claude/skills/`; commands are now unified under this system
+* **Hooks**: Execute custom commands configured in `./.claude/settings.json` responding to 25+ lifecycle events:
+  `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Notification`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`, `Stop`, `StopFailure`, `TeammateIdle`, `InstructionsLoaded`, `ConfigChange`, `CwdChanged`, `FileChanged`, `WorktreeCreate`, `WorktreeRemove`, `PreCompact`, `PostCompact`, `Elicitation`, `ElicitationResult`
+* **Slash Commands**: Legacy `./.claude/commands/` files continue to work; new definitions go in `./.claude/skills/`
 * **Memory (CLAUDE.md)**: Maintain project context through `CLAUDE.md` files that provide persistent instructions and context
 * **Rules**: Project-specific rules from `.claude/rules/` directory
 
@@ -135,28 +332,67 @@ These features work identically to their Claude Code counterparts by reading fro
 
 ### Skills Configuration (v2.1.0+)
 
-Skills support advanced frontmatter configuration:
+Skills support advanced frontmatter configuration. All currently recognized fields:
 
 ```yaml
 ---
 name: my-skill
 description: A custom skill
-context: fork        # 在 forked sub-agent 上下文中运行
+
+# Execution context
+context: fork        # 在 forked sub-agent 上下文中运行 (fork | default)
 agent: code-reviewer # 指定执行的 agent 类型
+
+# Tool access
 allowed-tools:       # YAML 风格的工具列表
   - Read
   - Write
   - Bash
-hooks:               # skill 级别的 hooks
+
+# Invocation
+once: true           # 只运行一次 (subsequent invocations are no-ops)
+user-invocable: true # 在斜杠命令菜单中显示
+argument-hint: "path/to/file [--flag]"  # 用于命令补全的参数提示文字
+
+# Activation
+paths:               # Glob patterns — skill auto-activates when matched files are in context
+  - "src/**/*.ts"
+  - "*.config.js"
+
+# Shell environment
+shell: powershell    # Shell to use when running Bash tool calls (bash | powershell | cmd)
+
+# Reasoning effort
+effort: high         # Reasoning effort for this skill (low | medium | high | max)
+
+# Lifecycle hooks scoped to this skill's execution
+hooks:
   PreToolUse:
     - matcher: "*"
       hooks:
         - type: prompt
           prompt: "Validate tool usage..."
-once: true           # 只运行一次
-user-invocable: true # 在斜杠命令菜单中显示
 ---
 ```
+
+#### Field Reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Unique skill identifier |
+| `description` | string | Human-readable purpose; shown in slash command menu |
+| `context` | `fork` \| `default` | Execution context; `fork` isolates the skill in a sub-agent |
+| `agent` | string | Agent definition to use for execution |
+| `allowed-tools` | list | Tools the skill may call |
+| `once` | boolean | Prevent repeat execution in the same session |
+| `user-invocable` | boolean | Show in the `/` command palette |
+| `argument-hint` | string | Completion hint displayed next to the command name |
+| `paths` | glob list | File patterns that trigger automatic skill activation |
+| `shell` | `bash` \| `powershell` \| `cmd` | Shell used for Bash tool invocations within this skill |
+| `effort` | `low`\|`medium`\|`high`\|`max` | Reasoning effort for this skill's model calls |
+| `hooks` | object | Hook handlers scoped to this skill's lifecycle |
+
+> Note: `paths` and `shell` require v2.1.0+; `effort` and `argument-hint` require v2.1.85+. See [Skills.md](Skills.md) for the full authoring guide.
 
 ### System Prompts
 
@@ -181,3 +417,15 @@ Extend your agents with custom tools and integrations through MCP servers. This 
 * [MCP Documentation](/en/docs/claude-code/mcp) - Extend Claude with custom tools
 * [Common Workflows](/en/docs/claude-code/common-workflows) - Step-by-step guides
 * [Troubleshooting](/en/docs/claude-code/troubleshooting) - Common issues and solutions
+
+## Local Documentation Cross-References
+
+The following files in `docs/md/` cover topics referenced in this document:
+
+| File | What it covers |
+|------|---------------|
+| [Hooks Guide.md](Hooks%20Guide.md) | Complete hook event reference, all hook types, `if` field syntax, debugging hooks |
+| [Skills.md](Skills.md) | Full skills authoring guide, frontmatter field reference, `paths` activation, `shell` field |
+| [Models Reference.md](Models%20Reference.md) | Model capability matrix, adaptive thinking support, context window sizes |
+| [Thinking and Effort.md](Thinking%20and%20Effort.md) | `effort` vs `budget_tokens`, adaptive thinking on Opus 4.6 / Sonnet 4.6, migration guide |
+| [Claude Code NewSDK.md](Claude%20Code%20NewSDK.md) | This file — SDK overview and feature changelog |

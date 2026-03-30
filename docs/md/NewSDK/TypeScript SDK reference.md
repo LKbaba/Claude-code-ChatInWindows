@@ -146,34 +146,39 @@ function createSdkMcpServer(options: {
 
 Configuration object for the `query()` function.
 
-| Property                     | Type                                                                                              | Default                 | Description                                 |
-| :--------------------------- | :------------------------------------------------------------------------------------------------ | :---------------------- | :------------------------------------------ |
-| `abortController`            | `AbortController`                                                                                 | `new AbortController()` | Controller for cancelling operations        |
-| `additionalDirectories`      | `string[]`                                                                                        | `[]`                    | Additional directories Claude can access    |
-| `allowedTools`               | `string[]`                                                                                        | All tools               | List of allowed tool names                  |
-| `appendSystemPrompt`         | `string`                                                                                          | `undefined`             | Text to append to the default system prompt |
-| `canUseTool`                 | [`CanUseTool`](#canusetool)                                                                       | `undefined`             | Custom permission function for tool usage   |
-| `continue`                   | `boolean`                                                                                         | `false`                 | Continue the most recent conversation       |
-| `customSystemPrompt`         | `string`                                                                                          | `undefined`             | Replace the default system prompt entirely  |
-| `cwd`                        | `string`                                                                                          | `process.cwd()`         | Current working directory                   |
-| `disallowedTools`            | `string[]`                                                                                        | `[]`                    | List of disallowed tool names               |
-| `env`                        | `Dict<string>`                                                                                    | `process.env`           | Environment variables                       |
-| `executable`                 | `'bun' \| 'deno' \| 'node'`                                                                       | Auto-detected           | JavaScript runtime to use                   |
-| `executableArgs`             | `string[]`                                                                                        | `[]`                    | Arguments to pass to the executable         |
-| `extraArgs`                  | `Record<string, string \| null>`                                                                  | `{}`                    | Additional arguments                        |
-| `fallbackModel`              | `string`                                                                                          | `undefined`             | Model to use if primary fails               |
-| `hooks`                      | `Partial<Record<`[`HookEvent`](#hookevent)`, `[`HookCallbackMatcher`](#hookcallbackmatcher)`[]>>` | `{}`                    | Hook callbacks for events                   |
-| `includePartialMessages`     | `boolean`                                                                                         | `false`                 | Include partial message events              |
-| `maxThinkingTokens`          | `number`                                                                                          | `undefined`             | Maximum tokens for thinking process         |
-| `maxTurns`                   | `number`                                                                                          | `undefined`             | Maximum conversation turns                  |
-| `mcpServers`                 | `Record<string, `[`McpServerConfig`](#mcpserverconfig)`>`                                         | `{}`                    | MCP server configurations                   |
-| `model`                      | `string`                                                                                          | Default from CLI        | Claude model to use                         |
-| `pathToClaudeCodeExecutable` | `string`                                                                                          | Auto-detected           | Path to Claude Code executable              |
-| `permissionMode`             | [`PermissionMode`](#permissionmode)                                                               | `'default'`             | Permission mode for the session             |
-| `permissionPromptToolName`   | `string`                                                                                          | `undefined`             | MCP tool name for permission prompts        |
-| `resume`                     | `string`                                                                                          | `undefined`             | Session ID to resume                        |
-| `stderr`                     | `(data: string) => void`                                                                          | `undefined`             | Callback for stderr output                  |
-| `strictMcpConfig`            | `boolean`                                                                                         | `false`                 | Enforce strict MCP validation               |
+| Property                     | Type                                                                                              | Default                 | Description                                                   |
+| :--------------------------- | :------------------------------------------------------------------------------------------------ | :---------------------- | :------------------------------------------------------------ |
+| `abortController`            | `AbortController`                                                                                 | `new AbortController()` | Controller for cancelling operations                          |
+| `additionalDirectories`      | `string[]`                                                                                        | `[]`                    | Additional directories Claude can access                      |
+| `agentProgressSummaries`     | `boolean`                                                                                         | `false`                 | Enable periodic AI-generated progress summaries for subagents |
+| `allowedTools`               | `string[]`                                                                                        | All tools               | List of allowed tool names                                    |
+| `appendSystemPrompt`         | `string`                                                                                          | `undefined`             | Text to append to the default system prompt                   |
+| `betas`                      | `string[]`                                                                                        | `[]`                    | Beta features to enable, e.g. `["context-1m-2025-08-07"]`    |
+| `canUseTool`                 | [`CanUseTool`](#canusetool)                                                                       | `undefined`             | Custom permission function for tool usage                     |
+| `continue`                   | `boolean`                                                                                         | `false`                 | Continue the most recent conversation                         |
+| `customSystemPrompt`         | `string`                                                                                          | `undefined`             | Replace the default system prompt entirely                    |
+| `cwd`                        | `string`                                                                                          | `process.cwd()`         | Current working directory                                     |
+| `disallowedTools`            | `string[]`                                                                                        | `[]`                    | List of disallowed tool names                                 |
+| `env`                        | `Record<string, string>`                                                                          | `process.env`           | Environment variables for the session                         |
+| `executable`                 | `'bun' \| 'deno' \| 'node'`                                                                       | Auto-detected           | JavaScript runtime to use                                     |
+| `executableArgs`             | `string[]`                                                                                        | `[]`                    | Arguments to pass to the executable                           |
+| `extraArgs`                  | `Record<string, string \| null>`                                                                  | `{}`                    | Additional arguments                                          |
+| `fallbackModel`              | `string`                                                                                          | `undefined`             | Model to use if primary fails                                 |
+| `hooks`                      | `Partial<Record<`[`HookEvent`](#hookevent)`, `[`HookCallbackMatcher`](#hookcallbackmatcher)`[]>>` | `{}`                    | Hook callbacks for events                                     |
+| `includePartialMessages`     | `boolean`                                                                                         | `false`                 | Include partial message events                                |
+| `maxThinkingTokens`          | `number`                                                                                          | `undefined`             | Maximum tokens for thinking process                           |
+| `maxTurns`                   | `number`                                                                                          | `undefined`             | Maximum conversation turns                                    |
+| `mcpServers`                 | `Record<string, `[`McpServerConfig`](#mcpserverconfig)`>`                                         | `{}`                    | MCP server configurations                                     |
+| `model`                      | `string`                                                                                          | Default from CLI        | Claude model to use                                           |
+| `outputFormat`               | `object`                                                                                          | `undefined`             | Structured output schema for JSON responses                   |
+| `pathToClaudeCodeExecutable` | `string`                                                                                          | Auto-detected           | Path to Claude Code executable                                |
+| `permissionMode`             | [`PermissionMode`](#permissionmode)                                                               | `'default'`             | Permission mode for the session                               |
+| `permissionPromptToolName`   | `string`                                                                                          | `undefined`             | MCP tool name for permission prompts                          |
+| `resume`                     | `string`                                                                                          | `undefined`             | Session ID to resume                                          |
+| `settingSources`             | `string[]`                                                                                        | `undefined`             | Settings files to load, e.g. `["project"]`                   |
+| `stderr`                     | `(data: string) => void`                                                                          | `undefined`             | Callback for stderr output                                    |
+| `strictMcpConfig`            | `boolean`                                                                                         | `false`                 | Enforce strict MCP validation                                 |
+| `thinking`                   | `object`                                                                                          | `undefined`             | Thinking/reasoning control configuration                      |
 
 ### `Query`
 
@@ -183,6 +188,9 @@ Interface returned by the `query()` function.
 interface Query extends AsyncGenerator<SDKMessage, void> {
   interrupt(): Promise<void>;
   setPermissionMode(mode: PermissionMode): Promise<void>;
+  reconnectMcpServer(serverName: string): Promise<void>;
+  toggleMcpServer(serverName: string, enabled: boolean): Promise<void>;
+  mcpServerStatus(): Promise<McpServerStatus[]>;
 }
 ```
 
@@ -192,11 +200,14 @@ interface Query extends AsyncGenerator<SDKMessage, void> {
 | :-------------------- | :------------------------------------------------------------------- |
 | `interrupt()`         | Interrupts the query (only available in streaming input mode)        |
 | `setPermissionMode()` | Changes the permission mode (only available in streaming input mode) |
+| `reconnectMcpServer()` | Reconnects a named MCP server at runtime                            |
+| `toggleMcpServer()`   | Enables or disables a named MCP server during the session           |
+| `mcpServerStatus()`   | Returns the current status of all configured MCP servers            |
 
 ### `PermissionMode`
 
 ```ts
-type PermissionMode = 
+type PermissionMode =
   | 'default'           // Standard permission behavior
   | 'acceptEdits'       // Auto-accept file edits
   | 'bypassPermissions' // Bypass all permission checks
@@ -223,7 +234,7 @@ type CanUseTool = (
 Result of a permission check.
 
 ```ts
-type PermissionResult = 
+type PermissionResult =
   | {
       behavior: 'allow';
       updatedInput: ToolInput;
@@ -241,7 +252,7 @@ type PermissionResult =
 Configuration for MCP servers.
 
 ```ts
-type McpServerConfig = 
+type McpServerConfig =
   | McpStdioServerConfig
   | McpSSEServerConfig
   | McpHttpServerConfig
@@ -289,6 +300,66 @@ type McpSdkServerConfigWithInstance = {
 }
 ```
 
+### `McpServerStatus`
+
+Runtime status of an MCP server returned by `mcpServerStatus()`.
+
+```ts
+type McpServerStatus = {
+  name: string;
+  status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'disabled';
+  error?: string;
+}
+```
+
+### `AgentDefinition`
+
+Defines a specialized subagent configuration for use with the `Task` tool.
+
+```ts
+interface AgentDefinition {
+  /**
+   * Unique identifier for this agent type
+   */
+  name: string;
+  /**
+   * System prompt that defines the agent's persona and behavior
+   */
+  systemPrompt: string;
+  /**
+   * MCP servers available to this agent
+   */
+  mcpServers?: AgentMcpServerSpec[];
+  /**
+   * Named skills (slash commands) this agent can invoke
+   */
+  skills?: string[];
+  /**
+   * Maximum conversation turns before the agent stops
+   */
+  maxTurns?: number;
+  /**
+   * Experimental: Critical system reminder injected at every turn
+   */
+  criticalSystemReminder_EXPERIMENTAL?: string;
+}
+```
+
+#### `AgentMcpServerSpec`
+
+```ts
+type AgentMcpServerSpec = {
+  /**
+   * Server name as declared in the parent session's mcpServers map
+   */
+  name: string;
+  /**
+   * Optional subset of tools to expose to the subagent
+   */
+  allowedTools?: string[];
+}
+```
+
 ## Message Types
 
 ### `SDKMessage`
@@ -296,7 +367,7 @@ type McpSdkServerConfigWithInstance = {
 Union type of all possible messages returned by the query.
 
 ```ts
-type SDKMessage = 
+type SDKMessage =
   | SDKAssistantMessage
   | SDKUserMessage
   | SDKUserMessageReplay
@@ -353,7 +424,7 @@ type SDKUserMessageReplay = {
 Final result message.
 
 ```ts
-type SDKResultMessage = 
+type SDKResultMessage =
   | {
       type: 'result';
       subtype: 'success';
@@ -385,10 +456,23 @@ type SDKResultMessage =
 
 ### `SDKSystemMessage`
 
-System initialization message.
+System initialization and lifecycle messages. The `subtype` discriminates between different system events.
 
 ```ts
-type SDKSystemMessage = {
+type SDKSystemMessage =
+  | SDKSystemInitMessage
+  | SDKSystemCompactBoundaryMessage
+  | SDKSystemTaskStartedMessage
+  | SDKSystemTaskProgressMessage
+  | SDKSystemTaskNotificationMessage;
+```
+
+#### `SDKSystemInitMessage`
+
+Emitted once at session start.
+
+```ts
+type SDKSystemInitMessage = {
   type: 'system';
   subtype: 'init';
   uuid: UUID;
@@ -404,6 +488,75 @@ type SDKSystemMessage = {
   permissionMode: PermissionMode;
   slash_commands: string[];
   output_style: string;
+}
+```
+
+#### `SDKSystemTaskStartedMessage`
+
+Emitted when a subagent task is registered via the `Task` tool.
+
+```ts
+type SDKSystemTaskStartedMessage = {
+  type: 'system';
+  subtype: 'task_started';
+  uuid: UUID;
+  session_id: string;
+  /**
+   * Identifier linking this task to the originating tool_use block
+   */
+  tool_use_id: string;
+  /**
+   * Short description provided in AgentInput.description
+   */
+  description: string;
+}
+```
+
+#### `SDKSystemTaskProgressMessage`
+
+Emitted periodically while a subagent task is executing. Enable `agentProgressSummaries` in `Options` to receive AI-generated summaries in the `summary` field.
+
+```ts
+type SDKSystemTaskProgressMessage = {
+  type: 'system';
+  subtype: 'task_progress';
+  uuid: UUID;
+  session_id: string;
+  tool_use_id: string;
+  /**
+   * Cumulative token usage for this task so far
+   */
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
+  /**
+   * AI-generated progress summary (only present when agentProgressSummaries is true)
+   */
+  summary?: string;
+}
+```
+
+#### `SDKSystemTaskNotificationMessage`
+
+Emitted when a subagent task completes or produces a notification.
+
+```ts
+type SDKSystemTaskNotificationMessage = {
+  type: 'system';
+  subtype: 'task_notification';
+  uuid: UUID;
+  session_id: string;
+  /**
+   * Links back to the tool_use_id from task_started
+   */
+  tool_use_id: string;
+  /**
+   * Notification or completion message from the subagent
+   */
+  message: string;
 }
 ```
 
@@ -450,6 +603,141 @@ type SDKPermissionDenial = {
 }
 ```
 
+## Session Management
+
+### Session History API
+
+Retrieve persisted sessions and their messages programmatically.
+
+```typescript
+import { listSessions, getSessionMessages, getSessionInfo } from "@anthropic-ai/claude-agent-sdk";
+
+// List recent sessions (supports pagination)
+const sessions = await listSessions({ limit: 20, offset: 0 });
+
+// Fetch metadata for a specific session
+const info = await getSessionInfo(sessions[0].sessionId);
+
+// Retrieve the message transcript for a session
+const messages = await getSessionMessages(sessionId, { limit: 50, offset: 0 });
+```
+
+#### `listSessions()`
+
+```ts
+function listSessions(options?: {
+  limit?: number;
+  offset?: number;
+}): Promise<SessionSummary[]>
+```
+
+#### `getSessionInfo()`
+
+```ts
+function getSessionInfo(sessionId: string): Promise<SessionInfo>
+```
+
+#### `getSessionMessages()`
+
+```ts
+function getSessionMessages(
+  sessionId: string,
+  options?: { limit?: number; offset?: number }
+): Promise<SDKMessage[]>
+```
+
+#### `SessionSummary`
+
+```ts
+type SessionSummary = {
+  sessionId: string;
+  createdAt: string;       // ISO 8601 timestamp
+  updatedAt: string;       // ISO 8601 timestamp
+  tag?: string;            // User-assigned tag
+  title?: string;          // User-assigned or auto-generated title
+  messageCount: number;
+}
+```
+
+#### `SessionInfo`
+
+```ts
+type SessionInfo = SessionSummary & {
+  model: string;
+  cwd: string;
+  totalCostUsd?: number;
+  usage?: NonNullableUsage;
+}
+```
+
+### Session Mutations
+
+Rename, tag, and fork sessions to organize your conversation history.
+
+```typescript
+import { renameSession, tagSession, forkSession } from "@anthropic-ai/claude-agent-sdk";
+
+// Set a human-readable title
+await renameSession(sessionId, "My refactoring session");
+
+// Attach a tag label
+await tagSession(sessionId, "experiment");
+
+// Clear an existing tag
+await tagSession(sessionId, null);
+
+// Fork creates a new independent session branching from this point
+const { sessionId: forkedId } = await forkSession(sessionId);
+```
+
+#### `renameSession()`
+
+```ts
+function renameSession(sessionId: string, title: string): Promise<void>
+```
+
+#### `tagSession()`
+
+```ts
+function tagSession(sessionId: string, tag: string | null): Promise<void>
+```
+
+Pass `null` to clear any existing tag.
+
+#### `forkSession()`
+
+```ts
+function forkSession(
+  sessionId: string,
+  options?: { messageId?: string }
+): Promise<{ sessionId: string }>
+```
+
+Creates a copy of the session. If `messageId` is provided, the fork branches from that specific message rather than the latest state.
+
+## MCP Server Runtime Management
+
+The `Query` handle exposes methods for controlling MCP servers while a query is in progress. These are useful in long-running agentic loops where a server may disconnect or need to be disabled dynamically.
+
+```typescript
+// Reconnect a server that has dropped its connection
+await queryHandle.reconnectMcpServer("my-server");
+
+// Disable a server for the remainder of this session
+await queryHandle.toggleMcpServer("my-server", false);
+
+// Re-enable a previously disabled server
+await queryHandle.toggleMcpServer("my-server", true);
+
+// Inspect the current state of all configured servers
+const statuses: McpServerStatus[] = await queryHandle.mcpServerStatus();
+for (const s of statuses) {
+  console.log(`${s.name}: ${s.status}${s.error ? ` — ${s.error}` : ''}`);
+}
+```
+
+These methods are only available on the `Query` object while the generator has not yet been fully consumed. See [`Query`](#query-1) for the complete method signatures.
+
 ## Hook Types
 
 ### `HookEvent`
@@ -457,7 +745,7 @@ type SDKPermissionDenial = {
 Available hook events.
 
 ```ts
-type HookEvent = 
+type HookEvent =
   | 'PreToolUse'
   | 'PostToolUse'
   | 'Notification'
@@ -497,7 +785,7 @@ interface HookCallbackMatcher {
 Union type of all hook input types.
 
 ```ts
-type HookInput = 
+type HookInput =
   | PreToolUseHookInput
   | PostToolUseHookInput
   | NotificationHookInput
@@ -665,7 +953,7 @@ Documentation of input schemas for all built-in Claude Code tools. These types a
 **Note:** This is a documentation-only type for clarity. It represents the union of all tool input types.
 
 ```ts
-type ToolInput = 
+type ToolInput =
   | AgentInput
   | BashInput
   | BashOutputInput
@@ -1107,7 +1395,7 @@ Documentation of output schemas for all built-in Claude Code tools. These types 
 **Note:** This is a documentation-only type for clarity. It represents the union of all tool output types.
 
 ```ts
-type ToolOutput = 
+type ToolOutput =
   | TaskOutput
   | BashOutput
   | BashOutputToolOutput
@@ -1260,7 +1548,7 @@ Returns confirmation after applying all edits sequentially.
 **Tool name:** `Read`
 
 ```ts
-type ReadOutput = 
+type ReadOutput =
   | TextFileOutput
   | ImageFileOutput
   | PDFFileOutput
@@ -1384,7 +1672,7 @@ Returns file paths matching the glob pattern, sorted by modification time.
 **Tool name:** `Grep`
 
 ```ts
-type GrepOutput = 
+type GrepOutput =
   | GrepContentOutput
   | GrepFilesOutput
   | GrepCountOutput;
@@ -1637,7 +1925,7 @@ Returns the contents of the requested MCP resource.
 Operations for updating permissions.
 
 ```ts
-type PermissionUpdate = 
+type PermissionUpdate =
   | {
       type: 'addRules';
       rules: PermissionRuleValue[];
@@ -1682,7 +1970,7 @@ type PermissionBehavior = 'allow' | 'deny' | 'ask';
 ### `PermissionUpdateDestination`
 
 ```ts
-type PermissionUpdateDestination = 
+type PermissionUpdateDestination =
   | 'userSettings'     // Global user settings
   | 'projectSettings'  // Per-directory project settings
   | 'localSettings'    // Gitignored local settings

@@ -4,13 +4,15 @@ Learn how to use slash commands to control Claude Code sessions through the SDK
 
 Slash commands provide a way to control Claude Code sessions with special commands that start with `/`. These commands can be sent through the SDK to perform actions like clearing conversation history, compacting messages, or getting help.
 
+> **Note**: Custom commands have been merged into the Skills system. Files at `.claude/commands/deploy.md` and `.claude/skills/deploy/SKILL.md` both create `/deploy` and work the same way. Existing `.claude/commands/` files continue to work. Skills add optional features: supporting file directories, frontmatter for invocation control, and automatic Claude activation. See [Skills.md](Skills.md) for the full reference.
+
 ## Discovering Available Slash Commands
 
-The Claude Code SDK provides information about available slash commands in the system initialization message. Access this information when your session starts:
+The Claude Agent SDK provides information about available slash commands in the system initialization message. Access this information when your session starts:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Hello Claude",
@@ -27,7 +29,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 async for message in query(
     prompt="Hello Claude",
@@ -46,7 +48,7 @@ Send slash commands by including them in your prompt string, just like regular t
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Send a slash command
 for await (const message of query({
@@ -63,7 +65,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Send a slash command
 async for message in query(
@@ -84,7 +86,7 @@ The `/compact` command reduces the size of your conversation history by summariz
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "/compact",
@@ -102,7 +104,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 async for message in query(
     prompt="/compact",
@@ -122,7 +124,7 @@ The `/clear` command starts a fresh conversation by clearing all previous histor
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Clear conversation and start fresh
 for await (const message of query({
@@ -140,7 +142,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Clear conversation and start fresh
 async for message in query(
@@ -158,12 +160,14 @@ async for message in query(
 
 In addition to using built-in slash commands, you can create your own custom commands that are available through the SDK. Custom commands are defined as markdown files in specific directories, similar to how subagents are configured.
 
+> **Skills system**: As noted above, custom commands and skills are now unified. You can place command files in either `.claude/commands/` (traditional) or `.claude/skills/<name>/SKILL.md` (new). Both paths produce the same `/command-name` invocation. See [Skills.md](Skills.md) for additional capabilities available through the skills path.
+
 ### File Locations
 
 Custom slash commands are stored in designated directories based on their scope:
 
-- **Project commands**: `.claude/commands/` - Available only in the current project
-- **Personal commands**: `~/.claude/commands/` - Available across all your projects
+- **Project commands**: `.claude/commands/` — Available only in the current project
+- **Personal commands**: `~/.claude/commands/` — Available across all your projects
 
 ### File Format
 
@@ -208,7 +212,7 @@ Once defined in the filesystem, custom commands are automatically available thro
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Use a custom command
 for await (const message of query({
@@ -239,7 +243,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Use a custom command
 async for message in query(
@@ -286,7 +290,7 @@ Use in SDK:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Pass arguments to custom command
 for await (const message of query({
@@ -304,7 +308,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Pass arguments to custom command
 async for message in query(
@@ -426,7 +430,7 @@ Use these commands through the SDK:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Run code review
 for await (const message of query({
@@ -451,7 +455,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # Run code review
 async for message in query(
@@ -476,6 +480,7 @@ async for message in query(
 
 ## See Also
 
+- [Skills.md](Skills.md) - Full reference for the unified Skills system (superset of custom commands)
 - [Slash Commands](/en/docs/claude-code/slash-commands) - Complete slash command documentation
 - [Subagents in the SDK](/en/docs/claude-code/sdk/subagents-in-sdk) - Similar filesystem-based configuration for subagents
 - [TypeScript SDK reference](/en/docs/claude-code/sdk/sdk-typescript) - Complete API documentation

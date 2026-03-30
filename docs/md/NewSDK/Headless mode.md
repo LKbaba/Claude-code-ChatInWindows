@@ -36,14 +36,61 @@ The SDK leverages all the CLI options available in Claude Code. Here are the key
 | `--continue`, `-c`         | Continue the most recent conversation                                                                  | `claude --continue`                                                                                                       |
 | `--verbose`                | Enable verbose logging                                                                                 | `claude --verbose`                                                                                                        |
 | `--append-system-prompt`   | Append to system prompt (only with `--print`)                                                          | `claude --append-system-prompt "Custom instruction"`                                                                      |
+| `--model`                  | Select the model to use                                                                                | `claude --model claude-opus-4-6`                                                                                          |
 | `--allowedTools`           | Space-separated list of allowed tools, or <br /><br /> string of comma-separated list of allowed tools | `claude --allowedTools mcp__slack mcp__filesystem`<br /><br />`claude --allowedTools "Bash(npm install),mcp__filesystem"` |
 | `--disallowedTools`        | Space-separated list of denied tools, or <br /><br /> string of comma-separated list of denied tools   | `claude --disallowedTools mcp__splunk mcp__github`<br /><br />`claude --disallowedTools "Bash(git commit),Task(AgentName)"`|
 | `--tools`                  | Restrict which built-in tools Claude can use (v2.1.0+)                                                 | `claude --tools "Read,Write,Grep"`                                                                                        |
 | `--mcp-config`             | Load MCP servers from a JSON file                                                                      | `claude --mcp-config servers.json`                                                                                        |
 | `--permission-prompt-tool` | MCP tool for handling permission prompts (only with `--print`)                                         | `claude --permission-prompt-tool mcp__auth__prompt`                                                                       |
 | `--session-id`             | Custom session ID when forking sessions                                                                | `claude --resume abc123 --fork-session --session-id my-fork`                                                              |
+| `--remote`                 | Connect to a remote Claude Code agent endpoint                                                         | `claude --remote https://agent.example.com`                                                                               |
+| `--remote-control`         | Enable remote control protocol for external orchestration                                              | `claude --remote-control`                                                                                                 |
 
 For a complete list of CLI options and features, see the [CLI reference](/en/docs/claude-code/cli-reference) documentation.
+
+## Specifying the Model
+
+Use the `--model` flag to select a specific Claude model:
+
+```bash
+# Use Opus 4.6 for highest capability
+claude --model claude-opus-4-6 -p "Design a distributed caching architecture"
+
+# Use Sonnet 4.6 for a balance of performance and cost
+claude --model claude-sonnet-4-6 -p "Refactor this module"
+
+# Use Haiku 4.5 for fast, lightweight tasks
+claude --model claude-haiku-4-5 -p "Summarize this log file"
+```
+
+If `--model` is omitted, Claude Code uses its configured default model.
+
+## Permission Hooks in Non-interactive Mode
+
+> **Important**: `PermissionRequest` hooks do **not** fire when running in non-interactive (`-p`) mode. The non-interactive flag bypasses the interactive permission prompt system entirely.
+
+If you need to intercept or gate tool executions in headless automation, use `PreToolUse` hooks instead:
+
+```json
+// .claude/hooks.json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/audit-bash-command"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`PreToolUse` hooks fire before every tool call regardless of interactive mode, giving you a consistent interception point for logging, approval workflows, or blocking specific operations.
 
 ## Multi-turn conversations
 

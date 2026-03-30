@@ -53,7 +53,7 @@ Configure MCP servers in `.mcp.json` at your project root:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "List files in my project",
@@ -70,7 +70,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 async for message in query(
     prompt="List files in my project",
@@ -143,7 +143,7 @@ In-process servers running within your application. For detailed information on 
 
 **TypeScript**
 ```typescript
-import { createSdkMcpServer, tool } from "@anthropic-ai/claude-code";
+import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
 const customServer = createSdkMcpServer({
@@ -164,7 +164,7 @@ const customServer = createSdkMcpServer({
 
 **Python**
 ```python
-from claude_code import create_sdk_mcp_server, tool
+from claude_agent_sdk import create_sdk_mcp_server, tool
 
 @tool("calculate", "Perform calculations")
 async def calculate(expression: str):
@@ -185,7 +185,7 @@ MCP servers can expose resources that Claude can list and read:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // List available resources
 for await (const message of query({
@@ -201,7 +201,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 # List available resources
 async for message in query(
@@ -260,7 +260,7 @@ Handle MCP connection failures gracefully:
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Process data",
@@ -277,7 +277,7 @@ for await (const message of query({
       console.warn("Failed to connect:", failedServers);
     }
   }
-  
+
   if (message.type === "result" && message.subtype === "error_during_execution") {
     console.error("Execution failed");
   }
@@ -286,7 +286,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 async for message in query(
     prompt="Process data",
@@ -301,7 +301,7 @@ async for message in query(
         failed_servers = [s for s in message["mcp_servers"] if s["status"] != "connected"]
         if failed_servers:
             print(f"Failed to connect: {failed_servers}")
-    
+
     if message["type"] == "result" and message.get("subtype") == "error_during_execution":
         print("Execution failed")
 ```
@@ -312,7 +312,7 @@ async for message in query(
 
 **TypeScript**
 ```typescript
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Analyze my codebase",
@@ -330,7 +330,7 @@ for await (const message of query({
 
 **Python**
 ```python
-from claude_code import query
+from claude_agent_sdk import query
 
 async for message in query(
     prompt="Analyze my codebase",
@@ -352,6 +352,73 @@ MCP 服务器现在可以通过 `list_changed` 通知动态更新其工具列表
 ```typescript
 // MCP 服务器可以发送通知来更新工具列表
 // SDK 会自动处理这些更新，无需重新连接
+```
+
+## Runtime MCP Server Management
+
+The query handle returned by `query()` exposes methods for managing MCP server connections at runtime without restarting the session:
+
+```typescript
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { McpServerStatus } from "@anthropic-ai/claude-agent-sdk";
+
+const queryHandle = query({
+  prompt: "Perform a long-running analysis",
+  options: { mcpConfig: ".mcp.json" }
+});
+
+// Reconnect a disconnected MCP server
+await queryHandle.reconnectMcpServer("my-server");
+
+// Temporarily disable a server without disconnecting permanently
+await queryHandle.toggleMcpServer("my-server", false);
+
+// Re-enable the server
+await queryHandle.toggleMcpServer("my-server", true);
+
+// Inspect the current status of ALL configured servers
+const statuses: McpServerStatus[] = await queryHandle.mcpServerStatus();
+for (const s of statuses) {
+  console.log(s.name, s.scope, s.tools.length, s.error);
+}
+```
+
+`McpServerStatus` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | Server name as defined in `.mcp.json` |
+| `scope` | `"local" \| "project" \| "user"` | Config scope the server was loaded from |
+| `status` | `"connected" \| "disconnected" \| "error"` | Current connection state |
+| `tools` | `string[]` | Names of tools currently exposed by this server |
+| `error` | `string \| undefined` | Last error message if `status` is `"error"` |
+
+## Elicitation Hook Events
+
+MCP servers can request user input at runtime through the elicitation protocol. The SDK surfaces this via two hook events:
+
+- **`Elicitation`**: Fired when an MCP server requests user input (e.g., to collect credentials, confirm a destructive action, or gather configuration values). The hook payload includes the server name, a human-readable prompt, and a JSON Schema describing the expected response shape.
+- **`ElicitationResult`**: Fired after the user (or an automated handler) has provided a response to the elicitation. The payload includes the original request identifier and the submitted values.
+
+These hooks allow you to intercept elicitation requests in headless environments — for example, to auto-fill known values, log requests for auditing, or reject requests from untrusted servers:
+
+```typescript
+// .claude/hooks.json
+{
+  "hooks": {
+    "Elicitation": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/handle-mcp-elicitation"
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
 
 ## Related Resources
