@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.0.7</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.0.8</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -380,6 +380,7 @@ export function getBodyContent(): string {
 									<option value="shadcn">shadcn/ui</option>
 									<option value="grok-assistant">Grok Assistant</option>
 									<option value="gemini-assistant">Gemini Assistant</option>
+									<option value="codex-official">Codex</option>
 								</select>
 							</div>
 						</div>
@@ -408,6 +409,7 @@ export function getBodyContent(): string {
 									<option value="shadcn">shadcn/ui</option>
 									<option value="grok-assistant">Grok Assistant</option>
 									<option value="gemini-assistant">Gemini Assistant</option>
+									<option value="codex-official">Codex</option>
 								</select>
 							</div>
 						</div>

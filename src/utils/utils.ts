@@ -224,11 +224,24 @@ Browser version fix:
 - Quick fix: \`npx playwright@latest install chromium\`
 - Manual symlink (if needed): \`cd ~/AppData/Local/ms-playwright && cmd //c "mklink /J chromium-1200 chromium-1181"\``;
 
+    // Codex MCP
+    const codexSection = `## Codex MCP Guide
+
+Codex is an autonomous coding agent by OpenAI, integrated via MCP.
+
+Workflow: Claude plans architecture → delegate scoped tasks to Codex → review results
+- \`codex\` tool: start a session with prompt, sandbox, approval-policy
+- \`codex-reply\` tool: continue a session by threadId for multi-turn tasks
+- Pass project context via \`developer-instructions\` parameter
+- Recommended: sandbox='workspace-write', approval-policy='on-failure'
+
+Prerequisite: \`npm i -g @openai/codex\`, OPENAI_API_KEY configured`;
 
     try {
         let content = '';
         let hasPlatformInfo = false;
         let hasPlaywrightInfo = false;
+        let hasCodexInfo = false;
 
         // Check if CLAUDE.md exists
         if (fs.existsSync(claudeMdPath)) {
@@ -238,7 +251,13 @@ Browser version fix:
                 (content.includes('Windows') || content.includes('macOS'));
             // Check if it already has Playwright MCP info
             hasPlaywrightInfo = content.includes('Playwright MCP');
+            // Check if it already has Codex MCP info
+            hasCodexInfo = content.includes('Codex MCP');
         }
+
+        // Detect which MCP servers are enabled
+        const hasPlaywrightServer = mcpServers?.some(s => s.name === 'playwright') ?? false;
+        const hasCodexServer = mcpServers?.some(s => s.name === 'codex-official') ?? false;
 
         let needsUpdate = false;
         let updatedSections: string[] = [];
@@ -255,15 +274,25 @@ Browser version fix:
             needsUpdate = true;
             updatedSections.push('Platform info');
         }
-        
-        // Add Playwright MCP information (if not present)
-        if (!hasPlaywrightInfo) {
+
+        // Add Playwright MCP information (if enabled and not present)
+        if (!hasPlaywrightInfo && hasPlaywrightServer) {
             if (content.length > 0 && !content.endsWith('\n')) {
                 content += '\n';
             }
             content += '\n' + playwrightSection + '\n';
             needsUpdate = true;
             updatedSections.push('Playwright MCP guide');
+        }
+
+        // Add Codex MCP information (if enabled and not present)
+        if (!hasCodexInfo && hasCodexServer) {
+            if (content.length > 0 && !content.endsWith('\n')) {
+                content += '\n';
+            }
+            content += '\n' + codexSection + '\n';
+            needsUpdate = true;
+            updatedSections.push('Codex MCP guide');
         }
 
         // Only write file when update is needed

@@ -92,7 +92,23 @@ export const MCP_SYSTEM_PROMPTS: Record<string, string> = {
 2. For debugging: Provide a screenshot of the issue
 3. For animation: Describe the desired effect and technology (CSS/Canvas/WebGL)
 
-**Note**: Gemini is Claude's AI assistant - use it for tasks where visual understanding or frontend expertise is needed.`
+**Note**: Gemini is Claude's AI assistant - use it for tasks where visual understanding or frontend expertise is needed.`,
+
+    // Codex autonomous coding agent - delegate implementation, review, debugging to OpenAI Codex
+    'codex-official': `
+## Codex (OpenAI)
+**Purpose**: Autonomous coding agent — delegate implementation, review, and debugging tasks
+**Core Tools**:
+- \`codex\` - Start a session with prompt + sandbox/approval settings
+  - sandbox: read-only | workspace-write | danger-full-access
+  - approval-policy: untrusted | on-failure | on-request | never
+  - Supports: model override, cwd, developer-instructions
+- \`codex-reply\` - Continue a session by threadId for iterative refinement
+
+**Workflow**: Claude architects the plan → delegate scoped tasks to Codex → review results
+**Best practice**: Pass project context via \`developer-instructions\`, use \`codex-reply\` for multi-turn tasks
+**Defaults**: sandbox='workspace-write', approval-policy='on-failure' for balanced autonomy and safety
+**Note**: Requires \`npm i -g @openai/codex\` and OPENAI_API_KEY`
 };
 
 /**

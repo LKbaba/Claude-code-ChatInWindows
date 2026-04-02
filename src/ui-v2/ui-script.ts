@@ -5147,6 +5147,13 @@ export const uiScript = `
 					env: {
 						'GEMINI_API_KEY': ''  // Auto-filled from Settings, or paste your key from https://aistudio.google.com/apikey
 					}
+				},
+				// Codex autonomous coding agent - delegate implementation, review, debugging
+				'codex-official': {
+					name: 'codex-official',
+					command: 'codex',
+					args: ['mcp-server'],
+					env: {}
 				}
 			};
 			
