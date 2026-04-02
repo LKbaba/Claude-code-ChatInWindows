@@ -2,6 +2,16 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.0.8] - 2026-04-02
+
+### New Features
+- **MCP Template: Codex (OpenAI)** — One-click setup for `codex mcp-server` in MCP settings panel (Global & Workspace)
+- **System Prompt: Codex** — Auto-inject Codex usage guide (workflow, sandbox/approval-policy, tools) when Codex MCP is enabled
+- **CLAUDE.md: Codex MCP Guide** — Auto-inject Codex usage section into project CLAUDE.md when `codex-official` server is active
+
+### Improved
+- **CLAUDE.md conditional injection** — Playwright and Codex sections are now injected only when their respective MCP servers are enabled (previously Playwright was always injected)
+
 ## [4.0.7] - 2026-04-02
 
 ### Fixed
