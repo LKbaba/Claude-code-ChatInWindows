@@ -2,6 +2,22 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.0.9] - 2026-04-02
+
+### Changed
+- **Project metadata overhaul for AI search discoverability**
+  - `displayName`: "Claude-Code ChatUI for Windows" → "Claude Code GUI / ChatUI"
+  - `description`: expanded with full feature summary (MCP, Skills, Hooks, third-party API, token tracking)
+  - `categories`: pruned from 10 to 4 (removed unrelated Snippets/Linters/Education/etc.)
+  - `keywords`: replaced with high-value search terms (claude code gui, no wsl, mcp, skills, hooks, etc.)
+- **README rewritten for AI readability** (English, 简体中文, 繁體中文)
+  - Title unified to "Claude Code GUI / ChatUI"
+  - First paragraph rewritten as information-dense project summary
+  - Added feature comparison table vs official plugin and 2 major third-party GUIs
+  - Added dynamic badges (Marketplace installs, GitHub stars, macOS support)
+  - Added version history table with dates (v2.0.0 → v4.0.8)
+  - Removed "Based on claude-code-chat" badge
+
 ## [4.0.8] - 2026-04-02
 
 ### New Features
@@ -222,7 +238,7 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
 | `src/ui-v2/ui-script.ts` | displayNames/radioId mapping updates; statistics formatting version detection |
 | `src/utils/constants.ts` | Added `claude-sonnet-4-6`, removed `claude-opus-4-1-20250805` |
 
-## [3.1.6] - 2025-02-10
+## [3.1.6] - 2026-02-10
 
 ### Fixed
 - **@ File Reference — Case-Insensitive Search**
@@ -249,7 +265,7 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
 | `src/managers/FileOperationsManager.ts` | Added case-insensitive glob pattern builder |
 | `src/ui-v2/ui-script.ts` | Fixed race condition, cursor position, keyboard nav scroll, selection index reset |
 
-## [3.1.5] - 2025-02-10
+## [3.1.5] - 2026-02-10
 
 ### Added
 - **Claude Opus 4.6 Model Support**
@@ -267,7 +283,7 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
 | `src/ui-v2/ui-script.ts` | Added Opus 4.6 radio ID mapping and statistics formatting |
 | `src/utils/constants.ts` | Added `claude-opus-4-6` to VALID_MODELS |
 
-## [3.1.4] - 2025-01-29
+## [3.1.4] - 2026-01-29
 
 ### Added
 - **macOS Platform Support**
@@ -318,7 +334,7 @@ All notable changes to the Claude Code ChatUI extension will be documented in th
 - Windows functionality unchanged (backward compatible)
 - Optional changes (class renaming, Mac shell config setting) deferred
 
-## [3.1.3] - 2025-01-23
+## [3.1.3] - 2026-01-23
 
 ### Added
 - **Native Installer Path Support**
@@ -345,7 +361,7 @@ Anthropic deprecated the npm installation method after Claude Code 2.1.15, recom
 - PowerShell: `irm https://claude.ai/install.ps1 | iex`
 - WinGet: `winget install Anthropic.ClaudeCode`
 
-## [3.1.2] - 2025-01-17
+## [3.1.2] - 2026-01-17
 
 ### Fixed
 - **Claude Output Angle Brackets Display**
@@ -368,7 +384,7 @@ Anthropic deprecated the npm installation method after Claude Code 2.1.15, recom
 | `src/utils/mcpPrompts.ts` | Updated Playwright prompt with browser fix command and device presets info |
 | `CLAUDE.md` | Updated Playwright MCP Guide section |
 
-## [3.1.0] - 2025-01-13
+## [3.1.0] - 2026-01-13
 
 ### Added
 - **Skills Panel Enhancement**
@@ -401,7 +417,7 @@ Anthropic deprecated the npm installation method after Claude Code 2.1.15, recom
 | `src/services/SkillManager.ts` | Added toggleSkillState() with file renaming; modified loadWorkspaceSkills() and loadUserSkills() to detect .disabled files |
 | `src/providers/ClaudeChatProvider.ts` | Added toggleSkillState message handler and _toggleSkillState() method |
 
-## [3.0.9] - 2025-01-13
+## [3.0.9] - 2026-01-13
 
 ### Fixed
 - **Skills Path Bug Fix**
@@ -410,7 +426,7 @@ Anthropic deprecated the npm installation method after Claude Code 2.1.15, recom
   - Skills are properly recognized as directories containing `SKILL.md` files
   - Updated UI path display to show correct `.claude/skills/` paths
 
-## [3.0.8] - 2025-01-13
+## [3.0.8] - 2026-01-13
 
 ### Changed
 - **Tool Icons & Colors Redesign**
@@ -436,7 +452,7 @@ Anthropic deprecated the npm installation method after Claude Code 2.1.15, recom
   - Cleanup runs on extension activate, deactivate, and after Claude process ends
   - Prevents workspace pollution from leftover temp files
 
-## [3.0.7] - 2025-01-13
+## [3.0.7] - 2026-01-13
 
 ### Added
 - **Skills Modal Feature**
@@ -457,7 +473,7 @@ Anthropic deprecated the npm installation method after Claude Code 2.1.15, recom
   - Parses YAML frontmatter from SKILL.md files
   - Supports workspace, user, and plugin skill scopes
 
-## [3.0.6] - 2025-01-12
+## [3.0.6] - 2026-01-12
 
 ### Added
 - **Language Mode Enhancement: "Only communicate" option**
@@ -490,7 +506,7 @@ Anthropic deprecated the npm installation method after Claude Code 2.1.15, recom
 - Removed `ClaudeConfigService.ts` (no longer needed)
   - Language setting via `~/.claude/settings.json` replaced with prompt-based approach
 
-## [3.0.5] - 2025-01-12
+## [3.0.5] - 2026-01-12
 
 ### Added
 - **Custom CLI Command Name Support**

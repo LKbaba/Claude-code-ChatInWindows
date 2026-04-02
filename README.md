@@ -1,21 +1,56 @@
-# Claude Code Chat UI – for Windows (No WSL)
+# Claude Code GUI / ChatUI for VS Code
 
-> **A Native UI for Windows That Makes Claude Code Instantly Better! 🚀**
+**Claude Code ChatUI** is a full-featured GUI extension for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) in VS Code and Cursor. Works natively on **Windows (no WSL required)** and **macOS**. Supports both official Anthropic accounts and **third-party API providers** with GUI configuration. Key features: **MCP plugin management**, **Skills system**, **Hooks system**, **real-time token & cost tracking**, AI Assistant integration (Gemini + Grok), and multi-language UI (English, 简体中文, 繁體中文). Actively maintained with 236+ commits.
 
 <div align="center">
   <img src="icon.png" alt="Claude Code Chat Icon" width="128" height="128">
 
   <!-- Badges -->
-  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-Ready-purple" alt="Cursor Ready"></a> <a href="https://github.com/andrepimenta/claude-code-chat"><img src="https://img.shields.io/badge/Based%20on-claude--code--chat-orange" alt="Based on claude-code-chat"></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui"><img src="https://img.shields.io/visual-studio-marketplace/i/lkbaba.claude-code-chatui" alt="VS Code Marketplace Installs"></a> <a href="https://github.com/LKbaba/Claude-code-ChatInWindows"><img src="https://img.shields.io/github/stars/LKbaba/Claude-code-ChatInWindows.svg" alt="GitHub Stars"></a> <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-Supported-blue" alt="macOS Supported"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-Ready-purple" alt="Cursor Ready"></a>
 </div>
 
 **🌐 Languages: English | [简体中文](./README.zh-CN.md) | [繁體中文](./README.zh-TW.md)**
 
 ---
 
+## Why This Extension?
+
+| Feature | Official Claude Code | Claude Code GUI (MaheshKok) | Claude Code UI (AuraTech) | **This Project** |
+|---------|---------------------|---------------------------|--------------------------|-----------------|
+| Windows No WSL | ❌ Requires setup | ❌ Requires CLI config | WSL path mapping | ✅ **Native** |
+| Third-party API GUI Config | ❌ | ❌ | ❌ | ✅ **Exclusive** |
+| MCP Plugin GUI Management | CLI-level only | ✅ MCP Hub | ✅ MCP commands | ✅ GUI config (Global + Workspace) |
+| Skills System GUI | CLI-level only | ❌ | ❌ | ✅ **Exclusive** |
+| Hooks System GUI | CLI-level only | ❌ | ❌ | ✅ **Exclusive** |
+| AI Assistant Integration | ❌ | ❌ | ❌ | ✅ Gemini + Grok |
+| Real-time Token Tracking | ❌ | ✅ Usage meter | ✅ Cost tracking | ✅ |
+| macOS Support | ✅ | ✅ | ✅ | ✅ |
+| npm + Native Installer | ✅ | ✅ | ✅ | ✅ |
+| Actively Maintained | ✅ | ✅ | ✅ | ✅ (236+ commits) |
+
+---
+
 ## 📸 Preview
 
 [![Main Interface](docs/assets/ui.png)](docs/assets/ui.png)
+
+## 📅 Recent Updates
+
+| Version | Date | Highlights |
+|---------|------|------------|
+| **v4.0.8** | 2026-04-02 | Codex MCP template, CLAUDE.md conditional injection |
+| **v4.0.7** | 2026-04-02 | Stream parser upgrade: 6 bug fixes, new CLI message types |
+| **v4.0.5** | 2026-03-30 | AI Assistant Panel: Grok + Vertex AI support; macOS scroll fix |
+| **v4.0.2** | 2026-03-28 | Hooks GUI management panel with 26 event types, 4 hook types, 5 templates |
+| **v3.1.9** | 2026-03-29 | CSP security policy, XSS fixes, Windows orphan process cleanup |
+| **v3.1.8** | 2026-03-12 | Grok MCP template, default model → Sonnet 4.6, cost bubble dedup |
+| **v3.1.7** | 2026-02-18 | Claude Sonnet 4.6 model support, Compute Mode upgrade |
+| **v3.1.4** | 2026-01-29 | macOS platform support added |
+| **v3.1.0** | 2026-01-13 | Skills panel: copy, enable/disable toggle, plugin protection |
+| **v2.1.0** | — | MCP integration, HTTP/SSE transport, server templates |
+| **v2.0.0** | — | Complete UI redesign, statistics dashboard, custom API endpoint |
+
+See [CHANGELOG.md](./CHANGELOG.md) for full details.
 
 ## 🚀 Quick Start
 
