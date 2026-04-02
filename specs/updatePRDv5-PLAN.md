@@ -1,6 +1,6 @@
 # updatePRDv5-PLAN — Codex MCP 模板集成 开发计划
 
-> 基于：`specs/updatePRDv5.md` v4.0.8 | 创建日期：2026-04-02 | 状态：**进行中** 🚧
+> 基于：`specs/updatePRDv5.md` v4.0.8 | 创建日期：2026-04-02 | 完成日期：2026-04-02 | 状态：**已完成** ✅
 
 ---
 
@@ -11,7 +11,7 @@
 | 1 | MCP 模板 UI 选项 + 模板数据 | `getBodyContent.ts`, `ui-script.ts` | 无 | P0 | [x] |
 | 2 | MCP 系统提示词 | `mcpPrompts.ts` | 无 | P0 | [x] |
 | 3 | CLAUDE.md 条件注入改造 | `utils.ts` | 无 | P1 | [x] |
-| 4 | 版本发布 + CHANGELOG | `package.json`, `getBodyContent.ts`, `CHANGELOG.md` | Task 1-3 | — | [ ] |
+| 4 | 版本发布 + CHANGELOG | `package.json`, `getBodyContent.ts`, `CHANGELOG.md` | Task 1-3 | — | [x] |
 
 **总任务数**：4 个
 **预计总时间**：约 30 分钟
