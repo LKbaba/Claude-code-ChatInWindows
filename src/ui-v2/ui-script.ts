@@ -234,13 +234,13 @@ export const uiScript = `
 					if (typeof todos === 'string') {
 						try { todos = JSON.parse(todos); } catch(e) { todos = null; }
 					}
-					let todoHtml = 'Todo List Update:';
+					let todoHtml = '<div>Todo List Update:</div>';
 					if (Array.isArray(todos)) {
 						for (const todo of todos) {
 							const status = todo.status === 'completed' ? '✅' :
 								todo.status === 'in_progress' ? '🔄' : '⏳';
 							const label = todo.activeForm || todo.content || '';
-							todoHtml += '\\n' + status + ' ' + escapeHtml(label);
+							todoHtml += '<div>' + status + ' ' + escapeHtml(label) + '</div>';
 						}
 					}
 					contentDiv.innerHTML = todoHtml;

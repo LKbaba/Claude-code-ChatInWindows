@@ -75,6 +75,9 @@ export class MessageProcessor {
         this._lastToolName = undefined;
         this._lastToolInput = undefined;
         this._lastOperationTracked = false;
+        this._currentRequestTokensInput = 0;
+        this._currentRequestTokensOutput = 0;
+        this._currentMessageId = undefined;
     }
 
     /**
@@ -101,7 +104,7 @@ export class MessageProcessor {
         try {
             const jsonData = JSON.parse(line);
             debugLog('MessageProcessor', `Received JSON: ${jsonData.type}`, jsonData);
-            this._processJsonData(jsonData, callbacks);
+            this.processJsonData(jsonData, callbacks);
         } catch (error) {
             // Not JSON, might be plain text
             debugLog('MessageProcessor', 'Non-JSON line', line);
@@ -110,17 +113,73 @@ export class MessageProcessor {
     }
 
     /**
-     * Process parsed JSON data
+     * Process parsed JSON data directly (avoids stringify/parse round-trip)
      */
-    private _processJsonData(jsonData: any, callbacks: MessageCallbacks): void {
-        // Handle different message types
-        if ((jsonData.type === 'assistant' || jsonData.type === 'user' || jsonData.type === 'system') && jsonData.message) {
+    public processJsonData(jsonData: any, callbacks: MessageCallbacks): void {
+        const type = jsonData.type;
+
+        // Handle known message types
+        if ((type === 'assistant' || type === 'user' || type === 'system') && jsonData.message) {
             this._processMessage(jsonData.message, callbacks);
-        } else if (jsonData.type === 'result') {
+        } else if (type === 'system' && jsonData.subtype === 'init') {
+            // CLI init message: contains session_id, tools, model, etc.
+            this._processSystemInit(jsonData, callbacks);
+        } else if (type === 'result') {
             this._processResult(jsonData, callbacks);
+        } else if (type === 'tool_progress') {
+            // CLI sends progress updates for long-running tools
+            this._processToolProgress(jsonData, callbacks);
+        } else if (type === 'rate_limit_event') {
+            // Rate limiting info from CLI — log for diagnostics
+            debugLog('MessageProcessor', 'Rate limit event', jsonData.rate_limit_info);
         } else if (jsonData.error) {
             this._processError(jsonData, callbacks);
+        } else if (type) {
+            // Log unhandled message types instead of silently discarding
+            debugLog('MessageProcessor', `Unhandled message type: ${type}`, {
+                type,
+                subtype: jsonData.subtype,
+                keys: Object.keys(jsonData)
+            });
         }
+    }
+
+    /**
+     * Process system init message (session metadata from CLI)
+     */
+    private _processSystemInit(jsonData: any, callbacks: MessageCallbacks): void {
+        debugLog('MessageProcessor', 'System init received', {
+            session_id: jsonData.session_id,
+            model: jsonData.model,
+            tools: jsonData.tools?.length,
+            skills: jsonData.skills?.length
+        });
+
+        if (this._isFirstSystemMessage) {
+            this._isFirstSystemMessage = false;
+            callbacks.sendToWebview({ type: 'connected' });
+        }
+    }
+
+    /**
+     * Process tool_progress messages from CLI
+     */
+    private _processToolProgress(jsonData: any, callbacks: MessageCallbacks): void {
+        const toolName = jsonData.tool_name || 'unknown';
+        const elapsed = jsonData.elapsed_time_seconds || 0;
+        const toolUseId = jsonData.tool_use_id;
+
+        debugLog('MessageProcessor', `Tool progress: ${toolName} (${elapsed}s)`, { toolUseId });
+
+        // Reuse existing toolStatus channel to update UI
+        callbacks.sendToWebview({
+            type: 'toolStatus',
+            data: {
+                status: `⏳ ${getToolStatusText(toolName)} (${Math.floor(elapsed)}s)`,
+                toolName,
+                toolUseId
+            }
+        });
     }
 
     /**
@@ -369,12 +428,12 @@ export class MessageProcessor {
      * Analyze bash command to extract file operations
      */
     private _analyzeBashCommand(command: string): { type: OperationType; data: OperationData } | null {
-        // Remove file
-        if (command.includes('rm ') && !command.includes('rmdir')) {
+        // Remove file (non-recursive rm only; recursive rm is handled below as DIRECTORY_DELETE)
+        if (command.includes('rm ') && !command.includes('rmdir') && !command.match(/rm\s+-[a-z]*r/)) {
             // Match either quoted or unquoted paths
-            const quotedMatch = command.match(/rm\s+(?:-[rf]+\s+)?["']([^"']+)["']/);
-            const unquotedMatch = command.match(/rm\s+(?:-[rf]+\s+)?([^\s]+)/);
-            
+            const quotedMatch = command.match(/rm\s+(?:-[f]+\s+)?["']([^"']+)["']/);
+            const unquotedMatch = command.match(/rm\s+(?:-[f]+\s+)?([^\s]+)/);
+
             const match = quotedMatch || unquotedMatch;
             if (match) {
                 const filePath = match[1].trim();
@@ -609,10 +668,18 @@ export class MessageProcessor {
         // Reset the tracking flag for next operation
         this._lastOperationTracked = false;
 
-        // Handle object content (e.g., from MCP tools)
+        // Handle object content (e.g., from MCP tools or content block arrays)
         if (typeof resultContent === 'object' && resultContent !== null) {
-            // Check if this is an MCP tool result with special formatting
-            if (toolName && toolName.startsWith('mcp__')) {
+            if (Array.isArray(resultContent)) {
+                // Extract text from content block arrays: [{type:"text",text:"..."},...]
+                const textParts = resultContent
+                    .filter((block: any) => block.type === 'text' && block.text)
+                    .map((block: any) => block.text);
+                resultContent = textParts.length > 0
+                    ? textParts.join('\n')
+                    : JSON.stringify(resultContent, null, 2);
+            } else if (toolName && toolName.startsWith('mcp__')) {
+                // MCP tool result with special formatting
                 resultContent = this._formatMcpToolResult(resultContent, toolName);
                 debugLog('MessageProcessor', 'Formatted MCP result', resultContent);
             } else {

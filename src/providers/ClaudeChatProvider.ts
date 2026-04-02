@@ -101,8 +101,7 @@ export class ClaudeChatProvider {
 		this._processService = new ClaudeProcessService(
 			this._windowsCompatibility,
 			this._configurationManager,
-			this._conversationManager,
-			() => this._npmPrefixPromise
+			this._conversationManager
 		);
 		
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -657,7 +656,7 @@ export class ClaudeChatProvider {
 		// Prepare callbacks for process service
 		const callbacks = {
 			onData: (data: any) => {
-				this._messageProcessor.processJsonLine(JSON.stringify(data), {
+				this._messageProcessor.processJsonData(data, {
 					onSystemMessage: (text: string) => {
 						// Handle system messages if needed
 					},
