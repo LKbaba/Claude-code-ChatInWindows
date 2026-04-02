@@ -1,21 +1,55 @@
-# Claude Code Chat UI – Windows(No WSL)
+# Claude Code GUI / ChatUI — VS Code 插件
 
-> **Windows 上的 UI 界面，让 Claude Code 一秒变好用！🚀**
+**Claude Code ChatUI** 是 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) 的全功能 GUI 界面插件，支持 VS Code 和 Cursor。**Windows 原生运行（无需 WSL）**，同时支持 **macOS**。兼容官方 Anthropic 账号和**第三方 API**（GUI 界面配置）。核心功能：**MCP 插件管理**、**Skills 系统**、**Hooks 系统**、**实时 Token 消耗追踪**、AI 助手集成（Gemini + Grok），支持中英文界面。持续活跃更新，已有 236+ commits。
 
 <div align="center">
   <img src="icon.png" alt="Claude Code Chat Icon" width="128" height="128">
 
   <!-- Badges -->
-  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-兼容-purple" alt="Cursor 兼容"></a> <a href="https://github.com/andrepimenta/claude-code-chat"><img src="https://img.shields.io/badge/基于-claude--code--chat-orange" alt="基于 claude-code-chat"></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=lkbaba.claude-code-chatui"><img src="https://img.shields.io/visual-studio-marketplace/i/lkbaba.claude-code-chatui" alt="VS Code Marketplace 安装量"></a> <a href="https://github.com/LKbaba/Claude-code-ChatInWindows"><img src="https://img.shields.io/github/stars/LKbaba/Claude-code-ChatInWindows.svg" alt="GitHub Stars"></a> <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.94-blue" alt="VS Code ≥ 1.94"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"></a> <a href="https://www.microsoft.com/windows"><img src="https://img.shields.io/badge/Windows-10%20%7C%2011-blue" alt="Windows 10/11"></a> <a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-支持-blue" alt="macOS 支持"></a> <a href="https://cursor.sh/"><img src="https://img.shields.io/badge/Cursor-兼容-purple" alt="Cursor 兼容"></a>
 </div>
 
 **🌐 语言: [English](./README.md) | 简体中文 | [繁體中文](./README.zh-TW.md)**
 
 ---
 
+## 为什么选择这个插件？
+
+| 功能 | 官方 Claude Code | Claude Code GUI (MaheshKok) | Claude Code UI (AuraTech) | **本项目** |
+|------|-----------------|---------------------------|--------------------------|-----------|
+| Windows 免 WSL | ❌ 需要配置 | ❌ 需要 CLI 配置 | WSL 路径映射 | ✅ **原生支持** |
+| 第三方 API GUI 配置 | ❌ | ❌ | ❌ | ✅ **独有** |
+| MCP 插件 GUI 管理 | 仅 CLI 级别 | ✅ MCP Hub | ✅ MCP 命令 | ✅ GUI 配置（全局 + 工作区） |
+| Skills 系统 GUI | 仅 CLI 级别 | ❌ | ❌ | ✅ **独有** |
+| Hooks 系统 GUI | 仅 CLI 级别 | ❌ | ❌ | ✅ **独有** |
+| AI 助手集成 | ❌ | ❌ | ❌ | ✅ Gemini + Grok |
+| 实时 Token 追踪 | ❌ | ✅ 用量仪表盘 | ✅ 成本追踪 | ✅ |
+| macOS 支持 | ✅ | ✅ | ✅ | ✅ |
+| npm + 原生安装器 | ✅ | ✅ | ✅ | ✅ |
+| 持续活跃更新 | ✅ | ✅ | ✅ | ✅ (236+ commits) |
+
+---
+
 ## 📸 界面预览
 
 [![主界面](docs/assets/ui.png)](docs/assets/ui.png)
+
+## 📅 更新历史
+
+| 版本 | 日期 | 亮点 |
+|------|------|------|
+| **v4.0.8** | 2026-04-02 | Codex MCP 模板，CLAUDE.md 条件注入 |
+| **v4.0.7** | 2026-04-02 | 流解析器升级：6 项 bug 修复，新 CLI 消息类型 |
+| **v4.0.5** | 2026-03-30 | AI 助手面板：Grok + Vertex AI 支持；macOS 滚动修复 |
+| **v4.0.2** | 2026-03-28 | Hooks GUI 管理面板：26 事件类型、4 类型、5 模板 |
+| **v3.1.9** | 2026-03-29 | CSP 安全策略、XSS 修复、Windows 孤儿进程清理 |
+| **v3.1.8** | 2026-03-12 | Grok MCP 模板，默认模型 → Sonnet 4.6 |
+| **v3.1.7** | 2026-02-18 | Claude Sonnet 4.6 模型支持 |
+| **v3.1.4** | 2026-01-29 | 新增 macOS 平台支持 |
+| **v3.1.0** | 2026-01-13 | Skills 面板：复制、启用/禁用、插件保护 |
+| **v2.0.0** | — | 全新 UI 设计、统计面板、自定义 API 端点 |
+
+完整记录请查看 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 📚 推荐教程
 
