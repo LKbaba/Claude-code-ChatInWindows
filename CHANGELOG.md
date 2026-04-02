@@ -2,6 +2,20 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.0.7] - 2026-04-02
+
+### Fixed
+- **Double JSON serialization eliminated** — `ClaudeChatProvider` now calls `processJsonData()` directly instead of `JSON.stringify → processJsonLine → JSON.parse` round-trip on every stream message
+- **New CLI message types handled** — `system/init` (session metadata), `tool_progress` (long-running tool updates), `rate_limit_event`; unknown types logged instead of silently discarded
+- **Image MIME type auto-detection** — base64 magic bytes detect JPEG/GIF/WebP; previously all images were hardcoded as `image/png`
+- **`rm -rf` classified correctly** — recursive `rm` now maps to `DIRECTORY_DELETE` instead of `FILE_DELETE` (match order fix)
+- **`tool_result.content` array extraction** — content block arrays `[{type:"text",text:"..."}]` now extract text instead of displaying raw JSON
+- **TodoWrite items render on separate lines** — switched from `\n` (ignored by innerHTML) to `<div>` wrappers
+- **`reset()` now clears all state** — added missing `_currentRequestTokensInput`, `_currentRequestTokensOutput`, `_currentMessageId`
+
+### Removed
+- Dead code: `_npmPrefixPromise` field and `_npmPrefixResolver` constructor parameter in `ClaudeProcessService` — eliminated redundant npm subprocess on startup
+
 ## [4.0.5] - 2026-03-30
 
 ### New Features

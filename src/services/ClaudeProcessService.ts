@@ -36,18 +36,14 @@ export interface ProcessCallbacks {
 
 export class ClaudeProcessService {
     private _currentProcess: cp.ChildProcess | undefined;
-    private _npmPrefixPromise: Promise<string | undefined>;
     // Guards against concurrent startProcess() calls (e.g. double-click on Send)
     private _isStarting: boolean = false;
 
     constructor(
         private _windowsCompatibility: WindowsCompatibility,
         private _configurationManager: ConfigurationManagerFacade,
-        private _conversationManager: ConversationManager,
-        private _npmPrefixResolver: () => Promise<string | undefined>
-    ) {
-        this._npmPrefixPromise = this._npmPrefixResolver();
-    }
+        private _conversationManager: ConversationManager
+    ) {}
 
     /**
      * Check if a process is currently running
@@ -297,7 +293,7 @@ export class ClaudeProcessService {
                     type: 'image',
                     source: {
                         type: 'base64',
-                        media_type: 'image/png',  // Default PNG, can be extended for auto-detection
+                        media_type: this._detectImageMimeType(imageData),
                         data: imageData
                     }
                 });
@@ -501,5 +497,27 @@ export class ClaudeProcessService {
         } catch (error) {
             debugError('ClaudeProcessService', 'Error during recursive temp file cleanup', error);
         }
+    }
+
+    /**
+     * Detect image MIME type from base64 magic bytes.
+     * Falls back to image/png if unrecognized.
+     */
+    private _detectImageMimeType(base64Data: string): string {
+        // First 16 chars of base64 encode the first 12 bytes — enough for magic bytes
+        const header = base64Data.substring(0, 16);
+
+        if (header.startsWith('/9j/')) {
+            return 'image/jpeg';
+        }
+        if (header.startsWith('R0lGOD')) {
+            return 'image/gif';
+        }
+        if (header.startsWith('UklGR')) {
+            return 'image/webp';
+        }
+        // iVBORw0KGgo = PNG magic bytes in base64
+        // Default to PNG for unrecognized formats (most common in clipboard paste)
+        return 'image/png';
     }
 }
