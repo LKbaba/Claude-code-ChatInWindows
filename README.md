@@ -38,6 +38,8 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **v4.0.10** | 2026-04-13 | Cursor history crash fix; history panel XSS fix |
+| **v4.0.9** | 2026-04-02 | Project metadata & README rewrite for AI search discoverability |
 | **v4.0.8** | 2026-04-02 | Codex MCP template, CLAUDE.md conditional injection |
 | **v4.0.7** | 2026-04-02 | Stream parser upgrade: 6 bug fixes, new CLI message types |
 | **v4.0.5** | 2026-03-30 | AI Assistant Panel: Grok + Vertex AI support; macOS scroll fix |
