@@ -158,3 +158,15 @@ Browser version fix:
 - v1.0.12+ uses Playwright 1.57.0, requires chromium-1200 with `chrome-win64/` structure
 - Quick fix: `npx playwright@latest install chromium`
 - Manual symlink (if needed): `cd ~/AppData/Local/ms-playwright && cmd //c "mklink /J chromium-1200 chromium-1181"`
+
+## Codex MCP Guide
+
+Codex is an autonomous coding agent by OpenAI, integrated via MCP.
+
+Workflow: Claude plans architecture → delegate scoped tasks to Codex → review results
+- `codex` tool: start a session with prompt, sandbox, approval-policy
+- `codex-reply` tool: continue a session by threadId for multi-turn tasks
+- Pass project context via `developer-instructions` parameter
+- Recommended: sandbox='workspace-write', approval-policy='on-failure'
+
+Prerequisite: `npm i -g @openai/codex`, OPENAI_API_KEY configured

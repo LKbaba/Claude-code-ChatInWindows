@@ -2,6 +2,17 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.0.10] - 2026-04-13
+
+### Fixed
+- **Cursor compatibility: history switch crash (闪退)** — `show()` previously forced
+  `panel.reveal(ViewColumn.Two)`, which caused Cursor (post-update) to dispose and
+  recreate the WebviewPanel when its layout engine rejected the column change.
+  Now reveals in the panel's current column with `preserveFocus=true`.
+- **History panel XSS / DOM injection** — `displayConversationList()` now uses
+  `textContent` for user message fields instead of raw `innerHTML`, preventing
+  HTML characters in messages from breaking the DOM structure.
+
 ## [4.0.9] - 2026-04-02
 
 ### Changed

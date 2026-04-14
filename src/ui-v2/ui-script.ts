@@ -3952,11 +3952,17 @@ export const uiScript = `
 				const date = new Date(conv.startTime).toLocaleDateString();
 				const time = new Date(conv.startTime).toLocaleTimeString();
 
+				// Use textContent for user message fields to prevent HTML injection
+				// breaking the DOM if messages contain '<', '>' or other HTML characters.
 				item.innerHTML = \`
-					<div class="conversation-title">\${conv.firstUserMessage.substring(0, 60)}\${conv.firstUserMessage.length > 60 ? '...' : ''}</div>
+					<div class="conversation-title"></div>
 					<div class="conversation-meta">\${date} at \${time} • \${conv.messageCount} messages • $\${conv.totalCost.toFixed(3)}</div>
-					<div class="conversation-preview">Last: \${conv.lastUserMessage.substring(0, 80)}\${conv.lastUserMessage.length > 80 ? '...' : ''}</div>
+					<div class="conversation-preview"></div>
 				\`;
+				item.querySelector('.conversation-title').textContent =
+					conv.firstUserMessage.substring(0, 60) + (conv.firstUserMessage.length > 60 ? '...' : '');
+				item.querySelector('.conversation-preview').textContent =
+					'Last: ' + conv.lastUserMessage.substring(0, 80) + (conv.lastUserMessage.length > 80 ? '...' : '');
 
 				listDiv.appendChild(item);
 			});

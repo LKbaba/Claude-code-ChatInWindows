@@ -166,7 +166,10 @@ export class ClaudeChatProvider {
 		const column = vscode.ViewColumn.Two;
 
 		if (this._panel) {
-			this._panel.reveal(column);
+			// Fix: reveal in current column instead of forcing ViewColumn.Two,
+			// which causes Cursor to dispose and recreate the panel on layout conflict.
+			// preserveFocus=true prevents stealing focus from the user's active editor.
+			this._panel.reveal(this._panel.viewColumn ?? vscode.ViewColumn.Active, true);
 			return;
 		}
 		
