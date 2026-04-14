@@ -122,11 +122,13 @@ Before v3.1.9, these were a single field, causing all caches for files older tha
 
 ## Version Release Checklist
 
-When bumping the version, update **all three locations**:
+When bumping the version, update **all five locations**:
 
 1. **`package.json`** → `"version": "x.y.z"`
 2. **`src/ui-v2/getBodyContent.ts`** → version display string (search for `vX.Y.Z`)
 3. **`CHANGELOG.md`** → add new version section at the top
+4. **`README.md`** → add row at the top of the "Recent Updates" table
+5. **`README.zh-CN.md`** and **`README.zh-TW.md`** → same table, localized text
 
 Then:
 ```bash
@@ -135,6 +137,11 @@ cmd //c "npx @vscode/vsce package --no-dependencies"
 ```
 
 Verify the output file name matches the new version: `claude-code-chatui-{version}.vsix`
+
+After packaging, publish the release on GitHub:
+- Create a new Release tag `vX.Y.Z` pointing to the latest commit on `main`
+- Paste the CHANGELOG section as the release body
+- Upload `claude-code-chatui-{version}.vsix` as the release asset
 
 ## Code Conventions
 
