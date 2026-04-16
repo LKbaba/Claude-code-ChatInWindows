@@ -62,7 +62,8 @@ export class ClaudeChatProvider {
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
 		// Opus model series pricing
-		['claude-opus-4-6', { input: 5.00, output: 25.00 }],               // Opus 4.6 latest flagship with Adaptive Thinking
+		['claude-opus-4-7', { input: 5.00, output: 25.00 }],               // Opus 4.7 latest flagship with self-verification
+		['claude-opus-4-6', { input: 5.00, output: 25.00 }],               // Opus 4.6 previous flagship with Adaptive Thinking
 		['claude-opus-4-5-20251101', { input: 5.00, output: 25.00 }],    // Opus 4.5 latest flagship model (66% price cut)
 		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }],   // Opus 4.1 flagship model
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
@@ -550,6 +551,9 @@ export class ClaudeChatProvider {
 					break;
 				case 'ultrathink':
 					thinkingPrompt = 'ULTRATHINK';
+					break;
+				case 'xhigh':
+					thinkingPrompt = 'THINK AT THE HIGHEST LEVEL OF DEPTH AND RIGOR';
 					break;
 				case 'sequential-thinking':
 					// Use MCP Sequential Thinking tool for structured reasoning
@@ -1441,6 +1445,7 @@ export class ClaudeChatProvider {
 		const modelDisplayNames: { [key: string]: string } = {
 			// Opus series
 			'opus': 'Opus',
+			'claude-opus-4-7': 'Opus 4.7',
 			'claude-opus-4-6': 'Opus 4.6',
 			'claude-opus-4-5-20251101': 'Opus 4.5',
 			'claude-opus-4-20250514': 'Opus 4',
@@ -3138,9 +3143,13 @@ export class ClaudeChatProvider {
 			let message: string;
 
 			switch (model) {
+				case 'claude-opus-4-7':
+					displayName = 'Opus 4.7';
+					message = `Claude model switched to: ${displayName} (Latest flagship with enhanced vision, self-verification & 1M context)`;
+					break;
 				case 'claude-opus-4-6':
 					displayName = 'Opus 4.6';
-					message = `Claude model switched to: ${displayName} (Latest flagship with Adaptive Thinking & 1M context)`;
+					message = `Claude model switched to: ${displayName} (Previous flagship with Adaptive Thinking & 1M context)`;
 					break;
 				case 'claude-opus-4-5-20251101':
 					displayName = 'Opus 4.5';
@@ -3245,17 +3254,17 @@ export class ClaudeChatProvider {
 
 		if (settings) {
 			// Use new format
-			const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+			const SONNET_4_6 = 'claude-sonnet-4-6';
 
 			// Restore mode settings
 			if (settings.mode === 'max') {
-				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
+				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_6;
 				debugLog('ComputeMode', 'Restored Max mode');
 			}
 
 			// Restore subagent settings (independent)
 			if (settings.enhanceSubagents) {
-				process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_5;
+				process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_6;
 				debugLog('ComputeMode', 'Restored enhanced subagents');
 			}
 
@@ -3264,8 +3273,8 @@ export class ClaudeChatProvider {
 			// Backward compatibility: check old maxModeEnabled config
 			const maxModeEnabled = this._context.workspaceState.get('maxModeEnabled', false);
 			if (maxModeEnabled) {
-				const SONNET_4_5 = 'claude-sonnet-4-5-20250929';
-				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_5;
+				const SONNET_4_6 = 'claude-sonnet-4-6';
+				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_6;
 				debugLog('ComputeMode', 'Migrated from old Max mode setting');
 
 				// Migrate to new format
