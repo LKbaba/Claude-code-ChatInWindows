@@ -2339,7 +2339,7 @@ export const uiScript = `
 
 		function saveThinkingIntensity() {
 			const thinkingSlider = document.getElementById('thinkingIntensitySlider');
-			const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
+			const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'xhigh', 'sequential-thinking'];
 			const thinkingIntensity = intensityValues[thinkingSlider.value] || 'think';
 
 			// Save thinking mode settings to VS Code
@@ -2353,7 +2353,7 @@ export const uiScript = `
 		}
 
 		function updateThinkingModeToggleName(intensityValue) {
-			const intensityNames = ['Think', 'Think Hard', 'Think Harder', 'Ultrathink', 'Sequential (MCP)'];
+			const intensityNames = ['Think', 'Think Hard', 'Think Harder', 'Ultrathink', 'xHigh', 'Sequential (MCP)'];
 			const modeName = intensityNames[intensityValue] || 'Think';
 			const toggleLabel = document.getElementById('thinkingModeLabel');
 			if (toggleLabel) {
@@ -2363,7 +2363,7 @@ export const uiScript = `
 
 		function updateThinkingIntensityDisplay(value) {
 			// Update label highlighting for thinking intensity modal
-			for (let i = 0; i < 5; i++) {
+			for (let i = 0; i < 6; i++) {
 				const label = document.getElementById('thinking-label-' + i);
 				if (i == value) {
 					label.classList.add('active');
@@ -2599,6 +2599,7 @@ export const uiScript = `
 			// Update display text
 			const displayNames = {
 				'opus': 'Opus',
+				'claude-opus-4-7': 'Opus 4.7',                   // Added Opus 4.7
 				'claude-opus-4-6': 'Opus 4.6',                   // Added Opus 4.6
 				'claude-opus-4-5-20251101': 'Opus 4.5',       // Added Opus 4.5
 				'opusplan': 'Opus Plan',                       // Added Opus Plan hybrid mode
@@ -2624,7 +2625,9 @@ export const uiScript = `
 			// If modal is open, update radio button state
 			// Handle long model names with special processing
 			let radioId = 'model-' + model;
-			if (model === 'claude-opus-4-6') {
+			if (model === 'claude-opus-4-7') {
+				radioId = 'model-opus-4-7';
+			} else if (model === 'claude-opus-4-6') {
 				radioId = 'model-opus-4-6';
 			} else if (model === 'claude-opus-4-5-20251101') {
 				radioId = 'model-opus-4-5';
@@ -2647,6 +2650,7 @@ export const uiScript = `
 		currentModel = 'claude-sonnet-4-6';  // Default to Sonnet 4.6
 		const displayNames = {
 			'opus': 'Opus',
+			'claude-opus-4-7': 'Opus 4.7',                   // Added Opus 4.7
 			'claude-opus-4-6': 'Opus 4.6',                   // Added Opus 4.6
 			'claude-opus-4-5-20251101': 'Opus 4.5',       // Added Opus 4.5
 			'opusplan': 'Opus Plan',                       // Added Opus Plan hybrid mode
@@ -3250,7 +3254,7 @@ export const uiScript = `
 				// Restore thinking mode settings
 				const savedThinkingMode = message.data['thinking.enabled'] || false;
 				const thinkingIntensity = message.data['thinking.intensity'] || 'think';
-				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
+				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'xhigh', 'sequential-thinking'];
 				const sliderValue = intensityValues.indexOf(thinkingIntensity);
 
 				// Restore thinking mode switch state
@@ -4032,8 +4036,10 @@ export const uiScript = `
 										const modelName = modelParts[2];
 										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3';
 									} else if (modelParts[1] === 'opus' && modelParts[2] === '4') {
-										// Check if opus-4-6 or opus-4-1
-										if (modelParts[3] === '6') {
+										// Check if opus-4-7, opus-4-6 or opus-4-1
+										if (modelParts[3] === '7') {
+											return 'Opus 4.7'; // claude-opus-4-7 -> Opus 4.7
+										} else if (modelParts[3] === '6') {
 											return 'Opus 4.6'; // claude-opus-4-6 -> Opus 4.6
 										} else if (modelParts[3] === '1') {
 											return 'Opus 4.1'; // claude-opus-4-1-20250805 -> Opus 4.1
@@ -4088,8 +4094,10 @@ export const uiScript = `
 										const modelName = modelParts[2];
 										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3';
 									} else if (modelParts[1] === 'opus' && modelParts[2] === '4') {
-										// Check if opus-4-6 or opus-4-1
-										if (modelParts[3] === '6') {
+										// Check if opus-4-7, opus-4-6 or opus-4-1
+										if (modelParts[3] === '7') {
+											return 'Opus 4.7'; // claude-opus-4-7 -> Opus 4.7
+										} else if (modelParts[3] === '6') {
 											return 'Opus 4.6'; // claude-opus-4-6 -> Opus 4.6
 										} else if (modelParts[3] === '1') {
 											return 'Opus 4.1'; // claude-opus-4-1-20250805 -> Opus 4.1
@@ -6164,7 +6172,7 @@ export const uiScript = `
 			enhanceCheckbox.checked = enhanceSubagents;
 		}
 
-		// If Max mode, notify backend to restore environment variable settings (uses Sonnet 4.5)
+		// If Max mode, notify backend to restore environment variable settings (uses Sonnet 4.6)
 		if (savedMode === 'max') {
 			vscode.postMessage({
 				type: 'selectMode',

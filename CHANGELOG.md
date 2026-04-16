@@ -2,6 +2,17 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.1.0] - 2026-04-16
+
+### New Features
+- **Claude Opus 4.7 model support** — Added `claude-opus-4-7` to model selector with pricing ($5/$25 per M tokens), display names, and stats parsing across all UI components
+- **xHigh thinking intensity** — New intensity level between Ultrathink and Sequential Thinking for maximum depth reasoning; added to settings slider, config enum, and restore logic
+- **/ultrareview slash command** — Deep code review with bug detection & design analysis, leveraging Opus 4.7+ capabilities
+
+### Fixed
+- **Compute Mode restore bug** — `_restoreComputeModeState()` referenced stale `claude-sonnet-4-5-20250929` instead of `claude-sonnet-4-6`, causing Max mode to fail silently on VS Code restart
+- **Stale model comment** — Updated "uses Sonnet 4.5" reference to "uses Sonnet 4.6" in compute mode tooltip
+
 ## [4.0.10] - 2026-04-13
 
 ### Fixed

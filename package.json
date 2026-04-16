@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude Code GUI / ChatUI",
   "description": "Full-featured GUI for Claude Code CLI — Windows (no WSL) & macOS. Third-party API support, MCP plugins, Skills & Hooks system, Undo/Redo, real-time token tracking. Actively maintained.",
-  "version": "4.0.10",
+  "version": "4.1.0",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -170,6 +170,7 @@
             "think-hard",
             "think-harder",
             "ultrathink",
+            "xhigh",
             "sequential-thinking"
           ],
           "default": "think",

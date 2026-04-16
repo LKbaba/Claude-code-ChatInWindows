@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.0.10</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.0</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -595,10 +595,19 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+				<div class="tool-item" onclick="selectModel('claude-opus-4-7')">
+					<input type="radio" name="model" id="model-opus-4-7" value="claude-opus-4-7">
+					<label for="model-opus-4-7">
+						<div class="model-title">Opus 4.7 - Latest flagship model</div>
+						<div class="model-description">
+							Enhanced vision, self-verification & 1M context
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" onclick="selectModel('claude-opus-4-6')">
 					<input type="radio" name="model" id="model-opus-4-6" value="claude-opus-4-6">
 					<label for="model-opus-4-6">
-						<div class="model-title">Opus 4.6 - Latest flagship model</div>
+						<div class="model-title">Opus 4.6 - Previous flagship model</div>
 						<div class="model-description">
 							Adaptive Thinking & 1M context window
 						</div>
@@ -722,13 +731,14 @@ export function getBodyContent(): string {
 			</div>
 			<div class="tools-list">
 				<div class="thinking-slider-container">
-					<input type="range" min="0" max="4" value="0" step="1" class="thinking-slider" id="thinkingIntensitySlider" oninput="updateThinkingIntensityDisplay(this.value)">
+					<input type="range" min="0" max="5" value="0" step="1" class="thinking-slider" id="thinkingIntensitySlider" oninput="updateThinkingIntensityDisplay(this.value)">
 					<div class="slider-labels">
 						<div class="slider-label active" id="thinking-label-0" onclick="setThinkingIntensityValue(0)">Think</div>
 						<div class="slider-label" id="thinking-label-1" onclick="setThinkingIntensityValue(1)">Think Hard</div>
 						<div class="slider-label" id="thinking-label-2" onclick="setThinkingIntensityValue(2)">Think Harder</div>
 						<div class="slider-label" id="thinking-label-3" onclick="setThinkingIntensityValue(3)">Ultrathink</div>
-						<div class="slider-label" id="thinking-label-4" onclick="setThinkingIntensityValue(4)">Sequential (MCP)</div>
+						<div class="slider-label" id="thinking-label-4" onclick="setThinkingIntensityValue(4)">xHigh</div>
+						<div class="slider-label" id="thinking-label-5" onclick="setThinkingIntensityValue(5)">Sequential (MCP)</div>
 					</div>
 				</div>
 				<div class="thinking-modal-actions">
@@ -840,6 +850,13 @@ export function getBodyContent(): string {
 					<div class="slash-command-content">
 						<div class="slash-command-title">/review</div>
 						<div class="slash-command-description">Request code review</div>
+					</div>
+				</div>
+				<div class="slash-command-item" onclick="executeSlashCommand('ultrareview')">
+					<div class="slash-command-icon">🔬</div>
+					<div class="slash-command-content">
+						<div class="slash-command-title">/ultrareview</div>
+						<div class="slash-command-description">Deep code review with bug detection & design analysis (Opus 4.7+)</div>
 					</div>
 				</div>
 				<div class="slash-command-item" onclick="executeSlashCommand('memory')">
