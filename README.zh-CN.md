@@ -38,6 +38,7 @@
 
 | 版本 | 日期 | 亮点 |
 |------|------|------|
+| **v4.1.1** | 2026-04-21 | Gemini Vertex AI ADC 认证模式；MCP 子进程环境变量回填修复（APPDATA/PATH/代理）；Windows `node` stdio 包装 bug 修复；认证 UI 两级层级化 |
 | **v4.1.0** | 2026-04-16 | Opus 4.7 模型支持；xHigh 思考强度；/ultrareview 命令；Compute Mode 恢复 bug 修复 |
 | **v4.0.10** | 2026-04-13 | 修复 Cursor 历史切换闪退；修复历史面板 XSS 注入 |
 | **v4.0.9** | 2026-04-02 | 项目元数据重写，提升 AI 搜索可发现性 |

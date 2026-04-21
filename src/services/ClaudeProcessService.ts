@@ -93,6 +93,37 @@ export class ClaudeProcessService {
             argsLength: args.length,
             argsDetails: args.map((arg, i) => `[${i}]: "${arg}"`)
         });
+
+        // ==================== DIAGNOSTIC: env handed to Claude CLI ====================
+        // Claude CLI inherits this env. Whether the MCP subprocess spawned by Claude CLI
+        // further inherits it depends on Claude CLI's internal implementation. If critical
+        // system vars (APPDATA/USERPROFILE/HOME/PATH) are missing here, google-auth will
+        // fail inside Gemini-mcp even when mcp-config.json env is correct.
+        try {
+            const env = (execEnvironment.spawnOptions.env || process.env) as Record<string, string | undefined>;
+            const keysOfInterest = [
+                'APPDATA', 'USERPROFILE', 'HOME', 'PATH',
+                'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY',
+                'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_GENAI_USE_VERTEXAI', 'GOOGLE_CLOUD_PROJECT',
+                'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
+            ];
+            const summary: Record<string, string> = {};
+            for (const k of keysOfInterest) {
+                const v = env[k];
+                if (v === undefined) {
+                    summary[k] = '(missing)';
+                } else if (/key|token|secret|credential|password/i.test(k)) {
+                    summary[k] = `<set len=${v.length}>`;
+                } else {
+                    summary[k] = v.length > 80 ? v.slice(0, 77) + '...' : v;
+                }
+            }
+            debugLog('ClaudeProcessService:env-probe',
+                `Env handed to Claude CLI (total keys: ${Object.keys(env).length})`, summary);
+        } catch (e) {
+            debugError('ClaudeProcessService:env-probe', 'Failed to dump env', e);
+        }
+
         this._currentProcess = cp.spawn(execEnvironment.claudeExecutablePath, args, { ...execEnvironment.spawnOptions, cwd: fixedCwd });
 
         // Send JSON-formatted user message to stdin

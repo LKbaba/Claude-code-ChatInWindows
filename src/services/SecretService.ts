@@ -32,24 +32,37 @@ export const API_KEY_PROVIDERS = {
 const CONFIG_KEYS = {
     GEMINI_ENABLED: 'claudeCodeChatUI.geminiIntegrationEnabled',
     GROK_ENABLED: 'claudeCodeChatUI.grokIntegrationEnabled',
-    VERTEX_PROJECT: 'claudeCodeChatUI.gemini.vertexProject'
+    VERTEX_PROJECT: 'claudeCodeChatUI.gemini.vertexProject',
+    GEMINI_AUTH_MODE: 'claudeCodeChatUI.gemini.authMode'
 } as const;
 
 // GlobalState fallback keys — used when VS Code config keys are not yet
 // registered (e.g. right after a VSIX upgrade, before window reload).
 const FALLBACK_KEYS = {
     GROK_ENABLED: 'configFallback.grokEnabled',
-    VERTEX_PROJECT: 'configFallback.vertexProject'
+    VERTEX_PROJECT: 'configFallback.vertexProject',
+    GEMINI_AUTH_MODE: 'configFallback.geminiAuthMode'
 } as const;
+
+/**
+ * Gemini authentication mode.
+ * - 'api-key': AI Studio API Key (GEMINI_API_KEY)
+ * - 'vertex-json': Vertex AI with imported service account JSON (GOOGLE_CREDENTIALS_JSON)
+ * - 'adc': Vertex AI with Application Default Credentials (gcloud auth application-default login)
+ */
+export type GeminiAuthMode = 'api-key' | 'vertex-json' | 'adc';
+
+export const DEFAULT_GEMINI_AUTH_MODE: GeminiAuthMode = 'api-key';
 
 /**
  * Gemini Integration Configuration Interface
  */
 export interface GeminiIntegrationConfig {
-    enabled: boolean;           // Whether Gemini Integration is enabled
-    apiKey: string | undefined; // Gemini API Key
-    hasVertexCredentials: boolean; // Whether Vertex AI credentials are imported
-    vertexProject: string;        // GCP Project ID from Vertex AI credentials
+    enabled: boolean;                    // Whether Gemini Integration is enabled
+    authMode: GeminiAuthMode;            // Selected authentication mode
+    apiKey: string | undefined;          // Gemini API Key (api-key mode)
+    hasVertexCredentials: boolean;       // Whether Vertex AI JSON credentials are imported (vertex-json mode)
+    vertexProject: string;               // GCP Project ID (required for all vertex-* modes)
 }
 
 /**
@@ -153,6 +166,7 @@ export class SecretService {
         const migrations: { configKey: string; fallbackKey: string }[] = [
             { configKey: CONFIG_KEYS.GROK_ENABLED, fallbackKey: FALLBACK_KEYS.GROK_ENABLED },
             { configKey: CONFIG_KEYS.VERTEX_PROJECT, fallbackKey: FALLBACK_KEYS.VERTEX_PROJECT },
+            { configKey: CONFIG_KEYS.GEMINI_AUTH_MODE, fallbackKey: FALLBACK_KEYS.GEMINI_AUTH_MODE },
         ];
 
         for (const { configKey, fallbackKey } of migrations) {
@@ -310,6 +324,7 @@ export class SecretService {
      */
     public async getGeminiIntegrationConfig(): Promise<GeminiIntegrationConfig> {
         const enabled = this.getGeminiIntegrationEnabled();
+        const authMode = this.getGeminiAuthMode();
         const apiKey = await this.getGeminiApiKey();
         const vertexCredentials = await this.getVertexCredentials();
         const hasVertexCredentials = !!vertexCredentials;
@@ -322,6 +337,7 @@ export class SecretService {
 
         return {
             enabled,
+            authMode,
             apiKey,
             hasVertexCredentials,
             vertexProject
@@ -329,13 +345,46 @@ export class SecretService {
     }
 
     /**
-     * Check if Gemini credentials should be injected
-     * Condition: Integration is enabled AND (API Key is set OR Vertex credentials exist)
+     * Check if Gemini credentials should be injected.
+     * Requires Integration enabled AND the selected auth mode to be configured:
+     *  - api-key    : apiKey is set
+     *  - vertex-json: JSON credentials imported AND project id known
+     *  - adc        : project id set (no credentials needed, SDK uses ADC)
      * @returns Whether to inject
      */
     public async shouldInjectGeminiApiKey(): Promise<boolean> {
         const config = await this.getGeminiIntegrationConfig();
-        return config.enabled && (!!config.apiKey || config.hasVertexCredentials);
+        if (!config.enabled) return false;
+
+        switch (config.authMode) {
+            case 'api-key':
+                return !!config.apiKey;
+            case 'vertex-json':
+                return config.hasVertexCredentials && !!config.vertexProject;
+            case 'adc':
+                return !!config.vertexProject;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Get current Gemini auth mode (with globalState fallback).
+     */
+    public getGeminiAuthMode(): GeminiAuthMode {
+        const raw = this.safeConfigGet<string>(CONFIG_KEYS.GEMINI_AUTH_MODE, DEFAULT_GEMINI_AUTH_MODE, FALLBACK_KEYS.GEMINI_AUTH_MODE);
+        if (raw === 'api-key' || raw === 'vertex-json' || raw === 'adc') {
+            return raw;
+        }
+        return DEFAULT_GEMINI_AUTH_MODE;
+    }
+
+    /**
+     * Set Gemini auth mode (with globalState fallback on config-not-registered).
+     */
+    public async setGeminiAuthMode(mode: GeminiAuthMode): Promise<void> {
+        await this.safeConfigUpdate(CONFIG_KEYS.GEMINI_AUTH_MODE, mode, FALLBACK_KEYS.GEMINI_AUTH_MODE);
+        debugLog('SecretService', `Gemini auth mode updated: ${mode}`);
     }
 
     // ==================== Grok Integration Methods ====================

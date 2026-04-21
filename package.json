@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude Code GUI / ChatUI",
   "description": "Full-featured GUI for Claude Code CLI — Windows (no WSL) & macOS. Third-party API support, MCP plugins, Skills & Hooks system, Undo/Redo, real-time token tracking. Actively maintained.",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -316,7 +316,13 @@
         "claudeCodeChatUI.gemini.vertexProject": {
           "type": "string",
           "default": "",
-          "description": "GCP Project ID extracted from imported Vertex AI Service Account JSON"
+          "description": "GCP Project ID for Vertex AI (auto-extracted from imported JSON, or entered manually for ADC / file-path modes)"
+        },
+        "claudeCodeChatUI.gemini.authMode": {
+          "type": "string",
+          "enum": ["api-key", "vertex-json", "adc"],
+          "default": "api-key",
+          "description": "Gemini authentication mode: 'api-key' (AI Studio), 'vertex-json' (Vertex AI with imported JSON), 'adc' (Vertex AI with Application Default Credentials)"
         },
         "claudeCodeChatUI.debug.enabled": {
           "type": "boolean",

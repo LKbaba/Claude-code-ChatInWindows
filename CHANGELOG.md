@@ -2,6 +2,38 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.1.1] - 2026-04-21
+
+### Fixed
+- **MCP subprocess env stripping (Claude CLI upstream workaround)** — Claude CLI hands `mcp-config.json`'s `env` map to `child_process.spawn()` without merging `process.env`; any MCP server declaring an `env` block therefore loses `PATH`, `APPDATA`, `HOME`, `SystemRoot`, and `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY`. Symptoms: Google auth library fails to locate ADC credentials under `%APPDATA%\gcloud`, corporate-proxy users can't reach the Gemini API, Node fails to resolve runtime paths. `McpConfigManager.backfillHostEnv()` now backfills ~30 critical host vars into every server's env map (user/injected values always win — this is a backfill, not an override). See anthropics/claude-code issues #1254, #24586, #28332.
+- **Windows `node` + `cmd /c` wrapper breaking MCP stdio** — `node` was incorrectly in the Windows `cmd /c` wrapper list alongside shim launchers (`npx`, `npm`). Wrapping `node` adds an extra shell layer that breaks the JSON-RPC stdio handshake between Claude CLI and the MCP subprocess: `tools/list` may succeed via direct probes but `tools/call` returns `MCP error -32000: Connection closed`. Removed `node` from the wrapper list; only `.cmd`/`.bat` shim launchers are wrapped now.
+
+### New Features
+- **Gemini Vertex AI — Application Default Credentials (ADC) mode** — New auth option under "Vertex AI (GCP Project)" → "Use ADC (gcloud auth)". Users who have run `gcloud auth application-default login` can now point the extension at a GCP project without exporting a service-account JSON key.
+  - New config key `claudeCodeChatUI.gemini.authMode` (enum: `api-key` / `vertex-json` / `adc`)
+  - `claudeCodeChatUI.gemini.vertexProject` description updated to reflect that it's shared by `vertex-json` and `adc` modes
+  - `McpConfigManager` injects `GOOGLE_GENAI_USE_VERTEXAI=true` + `GOOGLE_CLOUD_PROJECT=<id>` when ADC mode is active; ADC discovery (via `google-auth-library`) then finds the credentials file on disk
+  - `SecretService.shouldInjectGeminiApiKey()` → `getGeminiAuthConfig()` refactored to return `{ mode, project?, hasJson, hasApiKey }` for downstream decisions
+- **Vertex AI auth-mode UI hierarchy** — Top-level radio toggles API Key (AI Studio) vs Vertex AI (GCP Project); the Vertex AI panel now contains a nested sub-radio for JSON Key File vs ADC. The sub-panel uses left indent + a faint left border so the sub-options visually belong to their Vertex AI parent (previously rendered as a flat 2×2 grid that read like four peer options).
+
+### Diagnostic
+- **MCP env probe logging** — `ClaudeProcessService` now logs the critical subset of env vars handed to Claude CLI (`APPDATA`, `USERPROFILE`, `HOME`, `PATH`, proxy vars, Gemini/Anthropic keys) on every spawn, with secret-like values redacted. `McpConfigManager` emits a per-server env-key probe right after writing `mcp-config.json`, plus a specific Gemini marker describing exactly which stderr line to look for in the subprocess (`Auth mode: vertex-ai (project: ...)` vs `No authentication configured`). Makes future MCP env-related bug reports triagable from a single `debug_log.txt`.
+
+### Build
+- `.vscodeignore` adds `scripts/**` exclusion — dev-only probe and smoke-test scripts (`probe-mcp-initialized.mjs`, `test-gemini-adc.mjs`, `probe-gemini.js`) no longer ship in the VSIX
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `package.json` | Version 4.1.0 → 4.1.1; new `gemini.authMode` config key; updated `gemini.vertexProject` description |
+| `src/managers/config/McpConfigManager.ts` | `backfillHostEnv()` (new); removed `node` from Windows wrapper list; ADC env injection; per-server env probe logging |
+| `src/services/SecretService.ts` | ADC auth mode support; `getGeminiAuthConfig()` / `shouldInjectGeminiApiKey()` refactor |
+| `src/services/ClaudeProcessService.ts` | Env-probe logging before spawn |
+| `src/providers/ClaudeChatProvider.ts` | Message handlers for `updateGeminiAuthMode` / `updateVertexProject` |
+| `src/ui-v2/getBodyContent.ts` | Version display v4.1.1; hierarchical Vertex AI auth UI; sub-panel indent + left border |
+| `src/ui-v2/ui-script.ts` | `switchGeminiAuthMode` 2-way → hierarchical; new `switchVertexSubMode`, `updateVertexProjectFromInput` |
+| `.vscodeignore` | Added `scripts/**` exclusion |
+
 ## [4.1.0] - 2026-04-16
 
 ### New Features

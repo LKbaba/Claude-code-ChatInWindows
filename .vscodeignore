@@ -73,3 +73,6 @@ specs/**
 
 # Test hook scripts (development only)
 test-hooks/**
+
+# Dev-only probe & smoke-test scripts
+scripts/**
