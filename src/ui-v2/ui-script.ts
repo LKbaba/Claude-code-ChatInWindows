@@ -4435,8 +4435,8 @@ export const uiScript = `
 					envDisplayValue = serverConfig.env;
 				}
 			}
-			const envDiv = createField('Environment Variables (optional)', 'mcp-server-env', '{"API_KEY": "xxx"} or API_KEY=xxx,OTHER=yyy', envDisplayValue);
-			
+			const envDiv = createField('Environment Variables (optional)', 'mcp-server-env', '{"GEMINI_API_KEY":"xxx"} or {"GOOGLE_GENAI_USE_VERTEXAI":"true", "GOOGLE_CLOUD_PROJECT":"xxx"}', envDisplayValue);
+
 			fieldsDiv.appendChild(nameDiv);
 			fieldsDiv.appendChild(commandDiv);
 			fieldsDiv.appendChild(argsDiv);
@@ -5153,14 +5153,12 @@ export const uiScript = `
 					}
 				},
 				// Gemini AI assistant - provides UI generation, multimodal analysis, etc.
-				// Key auto-injected at runtime if configured in Settings → AI Assistant → Gemini
+				// Leave env empty: credentials are auto-injected from Settings → AI Assistant → Gemini
 				'gemini-assistant': {
 					name: 'gemini-assistant',
 					command: 'npx',
 					args: ['-y', '@lkbaba/mcp-server-gemini@latest'],
-					env: {
-						'GEMINI_API_KEY': ''  // Auto-filled from Settings, or paste your key from https://aistudio.google.com/apikey
-					}
+					env: {}
 				},
 				// Codex autonomous coding agent - delegate implementation, review, debugging
 				'codex-official': {
@@ -5241,7 +5239,7 @@ export const uiScript = `
 
 		/**
 		 * Initialize Gemini Integration settings
-		 * @param {Object} config - Config object containing enabled and hasApiKey
+		 * @param {Object} config - Config object from _sendGeminiIntegrationConfig
 		 */
 		function initGeminiIntegration(config) {
 			const checkbox = document.getElementById('gemini-enabled');
@@ -5258,7 +5256,7 @@ export const uiScript = `
 				}
 			}
 
-			// Update Vertex AI status indicator
+			// Update Vertex AI JSON-mode status indicator
 			const vertexStatus = document.getElementById('vertex-status');
 			const vertexDeleteBtn = document.getElementById('vertex-delete-btn');
 			if (vertexStatus) {
@@ -5273,24 +5271,79 @@ export const uiScript = `
 				}
 			}
 
-			// Restore auth mode radio selection based on stored state
-			if (config.hasVertexCredentials && !config.hasApiKey) {
-				switchGeminiAuthMode('vertex');
-				const vertexRadio = document.querySelector('input[name="gemini-auth-mode"][value="vertex"]');
-				if (vertexRadio) vertexRadio.checked = true;
-			}
+			// Fill ADC panel's project input
+			const adcProjectInput = document.getElementById('gemini-adc-project');
+			if (adcProjectInput) adcProjectInput.value = config.vertexProject || '';
+
+			// Derive outer/inner radio from stored authMode
+			// Backend authMode is one of: 'api-key' | 'vertex-json' | 'adc'
+			const storedMode = config.authMode || 'api-key';
+			const outerMode = (storedMode === 'api-key') ? 'api-key' : 'vertex';
+			const subMode = (storedMode === 'adc') ? 'adc' : 'vertex-json';
+
+			const outerRadio = document.querySelector('input[name="gemini-auth-mode"][value="' + outerMode + '"]');
+			if (outerRadio) outerRadio.checked = true;
+			const subRadio = document.querySelector('input[name="gemini-vertex-sub-mode"][value="' + subMode + '"]');
+			if (subRadio) subRadio.checked = true;
+
+			// Apply panel visibility without posting back to the extension (init is silent)
+			applyGeminiPanelVisibility(outerMode, subMode);
 
 			console.log('[Gemini] Integration initialization complete:', config);
 		}
 
 		/**
-		 * Switch Gemini auth mode between API Key and Vertex AI
+		 * Apply panel visibility based on outer mode and current sub-mode.
+		 * Does not post messages — used for silent init and internal state changes.
 		 */
-		function switchGeminiAuthMode(mode) {
+		function applyGeminiPanelVisibility(outerMode, subMode) {
 			const apikeyPanel = document.getElementById('gemini-apikey-panel');
 			const vertexPanel = document.getElementById('gemini-vertex-panel');
-			if (apikeyPanel) apikeyPanel.style.display = mode === 'apikey' ? 'block' : 'none';
-			if (vertexPanel) vertexPanel.style.display = mode === 'vertex' ? 'block' : 'none';
+			if (apikeyPanel) apikeyPanel.style.display = (outerMode === 'api-key') ? 'block' : 'none';
+			if (vertexPanel) vertexPanel.style.display = (outerMode === 'vertex') ? 'block' : 'none';
+
+			const vertexJsonPanel = document.getElementById('gemini-vertex-json-panel');
+			const adcPanel = document.getElementById('gemini-adc-panel');
+			if (vertexJsonPanel) vertexJsonPanel.style.display = (subMode === 'vertex-json') ? 'block' : 'none';
+			if (adcPanel) adcPanel.style.display = (subMode === 'adc') ? 'block' : 'none';
+		}
+
+		/**
+		 * Currently selected Vertex sub-mode ('vertex-json' | 'adc').
+		 */
+		function getCurrentVertexSubMode() {
+			const checked = document.querySelector('input[name="gemini-vertex-sub-mode"]:checked');
+			return (checked && checked.value === 'adc') ? 'adc' : 'vertex-json';
+		}
+
+		/**
+		 * Switch outer Gemini auth mode: 'api-key' or 'vertex'.
+		 * Persisted backend value is 'api-key' / 'vertex-json' / 'adc'.
+		 */
+		function switchGeminiAuthMode(outerMode) {
+			const subMode = getCurrentVertexSubMode();
+			applyGeminiPanelVisibility(outerMode, subMode);
+			const backendMode = (outerMode === 'api-key') ? 'api-key' : subMode;
+			vscode.postMessage({ type: 'updateGeminiAuthMode', mode: backendMode });
+		}
+
+		/**
+		 * Switch inner Vertex sub-mode: 'vertex-json' or 'adc'.
+		 */
+		function switchVertexSubMode(subMode) {
+			applyGeminiPanelVisibility('vertex', subMode);
+			vscode.postMessage({ type: 'updateGeminiAuthMode', mode: subMode });
+		}
+
+		/**
+		 * Update Vertex project ID from a specific input element.
+		 * @param {string} inputId - ID of the input
+		 */
+		function updateVertexProjectFromInput(inputId) {
+			const el = document.getElementById(inputId);
+			if (!el) return;
+			const project = el.value.trim();
+			vscode.postMessage({ type: 'updateVertexProject', project: project });
 		}
 
 		/**
@@ -5605,9 +5658,12 @@ export const uiScript = `
 		window.importVertexCredentials = importVertexCredentials;
 		// Delete / mode-switch functions
 		window.switchGeminiAuthMode = switchGeminiAuthMode;
+		window.switchVertexSubMode = switchVertexSubMode;
 		window.deleteGeminiApiKey = deleteGeminiApiKey;
 		window.deleteVertexCredentials = deleteVertexCredentials;
 		window.deleteGrokApiKey = deleteGrokApiKey;
+		// ADC mode helpers
+		window.updateVertexProjectFromInput = updateVertexProjectFromInput;
 		// Operation History Functions
 		let currentOperations = [];
 

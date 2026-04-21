@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.0</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.1</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -444,10 +444,10 @@ export function getBodyContent(): string {
 						<label for="gemini-enabled" style="font-weight: 600;">Gemini</label>
 					</div>
 					<div id="geminiOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
-						<!-- Auth mode radio -->
+						<!-- Primary auth mode radio: API Key vs Vertex AI -->
 						<div style="margin-bottom: 12px;">
 							<label style="display: inline-flex; align-items: center; margin-right: 16px; font-size: 12px; cursor: pointer;">
-								<input type="radio" name="gemini-auth-mode" value="apikey" checked onchange="switchGeminiAuthMode('apikey')" style="margin-right: 4px;">
+								<input type="radio" name="gemini-auth-mode" value="api-key" checked onchange="switchGeminiAuthMode('api-key')" style="margin-right: 4px;">
 								API Key (AI Studio)
 							</label>
 							<label style="display: inline-flex; align-items: center; font-size: 12px; cursor: pointer;">
@@ -455,7 +455,8 @@ export function getBodyContent(): string {
 								Vertex AI (GCP Project)
 							</label>
 						</div>
-						<!-- Option A: API Key -->
+
+						<!-- Option A: API Key (AI Studio) -->
 						<div id="gemini-apikey-panel" style="margin-bottom: 8px;">
 							<div style="display: flex; align-items: center; gap: 4px;">
 								<input type="password" id="gemini-api-key" placeholder="AIza..."
@@ -469,20 +470,48 @@ export function getBodyContent(): string {
 								💡 Get your key from <a href="https://aistudio.google.com/apikey" style="color: var(--vscode-textLink-foreground);">Google AI Studio</a>
 							</p>
 						</div>
-						<!-- Option B: Vertex AI -->
-						<div id="gemini-vertex-panel" style="margin-bottom: 8px; display: none;">
-							<div style="display: flex; align-items: center; gap: 8px;">
-								<button onclick="importVertexCredentials()"
-									style="padding: 4px 12px; font-size: 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer;">
-									📁 Import JSON Key File
-								</button>
-								<span id="vertex-status" style="font-size: 11px; color: var(--vscode-descriptionForeground);">— Not imported</span>
-								<button id="vertex-delete-btn" onclick="deleteVertexCredentials()" title="Delete imported credentials"
-									style="padding: 4px 8px; font-size: 12px; background: transparent; color: var(--vscode-errorForeground); border: 1px solid var(--vscode-input-border); border-radius: 4px; cursor: pointer; display: none;">✕</button>
+
+						<!-- Option B: Vertex AI (GCP Project) — contains sub-mode radio -->
+						<div id="gemini-vertex-panel" style="margin-bottom: 8px; margin-top: 4px; margin-left: 20px; padding-left: 12px; border-left: 2px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3)); display: none;">
+							<!-- Sub-mode radio: Import JSON vs ADC -->
+							<div style="margin-bottom: 10px;">
+								<label style="display: inline-flex; align-items: center; margin-right: 16px; font-size: 12px; cursor: pointer;">
+									<input type="radio" name="gemini-vertex-sub-mode" value="vertex-json" checked onchange="switchVertexSubMode('vertex-json')" style="margin-right: 4px;">
+									Import JSON Key File
+								</label>
+								<label style="display: inline-flex; align-items: center; font-size: 12px; cursor: pointer;">
+									<input type="radio" name="gemini-vertex-sub-mode" value="adc" onchange="switchVertexSubMode('adc')" style="margin-right: 4px;">
+									Use ADC (gcloud auth)
+								</label>
 							</div>
-							<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
-								💡 Export from <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" style="color: var(--vscode-textLink-foreground);">Google Cloud Console</a>: IAM → Service Accounts → Keys → Add Key → JSON
-							</p>
+
+							<!-- Sub-panel: Import JSON -->
+							<div id="gemini-vertex-json-panel" style="margin-bottom: 8px;">
+								<div style="display: flex; align-items: center; gap: 8px;">
+									<button onclick="importVertexCredentials()"
+										style="padding: 4px 12px; font-size: 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; border-radius: 4px; cursor: pointer;">
+										📁 Import JSON Key File
+									</button>
+									<span id="vertex-status" style="font-size: 11px; color: var(--vscode-descriptionForeground);">— Not imported</span>
+									<button id="vertex-delete-btn" onclick="deleteVertexCredentials()" title="Delete imported credentials"
+										style="padding: 4px 8px; font-size: 12px; background: transparent; color: var(--vscode-errorForeground); border: 1px solid var(--vscode-input-border); border-radius: 4px; cursor: pointer; display: none;">✕</button>
+								</div>
+								<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
+									🔒 JSON content stored in VS Code SecretStorage.
+									💡 Export from <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" style="color: var(--vscode-textLink-foreground);">Google Cloud Console</a>: IAM → Service Accounts → Keys → Add Key → JSON
+								</p>
+							</div>
+
+							<!-- Sub-panel: ADC -->
+							<div id="gemini-adc-panel" style="margin-bottom: 8px; display: none;">
+								<label for="gemini-adc-project" style="display: block; font-size: 12px; margin-bottom: 4px;">GCP Project ID</label>
+								<input type="text" id="gemini-adc-project" placeholder="my-project-123"
+									style="width: 100%; box-sizing: border-box; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;"
+									onchange="updateVertexProjectFromInput('gemini-adc-project')">
+								<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 4px 0 0 0;">
+									💡 ADC mode: no credentials stored. Run <code>gcloud auth application-default login</code> in your terminal first.
+								</p>
+							</div>
 						</div>
 					</div>
 

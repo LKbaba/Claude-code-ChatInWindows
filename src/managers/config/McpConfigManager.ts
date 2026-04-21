@@ -194,8 +194,16 @@ export class McpConfigManager {
                 let args: string[] = [];
                 let originalCommand = command; // Save original command for logging
 
-                // On Windows, certain commands need cmd /c wrapper
-                const windowsCommandsNeedingWrapper = ['npx', 'npm', 'node'];
+                // On Windows, shim-based launchers (.cmd/.bat) cannot be
+                // spawned directly by Node's child_process — they need a
+                // `cmd /c` wrapper. Do NOT include real .exe binaries like
+                // `node` here: wrapping `node` in `cmd /c` adds an extra
+                // shell layer that breaks the MCP stdio JSON-RPC pipes that
+                // Claude CLI relies on (observed: tools/list succeeds via
+                // plugin probe but Claude CLI's tools/call returns
+                // "Connection closed" because the wrapped subprocess never
+                // completes a proper stdio handshake).
+                const windowsCommandsNeedingWrapper = ['npx', 'npm'];
                 const needsWindowsWrapper = process.platform === 'win32' &&
                     windowsCommandsNeedingWrapper.includes(command.toLowerCase());
 
@@ -295,6 +303,23 @@ export class McpConfigManager {
         // Inject securely stored API keys / credentials into matching MCP servers
         await this.injectApiKeysIfNeeded(mcpConfig);
 
+        // ==================== Host Environment Backfill ====================
+        // Claude CLI passes the `env` map in mcp-config.json directly to
+        // child_process.spawn() WITHOUT merging ...process.env. Any MCP server
+        // with an explicit `env` block therefore loses access to PATH, APPDATA,
+        // HOME, SystemRoot, proxies, etc. This breaks:
+        //   - Node resolving runtime paths / loading modules from %APPDATA%
+        //   - Google auth library locating ADC creds under %APPDATA%/gcloud
+        //   - Any server behind a corporate HTTPS_PROXY
+        // See: github.com/anthropics/claude-code issues #1254, #24586, #28332.
+        // Fix: for every server that already has an `env` block, backfill the
+        // critical host vars (user/injected values win — we never override).
+        for (const serverConfig of Object.values(mcpConfig.mcpServers)) {
+            if (serverConfig && typeof serverConfig.env === 'object' && serverConfig.env !== null) {
+                this.backfillHostEnv(serverConfig.env);
+            }
+        }
+
         // Write MCP config to a temporary file in ~/.claude directory
         let mcpConfigPath: string | null = null;
         if (Object.keys(mcpConfig.mcpServers).length > 0) {
@@ -321,6 +346,40 @@ export class McpConfigManager {
                 const writtenContent = fs.readFileSync(mcpConfigPath, 'utf8');
                 debugLog('buildMcpConfig', `Written MCP config file: ${mcpConfigPath}`);
                 debugLog('buildMcpConfig', 'File content', JSON.parse(writtenContent));
+
+                // ==================== DIAGNOSTIC: per-server env keys ====================
+                // Print the env keys that each MCP server will supposedly receive via
+                // mcp-config.json. We redact values that look like secrets so the log
+                // can be shared safely. For Gemini servers we emit a specific marker
+                // explaining what to look for in the MCP subprocess stderr.
+                try {
+                    const parsed = JSON.parse(writtenContent);
+                    for (const [name, cfg] of Object.entries<any>(parsed.mcpServers || {})) {
+                        const envEntries = Object.entries<any>(cfg.env || {}).map(([k, v]) => {
+                            const sv = String(v ?? '');
+                            const redact = /key|token|secret|credential|password/i.test(k);
+                            const short = sv.length > 40 ? sv.slice(0, 20) + '...(' + sv.length + ')' : sv;
+                            return [k, redact ? `<redacted len=${sv.length}>` : short];
+                        });
+                        debugLog('buildMcpConfig:env-probe', `server='${name}' command='${cfg.command}' argc=${(cfg.args || []).length}`, {
+                            envKeys: envEntries.map(([k]) => k),
+                            envSample: Object.fromEntries(envEntries),
+                        });
+                        if (name.toLowerCase().includes('gemini')) {
+                            const useVertex = cfg.env?.GOOGLE_GENAI_USE_VERTEXAI;
+                            const project = cfg.env?.GOOGLE_CLOUD_PROJECT;
+                            const hasApiKey = !!cfg.env?.GEMINI_API_KEY;
+                            const hasSaJson = !!cfg.env?.GOOGLE_CREDENTIALS_JSON;
+                            debugLog('buildMcpConfig:gemini-marker',
+                                `Gemini server '${name}' — inspect subprocess stderr for one of:\n` +
+                                `  OK   -> '[INFO] Auth mode: vertex-ai (project: ${project}, location: ...)'  (means env reached subprocess)\n` +
+                                `  FAIL -> 'No authentication configured'  (means env was stripped by Claude CLI)`,
+                                { useVertex, project, hasApiKey, hasSaJson });
+                        }
+                    }
+                } catch (e) {
+                    debugWarn('buildMcpConfig:env-probe', 'Failed to dump env probe', e);
+                }
             } catch (error) {
                 debugError('buildMcpConfig', 'Failed to write MCP config file', error);
                 throw new Error(`Failed to write MCP configuration: ${error}`);
@@ -454,49 +513,131 @@ export class McpConfigManager {
     }
 
     /**
-     * Inject Gemini API Key or Vertex AI credentials into Gemini servers
+     * Backfill critical host environment variables into an MCP server's env map.
+     *
+     * Claude CLI hands this map to child_process.spawn({ env }) verbatim, so
+     * anything missing here is invisible to the subprocess. We only add keys
+     * that exist in the host process.env AND are absent from the server env
+     * (user/injected values always win — this is a backfill, not an override).
+     *
+     * Cross-platform: we include both Windows (APPDATA, SystemRoot, ...) and
+     * POSIX (HOME, TMPDIR, ...) keys. Platform-irrelevant ones will simply be
+     * absent from process.env on the other OS and get skipped.
+     */
+    private backfillHostEnv(env: { [key: string]: any }): void {
+        // Keys that MCP subprocesses commonly need to start up & authenticate.
+        // Kept intentionally narrow — we do NOT want to leak unrelated host vars.
+        const criticalKeys = [
+            // PATH variants (Windows is case-insensitive, Node exposes both)
+            'PATH', 'Path',
+            // Windows userland / system directories
+            'APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH',
+            'SystemRoot', 'SystemDrive', 'windir', 'ProgramData',
+            'ProgramFiles', 'ProgramFiles(x86)', 'PATHEXT', 'COMSPEC', 'ComSpec',
+            'USERNAME', 'USERDOMAIN', 'COMPUTERNAME', 'OS',
+            // Temp dirs
+            'TEMP', 'TMP', 'TMPDIR',
+            // POSIX basics
+            'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE',
+            // Proxy / corp-network
+            'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY',
+            'http_proxy', 'https_proxy', 'no_proxy',
+            'ALL_PROXY', 'all_proxy',
+            // TLS / CA trust — needed behind MITM proxies
+            'NODE_EXTRA_CA_CERTS', 'NODE_TLS_REJECT_UNAUTHORIZED',
+            'SSL_CERT_DIR', 'SSL_CERT_FILE', 'CURL_CA_BUNDLE', 'REQUESTS_CA_BUNDLE',
+            // Node runtime tuning
+            'NODE_OPTIONS', 'NODE_PATH',
+        ];
+
+        for (const key of criticalKeys) {
+            const hostValue = process.env[key];
+            if (hostValue !== undefined && !(key in env)) {
+                env[key] = hostValue;
+            }
+        }
+    }
+
+    /**
+     * Remove Gemini auth env vars that would conflict with the selected mode.
+     * The Google GenAI SDK picks a code path based on which vars are present,
+     * so leftover values from a previous mode (or stale user-pasted junk) must
+     * be cleared before we inject the current mode's vars.
+     */
+    private stripConflictingGeminiEnv(env: { [key: string]: string }, authMode: string): void {
+        const apiKeyVars = ['GEMINI_API_KEY', 'GOOGLE_API_KEY'];
+        const vertexVars = ['GOOGLE_GENAI_USE_VERTEXAI', 'GOOGLE_CLOUD_PROJECT', 'GOOGLE_CREDENTIALS_JSON', 'GOOGLE_APPLICATION_CREDENTIALS'];
+        const toDelete = authMode === 'api-key' ? vertexVars : apiKeyVars;
+        for (const key of toDelete) {
+            if (key in env) {
+                delete env[key];
+            }
+        }
+    }
+
+    /**
+     * Inject Gemini API Key or Vertex AI credentials into Gemini servers.
+     * Branches on the user-selected auth mode:
+     *   - api-key     -> GEMINI_API_KEY
+     *   - vertex-json -> GOOGLE_GENAI_USE_VERTEXAI + GOOGLE_CREDENTIALS_JSON + GOOGLE_CLOUD_PROJECT
+     *   - adc         -> GOOGLE_GENAI_USE_VERTEXAI + GOOGLE_CLOUD_PROJECT (SDK resolves ADC)
      */
     private async injectGeminiCredentials(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
         const shouldInject = await secretService.shouldInjectGeminiApiKey();
         if (!shouldInject) {
-            debugLog('McpConfigManager', 'Gemini Integration not enabled or no credentials set, skipping');
+            debugLog('McpConfigManager', 'Gemini Integration not enabled or selected auth mode not configured, skipping');
             return;
         }
 
-        const apiKey = await secretService.getGeminiApiKey();
+        const config = await secretService.getGeminiIntegrationConfig();
+        const authMode = config.authMode;
+        const apiKey = config.apiKey;
         const vertexCredentials = await secretService.getVertexCredentials();
-        const vertexProject = secretService.getVertexProject();
+        const project = config.vertexProject;
 
         let injectedCount = 0;
         for (const [serverName, serverConfig] of Object.entries(mcpConfig.mcpServers)) {
-            if (this.isServerForProvider(serverName, serverConfig, 'gemini')) {
-                if (!serverConfig.env) {
-                    serverConfig.env = {};
-                }
-
-                if (apiKey) {
-                    serverConfig.env.GEMINI_API_KEY = apiKey;
-                    debugLog('McpConfigManager', `Injected Gemini API Key into server '${serverName}'`);
-                } else if (vertexCredentials) {
-                    // Vertex AI mode: set the flags the Gemini MCP server expects
-                    serverConfig.env.GOOGLE_GENAI_USE_VERTEXAI = 'true';
-                    serverConfig.env.GOOGLE_CREDENTIALS_JSON = vertexCredentials;
-                    // Resolve project: config/globalState first, then extract from credentials JSON
-                    let project = vertexProject;
-                    if (!project) {
-                        try { project = JSON.parse(vertexCredentials).project_id || ''; } catch { /* ignore */ }
-                    }
-                    if (project) {
-                        serverConfig.env.GOOGLE_CLOUD_PROJECT = project;
-                    }
-                    debugLog('McpConfigManager', `Injected Vertex AI credentials into server '${serverName}' (project: ${project})`);
-                }
-                injectedCount++;
+            if (!this.isServerForProvider(serverName, serverConfig, 'gemini')) {
+                continue;
             }
+            if (!serverConfig.env) {
+                serverConfig.env = {};
+            }
+
+            // Strip any stale / user-pasted auth vars from the *other* path so
+            // the Google GenAI SDK cannot see a conflicting hint. Without this,
+            // a leftover GEMINI_API_KEY (even a junk value like ".") will make
+            // the SDK prefer API-Key mode over Vertex ADC and crash at call time.
+            this.stripConflictingGeminiEnv(serverConfig.env, authMode);
+
+            switch (authMode) {
+                case 'api-key':
+                    if (apiKey) {
+                        serverConfig.env.GEMINI_API_KEY = apiKey;
+                        debugLog('McpConfigManager', `Injected Gemini API Key into server '${serverName}'`);
+                    }
+                    break;
+                case 'vertex-json':
+                    if (vertexCredentials && project) {
+                        serverConfig.env.GOOGLE_GENAI_USE_VERTEXAI = 'true';
+                        serverConfig.env.GOOGLE_CREDENTIALS_JSON = vertexCredentials;
+                        serverConfig.env.GOOGLE_CLOUD_PROJECT = project;
+                        debugLog('McpConfigManager', `Injected Vertex AI JSON credentials into server '${serverName}' (project: ${project})`);
+                    }
+                    break;
+                case 'adc':
+                    if (project) {
+                        serverConfig.env.GOOGLE_GENAI_USE_VERTEXAI = 'true';
+                        serverConfig.env.GOOGLE_CLOUD_PROJECT = project;
+                        debugLog('McpConfigManager', `Injected Vertex AI ADC mode into server '${serverName}' (project: ${project}; SDK will resolve ADC)`);
+                    }
+                    break;
+            }
+            injectedCount++;
         }
 
         if (injectedCount > 0) {
-            debugLog('McpConfigManager', `Gemini credentials injection complete, injected into ${injectedCount} server(s)`);
+            debugLog('McpConfigManager', `Gemini credentials injection complete (mode: ${authMode}), injected into ${injectedCount} server(s)`);
         }
     }
 

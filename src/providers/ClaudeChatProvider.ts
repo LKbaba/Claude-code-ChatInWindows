@@ -394,6 +394,12 @@ export class ClaudeChatProvider {
 					case 'deleteVertexCredentials':
 						this._deleteVertexCredentials();
 						return;
+					case 'updateGeminiAuthMode':
+						this._updateGeminiAuthMode(message.mode);
+						return;
+					case 'updateVertexProject':
+						this._updateVertexProject(message.project);
+						return;
 					// Grok Integration related message handling
 					case 'updateGrokIntegration':
 						this._updateGrokIntegration(message.enabled);
@@ -2113,6 +2119,7 @@ export class ClaudeChatProvider {
 				type: 'geminiIntegrationConfig',
 				data: {
 					enabled: config.enabled,
+					authMode: config.authMode,
 					hasApiKey: !!config.apiKey,
 					maskedKey: config.apiKey ? SecretService.maskApiKey(config.apiKey) : '',
 					hasVertexCredentials: config.hasVertexCredentials,
@@ -2123,6 +2130,32 @@ export class ClaudeChatProvider {
 			debugLog('Gemini', 'Config sent to webview');
 		} catch (error) {
 			debugError('Gemini', 'Failed to get config', error);
+		}
+	}
+
+	/**
+	 * Persist the user's Gemini auth mode selection.
+	 */
+	private async _updateGeminiAuthMode(mode: string): Promise<void> {
+		try {
+			if (mode === 'api-key' || mode === 'vertex-json' || mode === 'adc') {
+				await secretService.setGeminiAuthMode(mode);
+			} else {
+				debugError('Gemini', `Invalid auth mode received from webview: ${mode}`);
+			}
+		} catch (error) {
+			debugError('Gemini', 'Failed to update auth mode', error);
+		}
+	}
+
+	/**
+	 * Persist the Vertex AI GCP project ID (used by adc / vertex-json modes).
+	 */
+	private async _updateVertexProject(project: string): Promise<void> {
+		try {
+			await secretService.setVertexProject((project || '').trim());
+		} catch (error) {
+			debugError('Vertex', 'Failed to update project', error);
 		}
 	}
 
