@@ -24,7 +24,7 @@ export class BashCommandStrategy extends BaseOperationStrategy {
         );
     }
 
-    async undo(operation: Operation, context: OperationContext): Promise<UndoRedoResult> {
+    async undo(operation: Operation, _context: OperationContext): Promise<UndoRedoResult> {
         // Bash commands cannot be automatically undone
         return { 
             success: false, 
@@ -32,7 +32,7 @@ export class BashCommandStrategy extends BaseOperationStrategy {
         };
     }
 
-    async redo(operation: Operation, context: OperationContext): Promise<UndoRedoResult> {
+    async redo(operation: Operation, _context: OperationContext): Promise<UndoRedoResult> {
         // Bash commands cannot be automatically redone
         return { 
             success: false, 

@@ -31,7 +31,7 @@ import { HooksConfigManager, ConfiguredHook, HookTemplate } from '../services/Ho
 let testCounter = 0;
 
 async function createTempSettings(
-    scope: 'global' | 'project',
+    _scope: 'global' | 'project',
     content: Record<string, any>
 ): Promise<string> {
     const tmpDir = path.join(os.tmpdir(), `hooks-test-${Date.now()}-${testCounter++}`);

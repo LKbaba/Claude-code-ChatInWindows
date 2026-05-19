@@ -18,7 +18,7 @@ import { UndoRedoManager } from '../managers/UndoRedoManager';
 import { OperationPreviewService } from '../services/OperationPreview';
 import { expandVariables } from '../utils/configUtils';
 import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
-import { VALID_MODELS, ValidModel } from '../utils/constants';
+import { VALID_MODELS, ValidModel, MODEL_DISPLAY_NAMES } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
 import { SkillManager } from '../services/SkillManager';
 import { HooksConfigManager } from '../services/HooksConfigManager';
@@ -670,7 +670,7 @@ export class ClaudeChatProvider {
 		const callbacks = {
 			onData: (data: any) => {
 				this._messageProcessor.processJsonData(data, {
-					onSystemMessage: (text: string) => {
+					onSystemMessage: (_text: string) => {
 						// Handle system messages if needed
 					},
 					onAssistantMessage: (text: string) => {
@@ -694,7 +694,7 @@ export class ClaudeChatProvider {
 							}
 						});
 					},
-					onToolResult: (data: any) => {
+					onToolResult: (_data: any) => {
 						// Tool results are now handled by saveMessage to avoid duplication
 						// The saveMessage callback below will handle sending to webview
 					},
@@ -1077,10 +1077,6 @@ export class ClaudeChatProvider {
 
 
 	private _sendAndSaveMessage(message: { type: string, data: any }): void {
-		if (message.type === 'sessionInfo') {
-			message.data.sessionId;
-		}
-
 		// Send to UI
 		this._panel?.webview.postMessage(message);
 
@@ -1447,33 +1443,7 @@ export class ClaudeChatProvider {
 	 * Fixes incorrect display names for Sonnet 4.5, Haiku 4.5, Opus 4.5
 	 */
 	private _formatModelName(modelId: string): string {
-		// Model ID to display name mapping
-		const modelDisplayNames: { [key: string]: string } = {
-			// Opus series
-			'opus': 'Opus',
-			'claude-opus-4-7': 'Opus 4.7',
-			'claude-opus-4-6': 'Opus 4.6',
-			'claude-opus-4-5-20251101': 'Opus 4.5',
-			'claude-opus-4-20250514': 'Opus 4',
-			'claude-3-opus-20240229': 'Claude 3 Opus',
-			// Sonnet series
-			'sonnet': 'Sonnet',
-			'claude-sonnet-4-6': 'Sonnet 4.6',
-			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
-			'claude-sonnet-4-20250514': 'Sonnet 4',
-			'claude-3-5-sonnet-20241022': 'Sonnet 3.5',
-			'claude-3-5-sonnet-20240620': 'Sonnet 3.5',
-			'claude-3-sonnet-20240229': 'Claude 3 Sonnet',
-			// Haiku series
-			'haiku': 'Haiku',
-			'claude-haiku-4-5-20251001': 'Haiku 4.5',
-			'claude-3-haiku-20240307': 'Claude 3 Haiku',
-			// Special modes
-			'opusplan': 'Opus Plan',
-			'default': 'Default'
-		};
-
-		return modelDisplayNames[modelId] || modelId;
+		return MODEL_DISPLAY_NAMES[modelId] || modelId;
 	}
 
 	private _aggregateStatistics(entries: any[], type: string): any {
@@ -3591,7 +3561,7 @@ Please provide a well-structured summary.`;
 	}
 
 	// Generate compact summary in background
-	private async _generateCompactSummary(prompt: string, conversationData: any, languageMode?: boolean, selectedLanguage?: string): Promise<void> {
+	private async _generateCompactSummary(prompt: string, _conversationData: any, languageMode?: boolean, selectedLanguage?: string): Promise<void> {
 		// If language mode not specified, default to English
 		let actualPrompt = prompt;
 

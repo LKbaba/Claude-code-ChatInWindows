@@ -305,7 +305,7 @@ export class WindowsCompatibility {
 
     async createTerminal(
         name: string,
-        forModel = false
+        _forModel = false
     ): Promise<vscode.Terminal> {
         const { spawnOptions } = await this.getExecutionEnvironment(true);
         const terminalOptions: vscode.TerminalOptions = {

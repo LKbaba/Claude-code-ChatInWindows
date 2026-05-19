@@ -105,11 +105,25 @@ export const uiScript = `
 			}
 		}
 
-		// HTML escape function - uses the browser DOM to correctly escape all special characters
+		// HTML escape function - uses string replacement for performance
 		function escapeHtml(text) {
-			const div = document.createElement('div');
-			div.textContent = text;
-			return div.innerHTML;
+			if (!text) return '';
+			return String(text)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		}
+
+		// Generic modal open/close helpers
+		function openModal(modalId) {
+			const m = document.getElementById(modalId);
+			if (m) m.style.display = 'flex';
+		}
+		function closeModal(modalId) {
+			const m = document.getElementById(modalId);
+			if (m) m.style.display = 'none';
 		}
 
 		// Escape string for safe insertion into onclick attribute JS string (single-quoted)
@@ -1534,11 +1548,11 @@ export const uiScript = `
 
 		// Tools modal functions
 		function showToolsModal() {
-			document.getElementById('toolsModal').style.display = 'flex';
+			openModal('toolsModal');
 		}
 
 		function hideToolsModal() {
-			document.getElementById('toolsModal').style.display = 'none';
+			closeModal('toolsModal');
 		}
 
 		// Close tools modal when clicking outside
@@ -1556,8 +1570,7 @@ export const uiScript = `
 	 */
 	function showPluginsModal() {
 		console.log('[Plugins] showPluginsModal called');
-		// Show modal
-		document.getElementById('pluginsModal').style.display = 'flex';
+		openModal('pluginsModal');
 		// Request plugin list from backend
 		console.log('[Plugins] Requesting plugin list from backend');
 		vscode.postMessage({ type: 'getInstalledPlugins' });
@@ -1567,7 +1580,7 @@ export const uiScript = `
 	 * Hide plugins modal
 	 */
 	function hidePluginsModal() {
-		document.getElementById('pluginsModal').style.display = 'none';
+		closeModal('pluginsModal');
 	}
 
 	/**
@@ -1655,8 +1668,7 @@ export const uiScript = `
 	 */
 	function showSkillsModal() {
 		console.log('[Skills] showSkillsModal called');
-		// Show modal
-		document.getElementById('skillsModal').style.display = 'flex';
+		openModal('skillsModal');
 		// Update status to loading
 		const statusEl = document.getElementById('skills-status');
 		if (statusEl) {
@@ -1671,7 +1683,7 @@ export const uiScript = `
 	 * Hide skills modal
 	 */
 	function hideSkillsModal() {
-		document.getElementById('skillsModal').style.display = 'none';
+		closeModal('skillsModal');
 	}
 
 	/**
@@ -1843,10 +1855,10 @@ export const uiScript = `
 			}
 
 			// Escape skill name for use in onclick handlers
-			var escapedSkillName = escapeHtmlSkill(skill.name).replace(/'/g, "\\\\'");
+			var escapedSkillName = escapeHtml(skill.name).replace(/'/g, "\\\\'");
 
 			// Container div - click on item also copies
-			var html = '<div class="' + classes + '" data-skill-name="' + escapeHtmlSkill(skill.name) + '" data-skill-scope="' + skill.scope + '" onclick="handleSkillCopy(event, \\\'' + escapedSkillName + '\\\')">';
+			var html = '<div class="' + classes + '" data-skill-name="' + escapeHtml(skill.name) + '" data-skill-scope="' + skill.scope + '" onclick="handleSkillCopy(event, \\\'' + escapedSkillName + '\\\')">';
 
 			// Main content area
 			html += '<div class="skill-content">';
@@ -1856,7 +1868,7 @@ export const uiScript = `
 
 			// Left part: name + state button (merged Enabled/Disabled)
 			html += '<div class="skill-header-left">';
-			html += '<span class="skill-name-text">' + escapeHtmlSkill(skill.name) + '</span>';
+			html += '<span class="skill-name-text">' + escapeHtml(skill.name) + '</span>';
 
 			// Single state toggle button for workspace/user skills (shows current state, click to toggle)
 			if (!isPlugin) {
@@ -1871,11 +1883,11 @@ export const uiScript = `
 
 			// Plugin badge (if applicable)
 			if (showPluginBadge && skill.pluginName) {
-				html += '<span class="skill-plugin-badge">' + escapeHtmlSkill(skill.pluginName) + '</span>';
+				html += '<span class="skill-plugin-badge">' + escapeHtml(skill.pluginName) + '</span>';
 			}
 
 			// Copy button for ALL skills (including plugins)
-			html += '<button class="skill-copy-btn" onclick="handleSkillCopy(event, \\\'' + escapedSkillName + '\\\')" title="Copy: Use skills: ' + escapeHtmlSkill(skill.name) + '">';
+			html += '<button class="skill-copy-btn" onclick="handleSkillCopy(event, \\\'' + escapedSkillName + '\\\')" title="Copy: Use skills: ' + escapeHtml(skill.name) + '">';
 			html += '<svg class="icon-clipboard" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 4.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-7zM4.5 3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 11.5 3h-7z"/><path d="M10 1h-4a2 2 0 0 0-2 2h1a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1h1a2 2 0 0 0-2-2z"/></svg>';
 			html += '<svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>';
 			html += '</button>';
@@ -1885,7 +1897,7 @@ export const uiScript = `
 
 			// Second row: description
 			if (skill.description) {
-				html += '<div class="skill-description">' + escapeHtmlSkill(skill.description) + '</div>';
+				html += '<div class="skill-description">' + escapeHtml(skill.description) + '</div>';
 			} else {
 				html += '<div class="skill-description" style="opacity: 0.5;">No description</div>';
 			}
@@ -1943,20 +1955,6 @@ export const uiScript = `
 		});
 	}
 
-	/**
-	 * Helper function to escape HTML special characters for skills
-	 * @param {string} text - Text to escape
-	 * @returns {string} Escaped text
-	 */
-	function escapeHtmlSkill(text) {
-		if (!text) return '';
-		return text
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;')
-			.replace(/'/g, '&#039;');
-	}
 
 	// Close skills modal (click on background)
 	document.getElementById('skillsModal').addEventListener('click', function(e) {
@@ -1970,16 +1968,14 @@ export const uiScript = `
 	var currentHooks = [];
 
 	function showHooksModal() {
-		var modal = document.getElementById('hooksModal');
-		if (modal) { modal.style.display = 'flex'; }
+		openModal('hooksModal');
 		var status = document.getElementById('hooks-status');
 		if (status) { status.textContent = 'Loading hooks...'; }
 		vscode.postMessage({ type: 'getConfiguredHooks' });
 	}
 
 	function hideHooksModal() {
-		var modal = document.getElementById('hooksModal');
-		if (modal) { modal.style.display = 'none'; }
+		closeModal('hooksModal');
 	}
 
 	function handleRefreshHooks() {
@@ -2147,7 +2143,7 @@ export const uiScript = `
 		let currentModel = 'opus'; // Default model
 
 		function showModelSelector() {
-			document.getElementById('modelModal').style.display = 'flex';
+			openModal('modelModal');
 			// Select the current model radio button
 			const radioButton = document.getElementById('model-' + currentModel);
 			if (radioButton) {
@@ -2156,12 +2152,12 @@ export const uiScript = `
 		}
 
 		function hideModelModal() {
-			document.getElementById('modelModal').style.display = 'none';
+			closeModal('modelModal');
 		}
 
 		// Show compute mode selection modal
 		function showModeSelector() {
-			document.getElementById('modeModal').style.display = 'flex';
+			openModal('modeModal');
 			// Update radio button checked state
 			const radioButton = document.getElementById('mode-' + currentMode);
 			if (radioButton) {
@@ -2171,7 +2167,7 @@ export const uiScript = `
 
 		// Hide compute mode selection modal
 		function hideModeModal() {
-			document.getElementById('modeModal').style.display = 'none';
+			closeModal('modeModal');
 		}
 
 		// Select compute mode
@@ -2223,13 +2219,13 @@ export const uiScript = `
 
 		// Slash commands modal functions
 		function showSlashCommandsModal() {
-			document.getElementById('slashCommandsModal').style.display = 'flex';
+			openModal('slashCommandsModal');
 			// Request custom commands from extension
 			vscode.postMessage({ type: 'getCustomCommands' });
 		}
 
 		function hideSlashCommandsModal() {
-			document.getElementById('slashCommandsModal').style.display = 'none';
+			closeModal('slashCommandsModal');
 		}
 
 		// Thinking intensity modal functions
@@ -2238,11 +2234,11 @@ export const uiScript = `
 			vscode.postMessage({
 				type: 'getSettings'
 			});
-			document.getElementById('thinkingIntensityModal').style.display = 'flex';
+			openModal('thinkingIntensityModal');
 		}
 
 		function hideThinkingIntensityModal() {
-			document.getElementById('thinkingIntensityModal').style.display = 'none';
+			closeModal('thinkingIntensityModal');
 		}
 
 		// Language modal functions
@@ -2250,15 +2246,15 @@ export const uiScript = `
 			// If already enabled and user clicks label, show modal again
 			const labelElement = document.getElementById('languageModeLabel');
 			if (labelElement && labelElement.textContent !== 'Language Mode') {
-				document.getElementById('languageModal').style.display = 'flex';
+				openModal('languageModal');
 				return;
 			}
-			
+
 			// Request current settings from VS Code first
 			vscode.postMessage({
 				type: 'getSettings'
 			});
-			document.getElementById('languageModal').style.display = 'flex';
+			openModal('languageModal');
 		}
 
 		function hideLanguageModal() {
@@ -2456,13 +2452,13 @@ export const uiScript = `
 		let customCommands = [];
 
 		function showCustomCommandsModal() {
-			document.getElementById('customCommandsModal').style.display = 'flex';
+			openModal('customCommandsModal');
 			// Request current custom commands from extension
 			vscode.postMessage({ type: 'getCustomCommands' });
 		}
 
 		function hideCustomCommandsModal() {
-			document.getElementById('customCommandsModal').style.display = 'none';
+			closeModal('customCommandsModal');
 			clearCommandForm();
 		}
 
@@ -2593,23 +2589,25 @@ export const uiScript = `
 			hideModelModal();
 		}
 
+		// Model display names (single definition for the entire UI)
+		const modelDisplayNames = {
+			'opus': 'Opus',
+			'claude-opus-4-7': 'Opus 4.7',
+			'claude-opus-4-6': 'Opus 4.6',
+			'claude-opus-4-5-20251101': 'Opus 4.5',
+			'opusplan': 'Opus Plan',
+			'sonnet': 'Sonnet',
+			'claude-sonnet-4-6': 'Sonnet 4.6',
+			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+			'claude-haiku-4-5-20251001': 'Haiku 4.5',
+			'default': 'Default'
+		};
+
 		function selectModel(model, fromBackend = false) {
 			currentModel = model;
 
 			// Update display text
-			const displayNames = {
-				'opus': 'Opus',
-				'claude-opus-4-7': 'Opus 4.7',                   // Added Opus 4.7
-				'claude-opus-4-6': 'Opus 4.6',                   // Added Opus 4.6
-				'claude-opus-4-5-20251101': 'Opus 4.5',       // Added Opus 4.5
-				'opusplan': 'Opus Plan',                       // Added Opus Plan hybrid mode
-				'sonnet': 'Sonnet',
-				'claude-sonnet-4-6': 'Sonnet 4.6',
-				'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
-				'claude-haiku-4-5-20251001': 'Haiku 4.5',
-				'default': 'Model'
-			};
-			document.getElementById('selectedModel').textContent = displayNames[model] || model;
+			document.getElementById('selectedModel').textContent = modelDisplayNames[model] || model;
 
 			// Only send model selection to VS Code extension when not triggered from backend
 			if (!fromBackend) {
@@ -2648,19 +2646,7 @@ export const uiScript = `
 
 		// Initialize model display (without sending message)
 		currentModel = 'claude-sonnet-4-6';  // Default to Sonnet 4.6
-		const displayNames = {
-			'opus': 'Opus',
-			'claude-opus-4-7': 'Opus 4.7',                   // Added Opus 4.7
-			'claude-opus-4-6': 'Opus 4.6',                   // Added Opus 4.6
-			'claude-opus-4-5-20251101': 'Opus 4.5',       // Added Opus 4.5
-			'opusplan': 'Opus Plan',                       // Added Opus Plan hybrid mode
-			'sonnet': 'Sonnet',
-			'claude-sonnet-4-6': 'Sonnet 4.6',
-			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
-			'claude-haiku-4-5-20251001': 'Haiku 4.5',
-			'default': 'Default'
-		};
-		document.getElementById('selectedModel').textContent = displayNames[currentModel];
+		document.getElementById('selectedModel').textContent = modelDisplayNames[currentModel];
 
 		// Close model modal when clicking outside
 		document.getElementById('modelModal').addEventListener('click', (e) => {
@@ -4231,7 +4217,7 @@ export const uiScript = `
 		}
 
 		function hideSettingsModal() {
-			document.getElementById('settingsModal').style.display = 'none';
+			closeModal('settingsModal');
 		}
 		
 		function testMcpConnection() {

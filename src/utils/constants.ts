@@ -20,6 +20,26 @@ export const VALID_MODELS = [
 export type ValidModel = typeof VALID_MODELS[number];
 
 /**
+ * Model ID to display name mapping (single source of truth)
+ */
+export const MODEL_DISPLAY_NAMES: Record<string, string> = {
+    'opus': 'Opus',
+    'claude-opus-4-7': 'Opus 4.7',
+    'claude-opus-4-6': 'Opus 4.6',
+    'claude-opus-4-5-20251101': 'Opus 4.5',
+    'claude-opus-4-20250514': 'Opus 4',
+    'claude-3-opus-20240229': 'Claude 3 Opus',
+    'opusplan': 'Opus Plan',
+    'sonnet': 'Sonnet',
+    'claude-sonnet-4-6': 'Sonnet 4.6',
+    'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+    'claude-sonnet-4-20250514': 'Sonnet 4',
+    'claude-3-5-sonnet-20241022': 'Sonnet 3.5',
+    'claude-haiku-4-5-20251001': 'Haiku 4.5',
+    'default': 'Default'
+};
+
+/**
  * Tool status mapping for displaying human-readable status messages
  */
 export const TOOL_STATUS_MAP: Record<string, string> = {

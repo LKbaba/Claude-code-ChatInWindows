@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.1</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.2</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -615,15 +615,6 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('claude-opus-4-5-20251101')">
-					<input type="radio" name="model" id="model-opus-4-5" value="claude-opus-4-5-20251101">
-					<label for="model-opus-4-5">
-						<div class="model-title">Opus 4.5 - Previous flagship model</div>
-						<div class="model-description">
-							Best for coding, previous flagship model
-						</div>
-					</label>
-				</div>
 				<div class="tool-item" onclick="selectModel('claude-opus-4-7')">
 					<input type="radio" name="model" id="model-opus-4-7" value="claude-opus-4-7">
 					<label for="model-opus-4-7">
@@ -639,6 +630,15 @@ export function getBodyContent(): string {
 						<div class="model-title">Opus 4.6 - Previous flagship model</div>
 						<div class="model-description">
 							Adaptive Thinking & 1M context window
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectModel('claude-opus-4-5-20251101')">
+					<input type="radio" name="model" id="model-opus-4-5" value="claude-opus-4-5-20251101">
+					<label for="model-opus-4-5">
+						<div class="model-title">Opus 4.5 - Previous flagship model</div>
+						<div class="model-description">
+							Best for coding, previous flagship model
 						</div>
 					</label>
 				</div>

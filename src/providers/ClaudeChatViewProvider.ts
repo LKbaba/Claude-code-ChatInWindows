@@ -53,7 +53,7 @@ export class ClaudeChatViewProvider implements vscode.TreeDataProvider<vscode.Tr
 			items.push(separatorItem);
 
 			// Add conversation items (show only last 5 for cleaner UI)
-			conversationIndex.slice(0, 20).forEach((conv, index) => {
+			conversationIndex.slice(0, 20).forEach((conv, _index) => {
 				const item = new vscode.TreeItem(
 					conv.firstUserMessage.substring(0, 50) + (conv.firstUserMessage.length > 50 ? '...' : ''),
 					vscode.TreeItemCollapsibleState.None

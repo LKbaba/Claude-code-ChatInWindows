@@ -227,7 +227,7 @@ export class VsCodeConfigManager {
     private async cleanupMcpServersFromOtherLevel(
         config: vscode.WorkspaceConfiguration,
         savedTarget: vscode.ConfigurationTarget,
-        newServers: any[]
+        _newServers: any[]
     ): Promise<void> {
         // Check if workspace exists
         const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;

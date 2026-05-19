@@ -23,7 +23,7 @@ export class FileRenameStrategy extends BaseOperationStrategy {
         );
     }
 
-    async undo(operation: Operation, context: OperationContext): Promise<UndoRedoResult> {
+    async undo(operation: Operation, _context: OperationContext): Promise<UndoRedoResult> {
         const error = this.validateRenamePaths(operation);
         if (error) return { success: false, message: error };
 
@@ -37,7 +37,7 @@ export class FileRenameStrategy extends BaseOperationStrategy {
         );
     }
 
-    async redo(operation: Operation, context: OperationContext): Promise<UndoRedoResult> {
+    async redo(operation: Operation, _context: OperationContext): Promise<UndoRedoResult> {
         const error = this.validateRenamePaths(operation);
         if (error) return { success: false, message: error };
 

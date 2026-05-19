@@ -14,7 +14,7 @@ import { ApiConfigManager } from '../managers/config/ApiConfigManager';
 const exec = util.promisify(cp.exec);
 
 export class EnvironmentChecker {
-    public static async check(context: vscode.ExtensionContext): Promise<{ success: boolean, message: string }> {
+    public static async check(_context: vscode.ExtensionContext): Promise<{ success: boolean, message: string }> {
         const platform = process.platform;
 
         // Get configured CLI command name
