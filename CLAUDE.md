@@ -120,6 +120,27 @@ The cache uses two separate timestamps:
 
 Before v3.1.9, these were a single field, causing all caches for files older than 5 minutes to be perpetually "expired."
 
+### 7. Windows Toast Notification Hooks
+
+When building Stop-hook completion notifications on Windows, use the WinRT Toast API (not `MessageBox`, not `notify-send`). Two places use this pattern and must stay aligned:
+
+- User's personal hook script: `~/.claude/hooks/stop-notify.ps1` (standalone `.ps1` file referenced from the user's `settings.json`)
+- Plugin's built-in template: `buildWindowsToastNotifyCmd()` in `src/services/HooksConfigManager.ts` (embedded in a TS template literal, base64-encoded for `powershell -EncodedCommand`)
+
+**Anatomy of a Toast** — two separate icon slots:
+- **Top-left small icon** (next to the app name): controlled by `IconUri` registry value under `HKCU:\Software\Classes\AppUserModelId\<appId>`. To get the minimalist default square glyph (⊞), **do NOT set `IconUri`** (or delete it if set). Setting it to a PNG will show that PNG scaled small, which is often not what you want.
+- **Body image on the left** (large): controlled by `<image placement="appLogoOverride" src="file:///...">` inside the Toast XML. Located by searching `$env:CLAUDE_PROJECT_DIR\icon.png` then `$PWD\icon.png`. If not found, omit the `<image>` element entirely.
+
+**AppUserModelId cache trap** — Windows caches icons per AppUserModelId in its notification database. Deleting `IconUri` from the registry does NOT always refresh the displayed icon; the old one is stuck in the cache. To force a fresh look: **change `$appId` to a new string** (Windows treats it as a brand-new app with no cache) and delete the old registry key. Restarting `explorer.exe` sometimes works but is unreliable.
+
+**Sound** — the XML's `<audio src="ms-winsoundevent:Notification.Default" />` goes through the Toast audio pipeline, which can be silenced by Windows Focus Assist or per-app notification sound settings. Always add a fallback: `try { [System.Media.SystemSounds]::Asterisk.Play() } catch {}` right before `.Show($toast)`. This uses a different audio pipeline and works independently.
+
+**App name** — register `DisplayName = 'Claude Code'` on the AppUserModelId; otherwise the top-left shows "Windows PowerShell".
+
+**Anti-loop guard** — parse stdin JSON for `stop_hook_active`; if true, `exit 0` without firing the notification. Otherwise the hook triggers itself recursively when Claude responds to the hook's output.
+
+**Embedding in TypeScript** — for the plugin template, write the PowerShell as a clean multi-line TS template literal, then at runtime: `Buffer.from(script, 'utf16le').toString('base64')` and invoke as `powershell -NoProfile -EncodedCommand ${b64}`. This avoids the nested-quote/backslash escaping nightmare of a single-line inline command.
+
 ## Version Release Checklist
 
 When bumping the version, update **all five locations**:

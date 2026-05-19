@@ -543,11 +543,99 @@ export class HooksConfigManager {
         // Detect platform for platform-specific commands
         const isWin = process.platform === 'win32';
         const isMac = process.platform === 'darwin';
+        const buildWindowsToastNotifyCmd = (): string => {
+            const script = `$ErrorActionPreference = 'SilentlyContinue'
+$rawInput = [Console]::In.ReadToEnd()
+try { $json = $rawInput | ConvertFrom-Json } catch { $json = $null }
+if ($json -and $json.stop_hook_active) { Write-Output '{}'; exit 0 }
+
+# Determine project name from env, hook payload, or current directory
+$projectName = if ($env:CLAUDE_PROJECT_DIR) {
+    Split-Path $env:CLAUDE_PROJECT_DIR -Leaf
+} elseif ($json -and $json.cwd) {
+    Split-Path $json.cwd -Leaf
+} elseif ($PWD) {
+    Split-Path $PWD -Leaf
+} else {
+    'Unknown'
+}
+
+# Locate project icon.png without hardcoded absolute fallbacks
+$iconCandidates = @()
+if ($env:CLAUDE_PROJECT_DIR) { $iconCandidates += (Join-Path $env:CLAUDE_PROJECT_DIR 'icon.png') }
+if ($PWD) { $iconCandidates += (Join-Path $PWD 'icon.png') }
+
+$iconPath = $null
+foreach ($candidate in $iconCandidates) {
+    if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+        $iconPath = (Resolve-Path -LiteralPath $candidate).Path
+        break
+    }
+}
+
+# Register an AppUserModelID so the toast shows Claude Code as the app name
+$appId = 'ClaudeCodeChatTemplate'
+$regPath = "HKCU:\\Software\\Classes\\AppUserModelId\\$appId"
+try {
+    if (-not (Test-Path -LiteralPath $regPath)) {
+        New-Item -Path $regPath -Force | Out-Null
+    }
+    New-ItemProperty -LiteralPath $regPath -Name 'DisplayName' -Value 'Claude Code' -PropertyType String -Force | Out-Null
+    Remove-ItemProperty -LiteralPath $regPath -Name 'IconUri' -Force -ErrorAction SilentlyContinue
+} catch {}
+
+# XML escape helper for safe interpolation
+function Escape-Xml([string]$value) {
+    if ($null -eq $value) { return '' }
+    return $value.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;').Replace('"', '&quot;').Replace("'", '&apos;')
+}
+
+$escProject = Escape-Xml $projectName
+$imageXml = ''
+if ($iconPath) {
+    $iconUri = 'file:///' + ($iconPath -replace '\\\\', '/')
+    $escIconUri = Escape-Xml $iconUri
+    $imageXml = '<image placement="appLogoOverride" hint-crop="none" src="' + $escIconUri + '" />'
+}
+
+[void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+[void][Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime]
+[void][Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime]
+
+$xmlString = @"
+<toast>
+    <visual>
+        <binding template="ToastGeneric">
+            $imageXml
+            <text hint-style="title">Claude Code</text>
+            <text>Task Completed</text>
+            <text>Project: $escProject</text>
+        </binding>
+    </visual>
+    <audio src="ms-winsoundevent:Notification.Default" />
+</toast>
+"@
+
+try { [System.Media.SystemSounds]::Asterisk.Play() } catch {}
+
+try {
+    $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $xml.LoadXml($xmlString)
+
+    $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+    [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show($toast)
+} catch {}
+
+Write-Output '{}'`;
+
+            const encodedScript = Buffer.from(script, 'utf16le').toString('base64');
+            return `powershell -NoProfile -EncodedCommand ${encodedScript}`;
+        };
 
         // 1. Completion Notification (updated with stop_hook_active anti-loop check)
         let notifyCmd: string;
         if (isWin) {
-            notifyCmd = 'powershell -Command "$input = [Console]::In.ReadToEnd(); $json = $input | ConvertFrom-Json; if ($json.stop_hook_active) { exit 0 }; [System.Reflection.Assembly]::LoadWithPartialName(\'System.Windows.Forms\') | Out-Null; [System.Windows.Forms.MessageBox]::Show(\'Claude Code task completed\', \'Claude Code\', 0, 64) | Out-Null; echo \'{}\'"';
+            notifyCmd = buildWindowsToastNotifyCmd();
         } else if (isMac) {
             notifyCmd = 'bash -c \'input=$(cat); stop_active=$(echo "$input" | grep -o "\\"stop_hook_active\\":true"); if [ -n "$stop_active" ]; then exit 0; fi; osascript -e "display notification \\"Task completed\\" with title \\"Claude Code\\""; echo "{}"\'';
         } else {
