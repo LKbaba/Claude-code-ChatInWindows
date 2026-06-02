@@ -30,6 +30,35 @@ entry was removed.
 - `src/ui-v2/ui-script.ts` — added 4.8 to `modelDisplayNames`, added 4.8 `radioId` branch, removed 4.5 `radioId` branch, added `modelParts[3] === '8'` and `=== '5'` branches in both stats formatters
 - `package.json` — version 4.1.2 → 4.1.3
 
+## [4.1.2] - 2026-05-18
+
+### Security
+- **npm audit fix** — reduced vulnerabilities from 23 to 5
+
+### Changed
+- **tsconfig strict checks** — enabled `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noUnusedParameters`
+- **Unified escapeHtml** — replaced DOM-based version with string replacement; removed `escapeHtmlSkill` duplicate
+- **Centralized MODEL_DISPLAY_NAMES** — moved to `constants.ts`, deduplicated 3 separate mappings across the codebase
+- **Generic openModal/closeModal** — unified 11 modal show/hide patterns into two reusable functions
+- **Reordered model selector** — Opus 4.5 now listed below Opus 4.6 (Opus → 4.7 → 4.6 → 4.5)
+
+### Fixed
+- Removed dead code (`message.data.sessionId`)
+- Fixed 18 unused parameter warnings across strategy classes and managers
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `package.json` / `package-lock.json` | Version 4.1.1 → 4.1.2; npm audit fix |
+| `tsconfig.json` | Added `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noUnusedParameters` |
+| `src/utils/constants.ts` | Added `MODEL_DISPLAY_NAMES` map |
+| `src/ui-v2/ui-script.ts` | Unified escapeHtml, openModal/closeModal, removed duplicate model name mappings |
+| `src/ui-v2/getBodyContent.ts` | Version display v4.1.2; reordered model cards |
+| `src/providers/ClaudeChatProvider.ts` | Removed dead sessionId code; use centralized MODEL_DISPLAY_NAMES |
+| `src/managers/operations/strategies/*.ts` | Prefixed 18 unused parameters with underscore |
+| `src/managers/WindowsCompatibility.ts` | Unused parameter fix |
+| `src/utils/EnvironmentChecker.ts` | Unused parameter fix |
+
 ## [4.1.1] - 2026-04-21
 
 ### Fixed
