@@ -62,9 +62,10 @@ export class ClaudeChatProvider {
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
 		// Opus model series pricing
-		['claude-opus-4-7', { input: 5.00, output: 25.00 }],               // Opus 4.7 latest flagship with self-verification
+		['claude-opus-4-8', { input: 5.00, output: 25.00 }],               // Opus 4.8 latest flagship (May 2026)
+		['claude-opus-4-7', { input: 5.00, output: 25.00 }],               // Opus 4.7 previous flagship with self-verification
 		['claude-opus-4-6', { input: 5.00, output: 25.00 }],               // Opus 4.6 previous flagship with Adaptive Thinking
-		['claude-opus-4-5-20251101', { input: 5.00, output: 25.00 }],    // Opus 4.5 latest flagship model (66% price cut)
+		['claude-opus-4-5-20251101', { input: 5.00, output: 25.00 }],    // Opus 4.5 legacy (kept for history)
 		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }],   // Opus 4.1 flagship model
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
 		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],     // Claude 3 Opus
@@ -3146,17 +3147,22 @@ export class ClaudeChatProvider {
 			let message: string;
 
 			switch (model) {
+				case 'claude-opus-4-8':
+					displayName = 'Opus 4.8';
+					message = `Claude model switched to: ${displayName} (Latest flagship with adaptive thinking, 4× better code self-check & 1M context)`;
+					break;
 				case 'claude-opus-4-7':
 					displayName = 'Opus 4.7';
-					message = `Claude model switched to: ${displayName} (Latest flagship with enhanced vision, self-verification & 1M context)`;
+					message = `Claude model switched to: ${displayName} (Previous flagship with enhanced vision, self-verification & 1M context)`;
 					break;
 				case 'claude-opus-4-6':
 					displayName = 'Opus 4.6';
 					message = `Claude model switched to: ${displayName} (Previous flagship with Adaptive Thinking & 1M context)`;
 					break;
 				case 'claude-opus-4-5-20251101':
+					// Kept for backward compatibility — historical sessions or programmatic switches
 					displayName = 'Opus 4.5';
-					message = `Claude model switched to: ${displayName} (Previous flagship model, excellent for coding)`;
+					message = `Claude model switched to: ${displayName} (Legacy flagship)`;
 					break;
 				case 'opusplan':
 					displayName = 'Opus Plan';

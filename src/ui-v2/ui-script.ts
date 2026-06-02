@@ -2592,9 +2592,10 @@ export const uiScript = `
 		// Model display names (single definition for the entire UI)
 		const modelDisplayNames = {
 			'opus': 'Opus',
+			'claude-opus-4-8': 'Opus 4.8',
 			'claude-opus-4-7': 'Opus 4.7',
 			'claude-opus-4-6': 'Opus 4.6',
-			'claude-opus-4-5-20251101': 'Opus 4.5',
+			'claude-opus-4-5-20251101': 'Opus 4.5',           // Kept for historical sessions
 			'opusplan': 'Opus Plan',
 			'sonnet': 'Sonnet',
 			'claude-sonnet-4-6': 'Sonnet 4.6',
@@ -2623,13 +2624,16 @@ export const uiScript = `
 			// If modal is open, update radio button state
 			// Handle long model names with special processing
 			let radioId = 'model-' + model;
-			if (model === 'claude-opus-4-7') {
+			if (model === 'claude-opus-4-8') {
+				radioId = 'model-opus-4-8';
+			} else if (model === 'claude-opus-4-7') {
 				radioId = 'model-opus-4-7';
 			} else if (model === 'claude-opus-4-6') {
 				radioId = 'model-opus-4-6';
-			} else if (model === 'claude-opus-4-5-20251101') {
-				radioId = 'model-opus-4-5';
-			} else if (model === 'claude-sonnet-4-6') {
+			}
+			// Note: claude-opus-4-5 branch removed — UI radio no longer exists,
+			// but modelDisplayNames map above still resolves the title text for history sessions.
+			else if (model === 'claude-sonnet-4-6') {
 				radioId = 'model-sonnet-4-6';
 			} else if (model === 'claude-sonnet-4-5-20250929') {
 				radioId = 'model-sonnet-4-5';
@@ -4022,11 +4026,15 @@ export const uiScript = `
 										const modelName = modelParts[2];
 										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3';
 									} else if (modelParts[1] === 'opus' && modelParts[2] === '4') {
-										// Check if opus-4-7, opus-4-6 or opus-4-1
-										if (modelParts[3] === '7') {
+										// Check if opus-4-8, opus-4-7, opus-4-6, opus-4-5 or opus-4-1
+										if (modelParts[3] === '8') {
+											return 'Opus 4.8'; // claude-opus-4-8 -> Opus 4.8
+										} else if (modelParts[3] === '7') {
 											return 'Opus 4.7'; // claude-opus-4-7 -> Opus 4.7
 										} else if (modelParts[3] === '6') {
 											return 'Opus 4.6'; // claude-opus-4-6 -> Opus 4.6
+										} else if (modelParts[3] === '5') {
+											return 'Opus 4.5'; // claude-opus-4-5-20251101 -> Opus 4.5 (history only)
 										} else if (modelParts[3] === '1') {
 											return 'Opus 4.1'; // claude-opus-4-1-20250805 -> Opus 4.1
 										}
@@ -4080,11 +4088,15 @@ export const uiScript = `
 										const modelName = modelParts[2];
 										return modelName.charAt(0).toUpperCase() + modelName.slice(1) + ' 3';
 									} else if (modelParts[1] === 'opus' && modelParts[2] === '4') {
-										// Check if opus-4-7, opus-4-6 or opus-4-1
-										if (modelParts[3] === '7') {
+										// Check if opus-4-8, opus-4-7, opus-4-6, opus-4-5 or opus-4-1
+										if (modelParts[3] === '8') {
+											return 'Opus 4.8'; // claude-opus-4-8 -> Opus 4.8
+										} else if (modelParts[3] === '7') {
 											return 'Opus 4.7'; // claude-opus-4-7 -> Opus 4.7
 										} else if (modelParts[3] === '6') {
 											return 'Opus 4.6'; // claude-opus-4-6 -> Opus 4.6
+										} else if (modelParts[3] === '5') {
+											return 'Opus 4.5'; // claude-opus-4-5-20251101 -> Opus 4.5 (history only)
 										} else if (modelParts[3] === '1') {
 											return 'Opus 4.1'; // claude-opus-4-1-20250805 -> Opus 4.1
 										}

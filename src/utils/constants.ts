@@ -10,9 +10,10 @@ export const VALID_MODELS = [
     'sonnet',
     'default',
     'opusplan',                       // Opus Plan hybrid mode
-    'claude-opus-4-7',                // Opus 4.7 - Latest flagship with enhanced vision & self-verification
+    'claude-opus-4-8',                // Opus 4.8 - Latest flagship with adaptive thinking & enhanced reliability
+    'claude-opus-4-7',                // Opus 4.7 - Previous flagship with enhanced vision & self-verification
     'claude-opus-4-6',                // Opus 4.6 - Previous flagship with Adaptive Thinking
-    'claude-opus-4-5-20251101',       // Opus 4.5
+    'claude-opus-4-5-20251101',       // Opus 4.5 - Legacy (hidden from UI but kept for history/pricing)
     'claude-sonnet-4-6',              // Sonnet 4.6 - Latest intelligent model
     'claude-sonnet-4-5-20250929',     // Sonnet 4.5
     'claude-haiku-4-5-20251001'       // Haiku 4.5
@@ -24,9 +25,10 @@ export type ValidModel = typeof VALID_MODELS[number];
  */
 export const MODEL_DISPLAY_NAMES: Record<string, string> = {
     'opus': 'Opus',
+    'claude-opus-4-8': 'Opus 4.8',
     'claude-opus-4-7': 'Opus 4.7',
     'claude-opus-4-6': 'Opus 4.6',
-    'claude-opus-4-5-20251101': 'Opus 4.5',
+    'claude-opus-4-5-20251101': 'Opus 4.5',           // Kept for historical session display
     'claude-opus-4-20250514': 'Opus 4',
     'claude-3-opus-20240229': 'Claude 3 Opus',
     'opusplan': 'Opus Plan',

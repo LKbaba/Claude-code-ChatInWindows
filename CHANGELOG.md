@@ -2,6 +2,34 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.1.3] - 2026-06-02
+
+### Added
+- **Claude Opus 4.8 model support** — Anthropic's new flagship released 2026-05-28
+  - Added `claude-opus-4-8` to `VALID_MODELS`, `MODEL_PRICING` ($5/$25 per M tokens), and `MODEL_DISPLAY_NAMES`
+  - New model selector UI card: "Opus 4.8 - Latest flagship model"
+  - Adaptive thinking, ~4× better code self-check vs Opus 4.7, 1M context window
+  - `_setSelectedModel` switch updated with new toast message for 4.8
+
+### Changed
+- Demoted Opus 4.7 description from "Latest flagship" to "Previous flagship" across all UI surfaces (model selector card + switch toast)
+- **Opus 4.5 hidden from model selector UI**: radio card removed from `getBodyContent.ts`; the corresponding `radioId` branch removed from `ui-script.ts`
+- Bumped version to 4.1.3
+
+### Notes (backward compatibility)
+Historical chat sessions referencing `claude-opus-4-5-20251101` continue to render
+their model name and cost statistics correctly — the model ID is still registered
+in `VALID_MODELS`, `MODEL_PRICING`, `MODEL_DISPLAY_NAMES`, the `_setSelectedModel`
+switch case, and both `modelParts[3] === '5'` parser branches. Only its UI selector
+entry was removed.
+
+### Files Modified
+- `src/utils/constants.ts` — added 4.8 to `VALID_MODELS` + `MODEL_DISPLAY_NAMES`
+- `src/providers/ClaudeChatProvider.ts` — added 4.8 to `MODEL_PRICING` Map and `_setSelectedModel` switch
+- `src/ui-v2/getBodyContent.ts` — added 4.8 card, demoted 4.7, removed 4.5 card, version bump
+- `src/ui-v2/ui-script.ts` — added 4.8 to `modelDisplayNames`, added 4.8 `radioId` branch, removed 4.5 `radioId` branch, added `modelParts[3] === '8'` and `=== '5'` branches in both stats formatters
+- `package.json` — version 4.1.2 → 4.1.3
+
 ## [4.1.1] - 2026-04-21
 
 ### Fixed
