@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude Code GUI / ChatUI",
   "description": "Full-featured GUI for Claude Code CLI — Windows (no WSL) & macOS. Third-party API support, MCP plugins, Skills & Hooks system, Undo/Redo, real-time token tracking. Actively maintained.",
-  "version": "4.1.3",
+  "version": "5.0.1",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -156,6 +156,46 @@
           "type": "string",
           "default": "C:\\Program Files\\Git\\bin\\bash.exe",
           "description": "Path to git-bash.exe on Windows. This is required for non-WSL execution to provide a Posix-like shell environment for the Claude CLI."
+        },
+        "claudeCodeChatUI.permission.mode": {
+          "type": "string",
+          "enum": [
+            "bypassPermissions",
+            "auto",
+            "acceptEdits",
+            "plan",
+            "default"
+          ],
+          "enumDescriptions": [
+            "绕过所有权限确认，自动执行全部操作（等价于旧版 --dangerously-skip-permissions，体验最顺滑但风险最高）",
+            "由 Claude 内置分类器自动审批（需 claude v2.1.83+）",
+            "自动接受文件编辑，其它操作仍需确认",
+            "计划模式：只读分析、提出计划，不直接改动",
+            "默认模式：按 Claude CLI 默认策略逐项确认"
+          ],
+          "default": "bypassPermissions",
+          "scope": "resource",
+          "markdownDescription": "Claude 交互模式的权限档位，作为 `--permission-mode` 传给 CLI。默认 `bypassPermissions` 保持原有顺滑体验，但会自动执行所有操作（包括写文件、运行命令），请确保在受信任的工作区使用。本期不提供交互审批 UI，仅切换模式。"
+        },
+        "claudeCodeChatUI.completion.useStopHookFallback": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "markdownDescription": "启用「Stop hook 兜底完成检测」(B2)。主完成信号来自 transcript 的 `end_turn`(B1)；开启此项会在 `~/.claude/settings.json` 注入一个一次性 Stop hook（与你已有 hooks 合并、幂等、可清理），每轮结束写入哨兵文件作为兜底解锁信号，仅在 B1 漏判时生效且与之去重。关闭时完全不修改你的 settings.json。"
+        },
+        "claudeCodeChatUI.backup.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "markdownDescription": "发送消息前自动创建「恢复检查点」(Restore)：把工作区当前状态提交到一个独立的备份 git 仓库（不影响你项目自己的 `.git`），便于一键回滚 Claude 的改动。**默认关闭**——实际使用中价值有限且会带来额外 git 耗时。开启后即可使用一键回滚；即使开启，单次 git 操作超过 12 秒也会自动放弃、继续发送，绝不冻结界面。"
+        },
+        "claudeCodeChatUI.contextWindowTokens": {
+          "type": "number",
+          "default": 200000,
+          "minimum": 1000,
+          "maximum": 1000000,
+          "scope": "resource",
+          "markdownDescription": "Context Window 进度条的总容量（分母），单位 tokens。默认 `200000`（当前 Claude 模型的标准上下文窗口）。如启用了 1M beta 上下文，可放宽到 `400000`。**不建议超过模型实际上限**，否则进度条会显著低估真实占用。"
         },
         "claudeCodeChatUI.thinking.enabled": {
           "type": "boolean",
@@ -320,7 +360,11 @@
         },
         "claudeCodeChatUI.gemini.authMode": {
           "type": "string",
-          "enum": ["api-key", "vertex-json", "adc"],
+          "enum": [
+            "api-key",
+            "vertex-json",
+            "adc"
+          ],
           "default": "api-key",
           "description": "Gemini authentication mode: 'api-key' (AI Studio), 'vertex-json' (Vertex AI with imported JSON), 'adc' (Vertex AI with Application Default Credentials)"
         },
@@ -347,10 +391,12 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "test:hooks": "mocha --require ts-node/register --timeout 10000 src/test/HooksConfigManager.test.ts",
-    "package": "vsce package"
+    "package": "vsce package",
+    "package:win": "vsce package --target win32-x64"
   },
   "dependencies": {
-    "glob": "^10.3.10"
+    "glob": "^10.3.10",
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

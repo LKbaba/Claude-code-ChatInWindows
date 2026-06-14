@@ -1,12 +1,32 @@
 /**
  * Claude Process Service
- * Manages Claude CLI process lifecycle including spawning, monitoring, and termination
+ *
+ * v5.0.1: Drives an INTERACTIVE `claude` CLI through a node-pty pseudo-terminal
+ * (no `-p`, no stream-json) so usage is billed against the user's subscription.
+ *
+ * Architecture:
+ *   - A single PTY session is long-lived and reused across multiple turns.
+ *     The first message spawns the session; subsequent messages are injected
+ *     into the same PTY (bracketed paste + Enter).
+ *   - Answer content comes from the Claude transcript JSONL (TranscriptTailService),
+ *     NOT from the PTY's raw stdout. PTY stdout (TUI ANSI) is used only for
+ *     session-readiness detection and debugging.
+ *   - Turn completion is signalled by the transcript (`stop_reason === "end_turn"`,
+ *     B1) via `onTurnComplete`. `onClose` now means the whole PTY session exited.
+ *
+ * Windows note: the claude executable is spawned directly (node-pty wraps a
+ * `.cmd` in cmd.exe automatically, so an npm-installed claude.cmd runs fine).
+ * The winpty backend is forced (useConpty:false) because ConPTY deadlocks when
+ * spawned from the VS Code extension host. On first launch claude may show a
+ * blocking dialog (workspace-trust, default "Yes"; or bypass-permissions, default
+ * "No, exit"); the session answers it event-driven the moment it paints, before
+ * injecting the first message (see _handleStartupGate).
  */
 
-import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as pty from 'node-pty';
 import { WindowsCompatibility, ExecutionEnvironment } from '../managers/WindowsCompatibility';
 import { ConfigurationManagerFacade } from '../managers/config/ConfigurationManagerFacade';
 import { ConversationManager } from '../managers/ConversationManager';
@@ -14,6 +34,9 @@ import { VALID_MODELS, ValidModel } from '../utils/constants';
 import { getMcpSystemPrompts } from '../utils/mcpPrompts';
 import { debugLog, debugError } from './DebugLogger';
 import { SecretService } from './SecretService';
+import { TranscriptTailService } from './TranscriptTailService';
+import { findLatestSessionFile, resolveSessionFile } from './TranscriptLocator';
+import { StopHookFallbackService } from './StopHookFallbackService';
 
 export interface ProcessOptions {
     message: string;
@@ -24,20 +47,137 @@ export interface ProcessOptions {
     customInstructions?: string;
     resumeFrom?: string;
     imagesInMessage?: string[];
+    // Resume a session's PTY WITHOUT injecting an initial prompt. Used to bring a
+    // restored/loaded conversation back to a live TUI so a slash command (e.g.
+    // /compact) can be injected. Requires sessionId/resumeFrom.
+    skipInitialMessage?: boolean;
     // Note: planMode and thinkingMode are handled through message prefixes
-    // thinkingIntensity is also no longer needed here
 }
 
 export interface ProcessCallbacks {
     onData: (data: any) => void;
     onError: (error: string) => void;
+    /** Fired when the whole PTY session exits (VS Code close / endSession), NOT per-turn. */
     onClose: (code: number | null) => void;
+    /** v5.0.1: fired when a single turn finishes (transcript end_turn, B1). */
+    onTurnComplete?: (meta: { stopReason: string; sessionId?: string }) => void;
 }
 
+/** Valid Claude interactive permission modes (decision C). */
+const PERMISSION_MODES = ['bypassPermissions', 'auto', 'acceptEdits', 'plan', 'default'];
+
 export class ClaudeProcessService {
-    private _currentProcess: cp.ChildProcess | undefined;
-    // Guards against concurrent startProcess() calls (e.g. double-click on Send)
-    private _isStarting: boolean = false;
+    // The long-lived interactive PTY session (undefined => no session alive).
+    private _pty: pty.IPty | undefined;
+    // Tails the session's transcript JSONL; routes lines to the current callbacks.
+    private _tail: TranscriptTailService | undefined;
+    // Refreshed on every startProcess() call (the provider builds new callbacks per turn).
+    private _callbacks: ProcessCallbacks | undefined;
+    // Absolute path of the transcript file currently being tailed.
+    private _currentTranscriptFile: string | undefined;
+    // Optional Stop-hook-based completion fallback (B2). Off unless opted in.
+    private _stopHookFallback = new StopHookFallbackService();
+
+    // Lifecycle flags.
+    private _isStarting = false;          // guards concurrent startProcess() (first spawn)
+    private _turnInProgress = false;      // a generation is in flight (injected, not yet end_turn)
+    private _sessionReady = false;        // PTY TUI has settled and accepts input
+
+    // Readiness detection (silence-window heuristic on PTY stdout).
+    private _readyTimer: NodeJS.Timeout | undefined;
+    private _readyResolve: (() => void) | undefined;
+    // When the current PTY session was spawned (drives READY_MIN_MS floor).
+    private _spawnTs = 0;
+
+    // Subsequent-turn reinject watchdog timer: re-sends a dropped paste when the
+    // transcript fails to grow after injection. undefined => not armed.
+    private _reinjectTimer: NodeJS.Timeout | undefined;
+
+    // Guards against two slash commands typing into the PTY at the same time.
+    // injectSlashCommand types char-by-char with delays; if a second call starts
+    // before the first finishes, their keystrokes interleave into garbage
+    // (observed: "//mmooddeell..." when /model was injected twice). True while a
+    // command is mid-injection.
+    private _slashInjecting = false;
+
+    // Throttled PTY raw-stream debug logging (avoid flooding on TUI repaints).
+    private _ptyLogLastTs = 0;
+    private _ptyLogBytes = 0;
+
+    // Accumulated pre-ready PTY output, used to detect startup gating dialogs
+    // (e.g. the workspace-trust / bypass-permissions confirmation). Capped to the
+    // most recent bytes.
+    private _startupBuffer = '';
+    // Event-driven startup-gate guard: a launch shows at most one blocking dialog
+    // and we must answer it exactly once, the instant it paints (it appears ~650ms
+    // in, well before the input box settles), so the prompt's own Enter never
+    // lands on it. Set true after we answer so repaints don't re-trigger.
+    private _startupGateHandled = false;
+
+    // Input-box readiness: a POSITIVE signal that the TUI input box can actually
+    // accept keystrokes, detected from its footer marker ("shift+tab to cycle" /
+    // "? for shortcuts"). The silence heuristic only proves output went quiet,
+    // which on a cold --resume can happen ~15s BEFORE the input box paints; a
+    // slash command typed into that gap is silently eaten. Slash-command
+    // injection (/compact, /model) gates on this flag instead.
+    private _inputBoxReady = false;
+    private _inputBoxReadyResolvers: Array<(ready: boolean) => void> = [];
+    // Rolling buffer for footer-marker scanning; kept separate from
+    // _startupBuffer because the marker can paint AFTER silence-readiness fires
+    // (so we must keep scanning post-ready), and capped to recent bytes.
+    private _markerBuffer = '';
+
+    private static readonly READY_SILENCE_MS = 400;   // quiet window => TUI ready
+    // Floor before a silence window may resolve "ready". claude prints a short
+    // preamble (cmd.exe title + node warnings) then pauses >400ms loading its
+    // ~13MB bundle; that startup gap is NOT the input box. Injecting into it
+    // gets the prompt silently eaten (and the bypass dialog hasn't painted yet,
+    // so the gate detector would miss it). The real input box renders ~2s in.
+    private static readonly READY_MIN_MS = 1800;
+    private static readonly READY_HARD_CAP_MS = 8000; // resolve anyway after this
+    private static readonly DISCOVER_TIMEOUT_MS = 12000; // total budget to land the first prompt
+    private static readonly DISCOVER_POLL_MS = 200;
+    // Re-inject the prompt this often while waiting for the transcript to appear.
+    // claude silently DROPS a paste sent before its input box is interactive
+    // (e.g. MCP servers still loading after the TUI first paints), and the
+    // transcript is created only once a prompt is actually accepted -> its
+    // absence means the prompt was eaten, so we re-send. Dropped pastes are not
+    // buffered (verified: the transcript shows the prompt exactly once after
+    // several re-injects), so repeating injection cannot duplicate the message.
+    private static readonly REINJECT_INTERVAL_MS = 3500;
+    private static readonly PTY_LOG_THROTTLE_MS = 300; // min gap between raw-stream log lines
+    private static readonly PTY_LOG_PREVIEW_CHARS = 160; // truncate raw-stream preview
+    private static readonly STARTUP_BUFFER_CAP = 16000; // retained pre-ready bytes for gate detection
+    private static readonly STARTUP_GATE_NAV_DELAY_MS = 200; // pause between Down and Enter when accepting the gate
+    // Delay between writing a bracketed-paste block and the submitting Enter.
+    // claude's TUI shows a transient "Pasting" state; an Enter sent in the same
+    // tick is swallowed and the prompt never submits (no turn, no response). A
+    // short settle window lets the paste commit first. Validated against the
+    // native claude.exe by scripts/verify-claude-trust-paste.js.
+    private static readonly PASTE_SUBMIT_DELAY_MS = 250;
+    // Subsequent-turn reinject watchdog: max re-sends before giving up. The first
+    // turn uses _discoverWithReinject instead; this covers turns 2+, where a paste
+    // can still be silently dropped if the input box is briefly busy (heavy MCP
+    // activity, or a new turn submitted right after the previous turn's very early
+    // transcript flush).
+    private static readonly REINJECT_MAX_RETRIES = 3;
+
+    // Slash-command injection (e.g. `/compact`). Unlike user prompts, slash
+    // commands are TYPED char-by-char (not bracketed-paste) so the TUI's
+    // slash-command menu recognizes and arms the command; a per-char gap lets
+    // the menu filter, and a longer settle window precedes the submitting Enter.
+    // Validated against the native claude.exe by scripts/verify-claude-precompact.js.
+    private static readonly SLASH_CHAR_DELAY_MS = 60;
+    private static readonly SLASH_SUBMIT_DELAY_MS = 1000;
+    // Max time injectSlashCommand waits for the input-box footer marker before
+    // typing. A cold --resume (e.g. /compact on a freshly loaded conversation)
+    // can take ~15-20s to paint the input box; an alive idle session resolves
+    // instantly (marker was already seen at startup). Bounded so we never block
+    // forever — on timeout we type anyway (best-effort, better than nothing).
+    private static readonly SLASH_READY_TIMEOUT_MS = 120_000;
+
+    // Strips ANSI/OSC/control sequences from a terminal stream.
+    private static readonly ANSI_PATTERN = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|[PX^_].*?\x1b\\|[@-_])/g;
 
     constructor(
         private _windowsCompatibility: WindowsCompatibility,
@@ -45,136 +185,737 @@ export class ClaudeProcessService {
         private _conversationManager: ConversationManager
     ) {}
 
-    /**
-     * Check if a process is currently running
-     */
+    /** True while a PTY session is alive (session-alive, not turn-in-progress). */
     public isProcessRunning(): boolean {
-        return this._currentProcess !== undefined;
+        return this._pty !== undefined;
+    }
+
+    /** True while a generation is in flight (between injection and end_turn). */
+    public isTurnInProgress(): boolean {
+        return this._turnInProgress;
     }
 
     /**
-     * Get the current process
+     * Type a slash command (e.g. `/compact`) into the live PTY and submit it.
+     * Used for native compaction (route B): the command runs server-side inside
+     * the existing session — no new turn/session is started, so this does NOT
+     * touch `_turnInProgress` or the reinject watchdog. If a turn is in flight
+     * the TUI queues the command and runs it once idle.
      */
-    public getCurrentProcess(): cp.ChildProcess | undefined {
-        return this._currentProcess;
+    public async injectSlashCommand(command: string): Promise<void> {
+        if (!this._pty) {
+            debugError('ClaudeProcessService', 'injectSlashCommand called with no live PTY', { command });
+            return;
+        }
+        // Refuse to interleave with another in-flight slash injection: char-by-char
+        // typing from two concurrent calls would mangle the input box (e.g.
+        // "//mmooddeell..." when /model fired twice from a double UI event).
+        if (this._slashInjecting) {
+            debugError('ClaudeProcessService', 'Slash command already injecting; ignoring concurrent request', { command });
+            return;
+        }
+        this._slashInjecting = true;
+        try {
+            // Gate on the input box actually being ready to accept keystrokes. After
+            // a cold --resume the silence heuristic resolves "ready" well before the
+            // input box paints, so typing immediately gets the command silently
+            // eaten (the historical /compact-after-resume timeout). The footer marker
+            // is the reliable positive signal; an alive idle session resolves at once.
+            const ready = await this.waitForInputBoxReady(ClaudeProcessService.SLASH_READY_TIMEOUT_MS);
+            if (!this._pty) {
+                debugError('ClaudeProcessService', 'PTY exited while waiting for input-box readiness', { command });
+                return;
+            }
+            if (!ready) {
+                debugError('ClaudeProcessService', 'Input box not confirmed ready before slash command; typing anyway', { command });
+            }
+            debugLog('ClaudeProcessService', 'Injecting slash command', { command, inputBoxReady: ready });
+            for (const ch of command) {
+                this._pty.write(ch);
+                await this._sleep(ClaudeProcessService.SLASH_CHAR_DELAY_MS);
+            }
+            // Settle, then submit. (Enter in the same tick is swallowed by the TUI.)
+            await this._sleep(ClaudeProcessService.SLASH_SUBMIT_DELAY_MS);
+            try {
+                this._pty?.write('\r');
+                debugLog('ClaudeProcessService', 'Submitted slash command (Enter sent after settle)');
+            } catch (error) {
+                debugError('ClaudeProcessService', 'Failed to submit slash command Enter', error);
+            }
+        } finally {
+            this._slashInjecting = false;
+        }
+    }
+
+    private _sleep(ms: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     /**
-     * Start a new Claude process
+     * Resolves true once the TUI input box is ready to accept keystrokes (its
+     * footer marker has painted), or false on timeout. Resolves immediately if
+     * the marker was already seen (alive idle session). Used to gate slash
+     * commands so they are not typed into a TUI that cannot yet receive them.
+     */
+    public waitForInputBoxReady(timeoutMs: number): Promise<boolean> {
+        if (this._inputBoxReady) {
+            return Promise.resolve(true);
+        }
+        if (!this._pty) {
+            return Promise.resolve(false);
+        }
+        return new Promise<boolean>((resolve) => {
+            let settled = false;
+            const done = (val: boolean): void => {
+                if (settled) { return; }
+                settled = true;
+                resolve(val);
+            };
+            this._inputBoxReadyResolvers.push((ready: boolean) => done(ready));
+            setTimeout(() => done(false), timeoutMs);
+        });
+    }
+
+    /**
+     * Start (or reuse) the interactive PTY session and inject one user message.
+     * If a session is already alive, the message is injected into it directly.
      */
     public async startProcess(options: ProcessOptions, callbacks: ProcessCallbacks): Promise<void> {
-        if (this._currentProcess) {
-            throw new Error('A Claude process is already running');
+        // Always refresh callbacks: the provider creates a fresh callbacks object per turn.
+        this._callbacks = callbacks;
+
+        // Session already alive -> this is a subsequent turn, inject + watchdog.
+        if (this._pty) {
+            this._beginSubsequentTurn(options);
+            return;
         }
+
         if (this._isStarting) {
-            throw new Error('A Claude process is already starting');
+            throw new Error('A Claude session is already starting');
         }
-
         this._isStarting = true;
-        try {
-        const { execEnvironment, args } = await this._prepareProcessExecution(options);
-        
-        if (!execEnvironment.claudeExecutablePath) {
-            throw new Error('Claude executable path could not be determined');
-        }
 
-        // Fix Windows path issue when using Git Bash
-        const fixedCwd = this._windowsCompatibility.fixWindowsPath(options.cwd, execEnvironment.spawnOptions);
-        
-        // Set the working directory in spawn options
-        execEnvironment.spawnOptions.cwd = fixedCwd;
-        
-        // Spawn the process
-        debugLog('ClaudeProcessService', 'Spawning Claude', {
-            executable: execEnvironment.claudeExecutablePath,
-            args: args,
-            cwd: fixedCwd,
-            shell: execEnvironment.spawnOptions.shell,
-            argsLength: args.length,
-            argsDetails: args.map((arg, i) => `[${i}]: "${arg}"`)
-        });
-
-        // ==================== DIAGNOSTIC: env handed to Claude CLI ====================
-        // Claude CLI inherits this env. Whether the MCP subprocess spawned by Claude CLI
-        // further inherits it depends on Claude CLI's internal implementation. If critical
-        // system vars (APPDATA/USERPROFILE/HOME/PATH) are missing here, google-auth will
-        // fail inside Gemini-mcp even when mcp-config.json env is correct.
         try {
-            const env = (execEnvironment.spawnOptions.env || process.env) as Record<string, string | undefined>;
-            const keysOfInterest = [
-                'APPDATA', 'USERPROFILE', 'HOME', 'PATH',
-                'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY',
-                'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_GENAI_USE_VERTEXAI', 'GOOGLE_CLOUD_PROJECT',
-                'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
-            ];
-            const summary: Record<string, string> = {};
-            for (const k of keysOfInterest) {
-                const v = env[k];
-                if (v === undefined) {
-                    summary[k] = '(missing)';
-                } else if (/key|token|secret|credential|password/i.test(k)) {
-                    summary[k] = `<set len=${v.length}>`;
+            const { execEnvironment, args } = await this._prepareProcessExecution(options);
+            if (!execEnvironment.claudeExecutablePath) {
+                throw new Error('Claude executable path could not be determined');
+            }
+
+            // Snapshot transcript dir BEFORE launch so we can discover the new session file.
+            const since = Date.now();
+
+            // Spawn the interactive PTY session.
+            this._spawnSession(execEnvironment, args, options.cwd);
+
+            // Enable the optional Stop hook completion fallback (B2) for this session.
+            this._enableStopHookFallback();
+
+            // Wait for the TUI to settle before injecting the first message. Any
+            // blocking startup dialog (workspace-trust or bypass-permissions) is
+            // answered event-driven by _handleStartupGate the moment it paints,
+            // so by the time readiness resolves the real input box is live.
+            await this._waitForReady();
+
+            // Resume case: the transcript file already exists -> tail only new appends.
+            const sid = options.resumeFrom || options.sessionId;
+            if (sid) {
+                const file = resolveSessionFile(options.cwd, sid);
+                let fromOffset = 0;
+                try { fromOffset = fs.statSync(file).size; } catch { /* not yet on disk */ }
+                this._startTail(file, fromOffset);
+            }
+
+            // Resume-only mode (e.g. bring a loaded conversation back to life so a
+            // slash command can be injected): the PTY is live and tailing; do NOT
+            // inject a prompt and do NOT run fresh-session discovery.
+            if (options.skipInitialMessage) {
+                return;
+            }
+
+            // Inject the first user message.
+            this._beginTurn(options);
+
+            // Fresh session: claude writes the transcript only after it accepts
+            // the first prompt. Discover the new jsonl, re-injecting on an interval
+            // until it appears (the input box can silently drop the first paste
+            // while still loading, e.g. MCP servers), then tail from the beginning.
+            if (!sid) {
+                const file = await this._discoverWithReinject(options, since);
+                if (file) {
+                    this._startTail(file, 0);
                 } else {
-                    summary[k] = v.length > 80 ? v.slice(0, 77) + '...' : v;
+                    debugError('ClaudeProcessService', 'Could not discover new transcript file after launch (after re-injects)');
                 }
             }
-            debugLog('ClaudeProcessService:env-probe',
-                `Env handed to Claude CLI (total keys: ${Object.keys(env).length})`, summary);
-        } catch (e) {
-            debugError('ClaudeProcessService:env-probe', 'Failed to dump env', e);
-        }
-
-        this._currentProcess = cp.spawn(execEnvironment.claudeExecutablePath, args, { ...execEnvironment.spawnOptions, cwd: fixedCwd });
-
-        // Send JSON-formatted user message to stdin
-        if (this._currentProcess.stdin) {
-            // Build user message in stream-json format
-            const userMessage = this._buildUserMessage(options.message, options.imagesInMessage);
-            const jsonMessage = JSON.stringify(userMessage);
-            debugLog('ClaudeProcessService', `Sending JSON message to stdin: ${jsonMessage.substring(0, 200)}...`);
-            this._currentProcess.stdin.write(jsonMessage + '\n');
-            this._currentProcess.stdin.end();
-        }
-        
-        // Set up event handlers
-        this._setupProcessHandlers(this._currentProcess, callbacks);
         } finally {
-            // Always clear the starting flag, whether spawn succeeded or threw
             this._isStarting = false;
         }
     }
 
     /**
-     * Stop the current Claude process
+     * Interrupt the current generation by sending ESC to the PTY.
+     * This does NOT kill the session (use endSession/dispose for that).
      */
     public async stopProcess(): Promise<void> {
-        if (!this._currentProcess) {
-            return;
-        }
-
-        const processToKill = this._currentProcess;
-        const pid = processToKill.pid;
-        
-        // Clear the reference immediately to prevent race conditions
-        this._currentProcess = undefined;
-
-        if (pid) {
+        if (this._pty) {
             try {
-                await this._windowsCompatibility.killProcess(pid);
+                this._pty.write('\x1b'); // ESC interrupts claude's current turn
+                debugLog('ClaudeProcessService', 'Sent ESC interrupt (turn stopped, session kept)');
             } catch (error) {
-                debugError('ClaudeProcessService', 'Error killing Claude process', error);
-                // Try to kill directly as fallback
-                try {
-                    processToKill.kill('SIGTERM');
-                } catch (killError) {
-                    debugError('ClaudeProcessService', 'Fallback kill failed', killError);
-                }
+                debugError('ClaudeProcessService', 'Failed to send ESC interrupt', error);
             }
+            this._turnInProgress = false;
+            // User interrupted -> never resurrect the prompt via the watchdog.
+            this._clearReinjectWatchdog();
         }
     }
 
     /**
-     * Prepare execution environment and arguments
+     * Terminate the whole PTY session and its process tree (taskkill /t /f on Windows),
+     * and stop tailing. Used for new-session / load-history / dispose.
+     */
+    public endSession(): void {
+        if (this._pty) {
+            const pid = this._pty.pid;
+            debugLog('ClaudeProcessService', 'Ending PTY session', { pid });
+            if (pid) {
+                this._windowsCompatibility.killProcess(pid).catch(error => {
+                    debugError('ClaudeProcessService', 'Error killing PTY process tree', error);
+                });
+            }
+            try { this._pty.kill(); } catch { /* may already be dead */ }
+        }
+        this._cleanupSession();
+    }
+
+    /**
+     * Clean up resources (VS Code close / extension deactivate). Kills the process
+     * tree to prevent orphan claude processes (Windows does not auto-reap children).
+     */
+    public dispose(): void {
+        this.endSession();
+    }
+
+    // -----------------------------------------------------------------------
+    // Session spawn / lifecycle
+    // -----------------------------------------------------------------------
+
+    /** Spawn the interactive claude PTY and attach data/exit handlers. */
+    private _spawnSession(execEnvironment: ExecutionEnvironment, args: string[], cwd: string): void {
+        const claudePath = execEnvironment.claudeExecutablePath!;
+        const env = this._sanitizeEnv(execEnvironment.spawnOptions.env);
+        const ptyOptions: pty.IWindowsPtyForkOptions = {
+            name: 'xterm-256color',
+            cols: 120,
+            rows: 40,
+            cwd,
+            env,
+            // Force the winpty backend on Windows. ConPTY deadlocks synchronously
+            // when spawned from the VS Code extension host: that host is a utility
+            // process with NO attached console, and ConPTY's pseudo-console / conin
+            // -conout pipe setup never returns there (this is also why VS Code runs
+            // its own terminals in a dedicated ptyHost process, not the ext host).
+            // Symptom: pty.spawn() blocks the ext-host main thread -> no response,
+            // Stop button frozen. winpty hosts the PTY in a standalone
+            // winpty-agent.exe that carries its own console, so it works without a
+            // parent console. node-pty docs also flag ConPTY as "too unstable to
+            // enable by default". useConpty is a no-op on non-Windows.
+            useConpty: false
+        };
+
+        // Direct spawn on every platform. On Windows node-pty wraps a .cmd in
+        // cmd.exe automatically, so an npm-installed claude.cmd runs fine
+        // (verified by scripts/verify-pty-spawn.js). The old Windows-only Git Bash
+        // detour (`bash -l -c "exec claude"`) was built on a false "ConPTY cannot
+        // exec .cmd" assumption and added a shell layer that could hang. taskkill
+        // /t /f reaps the whole tree (claude.cmd -> cmd.exe -> node), orphan-safe.
+        debugLog('ClaudeProcessService', 'Spawning interactive claude (direct)', { claudePath, args, useConpty: false });
+        this._pty = pty.spawn(claudePath, args, ptyOptions);
+        // Synchronous marker: if this line logs, pty.spawn() did NOT deadlock.
+        debugLog('ClaudeProcessService', 'PTY spawn returned', { pid: this._pty.pid });
+
+        this._sessionReady = false;
+        this._startupBuffer = '';
+        this._startupGateHandled = false;
+        this._inputBoxReady = false;
+        this._markerBuffer = '';
+        this._currentTranscriptFile = undefined;
+        this._spawnTs = Date.now();
+
+        // PTY stdout is NOT parsed as content (transcript is the source of truth).
+        // It only drives readiness detection + debug logging.
+        this._pty.onData((data: string) => this._onPtyData(data));
+
+        this._pty.onExit(({ exitCode }) => {
+            debugLog('ClaudeProcessService', 'PTY session exited', { exitCode });
+            const cb = this._callbacks;
+            this._cleanupSession();
+            cb?.onClose(exitCode ?? null);
+        });
+    }
+
+    /** Strip embedded bracketed-paste markers so injected content cannot close or
+     * reopen our own paste wrapper (matches reference sanitizePromptText). */
+    private _stripPasteMarkers(s: string): string {
+        return s.split('\x1b[200~').join('').split('\x1b[201~').join('');
+    }
+
+    /** Inject one user message into the live PTY and submit it (matches reference). */
+    private _beginTurn(options: ProcessOptions): void {
+        if (!this._pty) {
+            return;
+        }
+        this._turnInProgress = true;
+
+        const rawText = options.message ?? '';
+
+        // Non-image file references are handled upstream by expanding "@path"
+        // mentions to absolute paths (ClaudeChatProvider._expandFileMentions) so
+        // Claude can Read the file directly. The TUI's @-mention picker does not
+        // fire for our injected paste, so we do NOT rely on it here.
+
+        // Strip any embedded bracketed-paste markers so user text cannot close or
+        // reopen our own paste wrapper (matches reference sanitizePromptText).
+        const text = this._stripPasteMarkers(rawText);
+
+        debugLog('ClaudeProcessService', 'Injecting user message', {
+            textLength: text.length,
+            multiline: text.includes('\n'),
+            preview: text.slice(0, ClaudeProcessService.PTY_LOG_PREVIEW_CHARS)
+        });
+
+        // Inject via bracketed paste (for every prompt, not just multi-line) so
+        // the TUI treats the whole block as one atomic paste rather than typed
+        // keystrokes. Then submit with Enter AFTER a short delay: an Enter in the
+        // same tick is swallowed while the TUI is still in its "Pasting" state,
+        // so the prompt never submits and no turn starts. This paste+delay+Enter
+        // sequence is validated against the native claude.exe by
+        // scripts/verify-claude-trust-paste.js.
+        this._pty.write(`\x1b[200~${text}\x1b[201~`);
+        setTimeout(() => {
+            try {
+                this._pty?.write('\r');
+                debugLog('ClaudeProcessService', 'Submitted prompt (Enter sent after paste delay)');
+            } catch (error) {
+                debugError('ClaudeProcessService', 'Failed to submit prompt Enter', error);
+            }
+        }, ClaudeProcessService.PASTE_SUBMIT_DELAY_MS);
+    }
+
+    /**
+     * Inject a subsequent-turn message and arm a lightweight reinject watchdog.
+     * Unlike the first turn (covered by _discoverWithReinject), turns 2+ inject
+     * exactly once into an already-settled TUI. That paste can still be silently
+     * dropped if the input box is momentarily busy (heavy MCP activity, or a turn
+     * submitted right after the previous turn's very early transcript flush). The
+     * watchdog re-sends the prompt if the transcript file does not grow within
+     * REINJECT_INTERVAL_MS, and stops the instant growth is observed so an
+     * accepted prompt is never injected twice (idempotent).
+     */
+    private _beginSubsequentTurn(options: ProcessOptions): void {
+        this._clearReinjectWatchdog();
+
+        // Baseline the transcript size BEFORE injecting. Growth afterwards means
+        // claude accepted the prompt (it writes the user line + response).
+        const file = this._currentTranscriptFile;
+        let baselineSize = -1;
+        if (file) {
+            try { baselineSize = fs.statSync(file).size; } catch { baselineSize = -1; }
+        }
+
+        this._beginTurn(options);
+
+        // No transcript to compare against -> cannot run the growth heuristic;
+        // fall back to single-injection behavior (correct in the common case,
+        // just without the dropped-paste safety net).
+        if (!file || baselineSize < 0) {
+            return;
+        }
+
+        let attempts = 0;
+        const tick = (): void => {
+            this._reinjectTimer = undefined;
+            // Turn finished or session gone -> nothing to recover.
+            if (!this._pty || !this._turnInProgress) {
+                return;
+            }
+            let size = -1;
+            try { size = fs.statSync(file).size; } catch { size = -1; }
+            // Transcript grew => prompt accepted; stop (re-injecting would dup it).
+            if (size > baselineSize) {
+                return;
+            }
+            if (attempts >= ClaudeProcessService.REINJECT_MAX_RETRIES) {
+                debugError('ClaudeProcessService', 'Subsequent-turn prompt still not accepted after max re-injects', { attempts });
+                return;
+            }
+            attempts++;
+            debugLog('ClaudeProcessService', 'Subsequent-turn transcript not growing; re-injecting prompt', { attempts });
+            this._beginTurn(options);
+            this._reinjectTimer = setTimeout(tick, ClaudeProcessService.REINJECT_INTERVAL_MS);
+        };
+        this._reinjectTimer = setTimeout(tick, ClaudeProcessService.REINJECT_INTERVAL_MS);
+    }
+
+    /** Cancel the subsequent-turn reinject watchdog if armed. */
+    private _clearReinjectWatchdog(): void {
+        if (this._reinjectTimer) {
+            clearTimeout(this._reinjectTimer);
+            this._reinjectTimer = undefined;
+        }
+    }
+
+    /**
+     * Answers a blocking startup dialog the instant it is detected in the
+     * pre-ready PTY stream. Fires at most once per session (`_startupGateHandled`).
+     * Two distinct dialogs can gate the first launch, and they need OPPOSITE keys:
+     *  - Workspace trust ("Do you trust the files in this folder?" / "Yes, I trust
+     *    this folder" / "No, exit"): selection already defaults to "Yes", so a
+     *    bare Enter confirms it.
+     *  - Bypass-permissions ("WARNING: Bypass Permissions mode" / "No, exit" /
+     *    "Yes, I accept"): default is "No, exit", so we move Down to "Yes, I
+     *    accept" before confirming.
+     * Either way the prompt's own Enter must never land on the dialog, or claude
+     * exits / denies and the user's message is silently lost (no turn, no reply).
+     */
+    private _handleStartupGate(): void {
+        if (this._startupGateHandled || !this._pty) {
+            return;
+        }
+        const kind = this._detectStartupGate(this._startupBuffer);
+        if (!kind) {
+            return;
+        }
+        this._startupGateHandled = true;
+        if (kind === 'bypass') {
+            debugLog('ClaudeProcessService', 'Bypass-permissions dialog detected; selecting "Yes, I accept"');
+            this._pty.write('\x1b[B'); // Down -> "Yes, I accept" (default is "No, exit")
+            setTimeout(() => {
+                try { this._pty?.write('\r'); } catch { /* session gone */ }
+            }, ClaudeProcessService.STARTUP_GATE_NAV_DELAY_MS);
+        } else {
+            debugLog('ClaudeProcessService', 'Workspace-trust dialog detected; confirming "Yes, I trust this folder"');
+            this._pty.write('\r'); // default selection is already "Yes, I trust this folder"
+        }
+    }
+
+    /**
+     * Classifies a blocking startup dialog in raw PTY output, or null if none.
+     * Strips terminal control sequences and keeps only lowercase alphanumerics so
+     * cursor-positioned repaints (winpty redraws words out of place) still match.
+     */
+    private _detectStartupGate(buffer: string): 'trust' | 'bypass' | null {
+        const compact = buffer
+            .replace(ClaudeProcessService.ANSI_PATTERN, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+        if (compact.includes('yesitrustthisfolder') && compact.includes('noexit')) {
+            return 'trust';
+        }
+        if (compact.includes('yesiaccept') && compact.includes('noexit')) {
+            return 'bypass';
+        }
+        return null;
+    }
+
+    /**
+     * Accumulates PTY output and flips _inputBoxReady the first time the TUI's
+     * footer marker paints, waking any waitForInputBoxReady() callers. No-op once
+     * already ready. The buffer is capped and independent of _startupBuffer
+     * because the marker can appear after silence-readiness has fired.
+     */
+    private _scanInputBoxReady(data: string): void {
+        if (this._inputBoxReady) {
+            return;
+        }
+        this._markerBuffer = (this._markerBuffer + data).slice(-ClaudeProcessService.STARTUP_BUFFER_CAP);
+        if (!this._detectInputBoxReady(this._markerBuffer)) {
+            return;
+        }
+        this._inputBoxReady = true;
+        this._markerBuffer = '';
+        debugLog('ClaudeProcessService', 'Input box ready (footer marker detected)');
+        const resolvers = this._inputBoxReadyResolvers.splice(0);
+        for (const resolve of resolvers) {
+            resolve(true);
+        }
+    }
+
+    /**
+     * True when the input-box footer marker is present. Strips terminal control
+     * sequences and keeps only lowercase alphanumerics so cursor-positioned
+     * repaints still match (same normalization as _detectStartupGate). The TUI
+     * footer reads "(shift+tab to cycle)" and "? for shortcuts".
+     */
+    private _detectInputBoxReady(buffer: string): boolean {
+        const compact = buffer
+            .replace(ClaudeProcessService.ANSI_PATTERN, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+        return compact.includes('shifttabtocycle') || compact.includes('forshortcuts');
+    }
+
+    /** Reset all session state. Safe to call repeatedly. */
+    private _cleanupSession(): void {
+        if (this._readyTimer) {
+            clearTimeout(this._readyTimer);
+            this._readyTimer = undefined;
+        }
+        this._clearReinjectWatchdog();
+        this._readyResolve = undefined;
+        if (this._tail) {
+            this._tail.stop();
+        }
+        this._stopHookFallback.stopWatching();
+        this._pty = undefined;
+        this._turnInProgress = false;
+        this._sessionReady = false;
+        this._startupBuffer = '';
+        this._startupGateHandled = false;
+        this._inputBoxReady = false;
+        this._markerBuffer = '';
+        this._currentTranscriptFile = undefined;
+        // Wake any pending readiness waiters so they resolve false (session gone)
+        // instead of hanging until their own timeout.
+        const resolvers = this._inputBoxReadyResolvers.splice(0);
+        for (const resolve of resolvers) {
+            resolve(false);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Readiness detection (silence window on PTY stdout)
+    // -----------------------------------------------------------------------
+
+    private _onPtyData(data: string): void {
+        // Raw-stream debug logging (throttled). Runs in both pre- and post-ready
+        // phases so we can tell whether claude is actually producing output.
+        this._logPtyData(data);
+
+        // Scan for the input-box footer marker on EVERY chunk, pre- and
+        // post-ready: on a slow --resume the silence/hard-cap readiness can
+        // resolve well before the input box paints, so this positive signal must
+        // keep being checked even after _sessionReady is set.
+        this._scanInputBoxReady(data);
+
+        if (this._sessionReady) {
+            return;
+        }
+        // Accumulate pre-ready output (capped) so the startup gate detector can
+        // scan it once the TUI settles.
+        this._startupBuffer = (this._startupBuffer + data).slice(-ClaudeProcessService.STARTUP_BUFFER_CAP);
+        // Answer any blocking startup dialog the instant it paints (event-driven),
+        // before the input box settles. Waiting until "ready" is too late: the
+        // dialog itself produces the quiet window, so readiness can fire while it
+        // is still up, and the prompt's Enter would then dismiss it the wrong way.
+        this._handleStartupGate();
+        // Reset the quiet-window timer on every chunk; when output goes quiet for
+        // READY_SILENCE_MS we treat the TUI as ready to accept input (subject to
+        // the READY_MIN_MS floor that skips claude's startup load gap).
+        if (this._readyTimer) {
+            clearTimeout(this._readyTimer);
+        }
+        this._readyTimer = setTimeout(() => this._onReadySilence(), ClaudeProcessService.READY_SILENCE_MS);
+    }
+
+    /**
+     * A silence window elapsed. Resolve "ready" only once we are past the
+     * READY_MIN_MS floor; an earlier quiet period is claude's startup load gap
+     * (bundle loading), not its input box. Firing then would inject the prompt
+     * into a TUI that cannot yet accept keystrokes (the prompt is eaten) and run
+     * the bypass-dialog check before the dialog has painted. If we're still
+     * inside the floor, wait out the remainder and re-check for silence.
+     */
+    private _onReadySilence(): void {
+        if (this._sessionReady) {
+            return;
+        }
+        const remaining = ClaudeProcessService.READY_MIN_MS - (Date.now() - this._spawnTs);
+        if (remaining > 0) {
+            this._readyTimer = setTimeout(() => this._onReadySilence(), remaining);
+            return;
+        }
+        this._markReady('silence');
+    }
+
+    /**
+     * Throttled raw PTY output logger. Accumulates byte counts across chunks and
+     * emits at most one preview line per PTY_LOG_THROTTLE_MS so TUI repaints
+     * (spinners, redraws) don't flood the debug log. Control chars are escaped.
+     */
+    private _logPtyData(data: string): void {
+        this._ptyLogBytes += data.length;
+        const now = Date.now();
+        if (now - this._ptyLogLastTs < ClaudeProcessService.PTY_LOG_THROTTLE_MS) {
+            return;
+        }
+        this._ptyLogLastTs = now;
+        const preview = data
+            .slice(0, ClaudeProcessService.PTY_LOG_PREVIEW_CHARS)
+            .replace(/[\x00-\x1f\x7f]/g, (ch) => `\\x${ch.charCodeAt(0).toString(16).padStart(2, '0')}`);
+        debugLog('ClaudeProcessService', 'PTY raw output', {
+            ready: this._sessionReady,
+            bytesSinceLast: this._ptyLogBytes,
+            preview
+        });
+        this._ptyLogBytes = 0;
+    }
+
+    private _waitForReady(): Promise<void> {
+        if (this._sessionReady) {
+            return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+            this._readyResolve = resolve;
+            // Hard cap so we never block forever if the TUI never goes fully quiet.
+            setTimeout(() => this._markReady('hard-cap'), ClaudeProcessService.READY_HARD_CAP_MS);
+        });
+    }
+
+    private _markReady(reason: string = 'unknown'): void {
+        if (this._sessionReady) {
+            return;
+        }
+        this._sessionReady = true;
+        debugLog('ClaudeProcessService', 'PTY TUI ready', { reason });
+        if (this._readyTimer) {
+            clearTimeout(this._readyTimer);
+            this._readyTimer = undefined;
+        }
+        const resolve = this._readyResolve;
+        this._readyResolve = undefined;
+        resolve?.();
+    }
+
+    // -----------------------------------------------------------------------
+    // Transcript tail wiring
+    // -----------------------------------------------------------------------
+
+    /** Start (or switch) tailing the given transcript file. */
+    private _startTail(file: string, fromOffset: number): void {
+        this._currentTranscriptFile = file;
+        if (!this._tail) {
+            this._tail = new TranscriptTailService({
+                onLine: (json) => this._callbacks?.onData(json),
+                // B1: transcript end_turn. Routed through the shared dedup entry.
+                onTurnComplete: (meta) => this._completeTurn(meta.stopReason, this._currentSessionId()),
+                onError: (err) => this._callbacks?.onError(String(err))
+            });
+        }
+        debugLog('ClaudeProcessService', 'Tailing transcript', { file, fromOffset });
+        this._tail.switchFile(file, { fromOffset });
+    }
+
+    /** sessionId derived from the transcript file currently being tailed. */
+    private _currentSessionId(): string | undefined {
+        return this._currentTranscriptFile
+            ? path.basename(this._currentTranscriptFile, '.jsonl')
+            : undefined;
+    }
+
+    /**
+     * Single completion entry point shared by B1 (transcript end_turn) and B2
+     * (Stop hook sentinel). The `_turnInProgress` guard guarantees a turn is
+     * only completed once regardless of which detector fires first.
+     */
+    private _completeTurn(stopReason: string, sessionId: string | undefined): void {
+        if (!this._turnInProgress) {
+            // already completed by the other detector (B1/B2 dedup)
+            debugLog('ClaudeProcessService', 'Turn completion ignored (already completed)', { stopReason, sessionId });
+            return;
+        }
+        debugLog('ClaudeProcessService', 'Turn complete', { stopReason, sessionId });
+        this._turnInProgress = false;
+        // Turn finished -> cancel any pending reinject so it cannot fire late.
+        this._clearReinjectWatchdog();
+        this._callbacks?.onTurnComplete?.({ stopReason, sessionId });
+    }
+
+    /**
+     * Enable the optional Stop hook completion fallback (B2) if the user opted in.
+     * Installs the hook once (idempotent) and watches the sentinel for the
+     * duration of the session. Best-effort: failures degrade silently to B1.
+     */
+    private _enableStopHookFallback(): void {
+        if (!this._stopHookFallback.isEnabled()) {
+            // Disabled: clean up a previously-installed hook so the toggle is
+            // fully reversible (no-op write when nothing is present).
+            this._stopHookFallback.uninstall().catch(error =>
+                debugError('ClaudeProcessService', 'Failed to uninstall Stop hook fallback', error)
+            );
+            return;
+        }
+        this._stopHookFallback.install().catch(error =>
+            debugError('ClaudeProcessService', 'Failed to install Stop hook fallback', error)
+        );
+        this._stopHookFallback.startWatching((signal) => {
+            // Only honor the sentinel for the session we are currently tailing.
+            const current = this._currentSessionId();
+            if (signal.sessionId && current && signal.sessionId !== current) {
+                return;
+            }
+            this._completeTurn('stop_hook', signal.sessionId ?? current);
+        });
+    }
+
+    /**
+     * Poll the project transcript dir for a session file modified at/after
+     * `since` (claude creates it only after it accepts the first prompt),
+     * re-injecting the prompt every REINJECT_INTERVAL_MS until it appears. The
+     * caller has already injected once; this recovers the case where that paste
+     * was dropped because the input box was not yet interactive. Bounded by
+     * DISCOVER_TIMEOUT_MS. Returns the file path, or undefined if none appeared.
+     */
+    private async _discoverWithReinject(options: ProcessOptions, since: number): Promise<string | undefined> {
+        const deadline = Date.now() + ClaudeProcessService.DISCOVER_TIMEOUT_MS;
+        let nextReinjectAt = Date.now() + ClaudeProcessService.REINJECT_INTERVAL_MS;
+        while (Date.now() < deadline) {
+            const file = findLatestSessionFile(options.cwd, since);
+            if (file) {
+                return file;
+            }
+            if (Date.now() >= nextReinjectAt) {
+                debugLog('ClaudeProcessService', 'No transcript yet; re-injecting prompt');
+                this._beginTurn(options);
+                nextReinjectAt = Date.now() + ClaudeProcessService.REINJECT_INTERVAL_MS;
+            }
+            await new Promise(r => setTimeout(r, ClaudeProcessService.DISCOVER_POLL_MS));
+        }
+        return undefined;
+    }
+
+    // -----------------------------------------------------------------------
+    // Spawn helpers
+    // -----------------------------------------------------------------------
+
+    /** node-pty wants a plain string env map; drop undefined values. */
+    private _sanitizeEnv(env: NodeJS.ProcessEnv | undefined): { [key: string]: string } {
+        const out: { [key: string]: string } = {};
+        const src = env || process.env;
+        for (const key of Object.keys(src)) {
+            const value = src[key];
+            if (typeof value === 'string') {
+                out[key] = value;
+            }
+        }
+        return out;
+    }
+
+    /** Read the configured interactive permission mode (decision C; default bypass). */
+    private _getPermissionMode(): string {
+        try {
+            const mode = vscode.workspace.getConfiguration('claudeCodeChatUI').get<string>('permission.mode');
+            if (mode && PERMISSION_MODES.includes(mode)) {
+                return mode;
+            }
+        } catch {
+            // Fall through to default.
+        }
+        return 'bypassPermissions';
+    }
+
+    /**
+     * Prepare execution environment and arguments.
      */
     private async _prepareProcessExecution(options: ProcessOptions): Promise<{
         execEnvironment: ExecutionEnvironment;
@@ -194,27 +935,25 @@ export class ClaudeProcessService {
         if (mcpStatus.servers) {
             mcpStatus.servers.forEach((server: any) => {
                 if (server.env && typeof server.env === 'object') {
-                    execEnvironment.spawnOptions.env = { 
-                        ...execEnvironment.spawnOptions.env, 
-                        ...server.env 
+                    execEnvironment.spawnOptions.env = {
+                        ...execEnvironment.spawnOptions.env,
+                        ...server.env
                     };
                 }
             });
         }
 
-        // Add API configuration to environment variables if custom API is enabled
-        // Note: Only pass env vars for official 'claude' command
-        // Third-party CLIs (e.g., 'xxxxclaude') have their own auth mechanism and don't use these env vars
+        // Add API configuration to environment variables if custom API is enabled.
+        // Only pass env vars for official 'claude' command; third-party CLIs have
+        // their own auth. This is the only place we touch auth-related env (decision E).
         const apiConfig = this._configurationManager.getApiConfig();
         const cliCommand = apiConfig.cliCommand || 'claude';
         const isOfficialClaude = cliCommand === 'claude';
 
-        // Read API key from SecretStorage (the key field in apiConfig is always empty after migration)
         const secretApiKey = await SecretService.getInstance().getAnthropicApiKey();
         const effectiveApiKey = secretApiKey || '';
 
         if (apiConfig.useCustomAPI && effectiveApiKey && apiConfig.baseUrl && isOfficialClaude) {
-            // Only pass API env vars for official claude CLI
             execEnvironment.spawnOptions.env = {
                 ...execEnvironment.spawnOptions.env,
                 ANTHROPIC_API_KEY: effectiveApiKey,
@@ -225,8 +964,6 @@ export class ClaudeProcessService {
                 hasKey: !!effectiveApiKey
             });
         } else if (apiConfig.useCustomAPI && !isOfficialClaude) {
-            // Third-party CLI (e.g., xxxxclaude) - don't pass API env vars
-            // These CLIs have their own authentication mechanism
             debugLog('ClaudeProcessService', 'Using third-party CLI', {
                 cliCommand: cliCommand,
                 note: 'API env vars not passed - CLI has its own auth'
@@ -237,28 +974,21 @@ export class ClaudeProcessService {
     }
 
     /**
-     * Build command arguments for Claude CLI
+     * Build command arguments for the interactive Claude CLI (no `-p`).
      */
     private async _buildCommandArgs(options: ProcessOptions, mcpConfigPath: string | null): Promise<string[]> {
         const args: string[] = [];
 
-        // Add base arguments
-        // --input-format=stream-json: Enable JSON input format, consistent with output-format
-        // --dangerously-skip-permissions: Auto-approve all permissions
-        args.push(
-            '-p',
-            '--output-format', 'stream-json',
-            '--input-format', 'stream-json',
-            '--verbose',
-            '--dangerously-skip-permissions'
-        );
+        // Interactive mode: select the permission mode instead of -p/stream-json.
+        // Default 'bypassPermissions' preserves the previous frictionless behavior.
+        args.push('--permission-mode', this._getPermissionMode());
 
         // Add MCP config if available
         if (mcpConfigPath) {
             args.push('--mcp-config', mcpConfigPath);
         }
 
-        // Add session ID or resume
+        // Add session resume (used when starting the PTY for an existing session)
         if (options.resumeFrom) {
             args.push('--resume', options.resumeFrom);
         } else if (options.sessionId) {
@@ -269,9 +999,6 @@ export class ClaudeProcessService {
         if (options.model && options.model !== 'default' && VALID_MODELS.includes(options.model as ValidModel)) {
             args.push('--model', options.model);
         }
-
-        // Note: Plan mode and thinking mode are now handled through message prefixes,
-        // not through CLI arguments. The actual prompts are added in extension.ts
 
         // Add custom instructions
         if (options.customInstructions) {
@@ -290,178 +1017,26 @@ export class ClaudeProcessService {
         if (mcpStatus.status === 'configured' && mcpStatus.servers && mcpStatus.servers.length > 0) {
             const mcpPrompts = getMcpSystemPrompts(mcpStatus.servers);
             if (mcpPrompts && mcpPrompts.trim()) {
-                debugLog('ClaudeProcessService', 'MCP prompts content', {
-                    length: mcpPrompts.length,
-                    hasNewlines: mcpPrompts.includes('\n'),
-                    preview: mcpPrompts.substring(0, 100) + '...'
-                });
-                // Mac uses shell: false, so multi-line arguments can be passed directly
-                // Windows keeps the original behavior
                 args.push('--append-system-prompt');
                 args.push(mcpPrompts.trim());
             }
         }
 
-        // Note: The message is not added to args anymore - it will be sent via stdin
-
         return args;
     }
 
-    /**
-     * Build user message JSON
-     * Convert user input to Claude CLI stream-json format
-     * @param text Text content
-     * @param images Image array (Base64 encoded, optional)
-     */
-    private _buildUserMessage(text: string, images?: string[]): object {
-        // Build message content array, starting with text
-        const content: any[] = [{ type: 'text', text }];
-
-        // Add images if provided
-        if (images && images.length > 0) {
-            images.forEach(imageData => {
-                content.push({
-                    type: 'image',
-                    source: {
-                        type: 'base64',
-                        media_type: this._detectImageMimeType(imageData),
-                        data: imageData
-                    }
-                });
-            });
-        }
-
-        // Return user message object in stream-json format
-        return {
-            type: 'user',
-            message: {
-                role: 'user',
-                content
-            }
-        };
-    }
+    // -----------------------------------------------------------------------
+    // Temp file cleanup (unchanged from the -p implementation)
+    // -----------------------------------------------------------------------
 
     /**
-     * Set up process event handlers
-     */
-    private _setupProcessHandlers(process: cp.ChildProcess, callbacks: ProcessCallbacks): void {
-        let stdoutBuffer = '';
-        let stderrBuffer = '';
-
-        // Handle stdout data
-        process.stdout?.on('data', (data: Buffer) => {
-            const chunk = data.toString();
-            stdoutBuffer += chunk;
-            
-            // Process complete JSON objects from the buffer
-            const lines = stdoutBuffer.split('\n');
-            stdoutBuffer = lines.pop() || ''; // Keep incomplete line in buffer
-            
-            for (const line of lines) {
-                if (line.trim()) {
-                    try {
-                        const jsonData = JSON.parse(line);
-                        callbacks.onData(jsonData);
-                    } catch (error) {
-                        // Not JSON, might be plain text output
-                        callbacks.onData({ type: 'text', data: line });
-                    }
-                }
-            }
-        });
-
-        // Handle stderr data
-        process.stderr?.on('data', (data: Buffer) => {
-            stderrBuffer += data.toString();
-            const lines = stderrBuffer.split('\n');
-            stderrBuffer = lines.pop() || '';
-            
-            for (const line of lines) {
-                if (line.trim()) {
-                    callbacks.onError(line);
-                }
-            }
-        });
-
-        // Handle process close
-        process.on('close', (code: number | null) => {
-            // Process any remaining buffered data
-            if (stdoutBuffer.trim()) {
-                try {
-                    const jsonData = JSON.parse(stdoutBuffer);
-                    callbacks.onData(jsonData);
-                } catch (error) {
-                    callbacks.onData({ type: 'text', data: stdoutBuffer });
-                }
-            }
-            
-            if (stderrBuffer.trim()) {
-                callbacks.onError(stderrBuffer);
-            }
-
-            // Clear process reference
-            if (this._currentProcess === process) {
-                this._currentProcess = undefined;
-            }
-
-            callbacks.onClose(code);
-        });
-
-        // Handle process error
-        process.on('error', (error: Error) => {
-            debugError('ClaudeProcessService', 'Claude process error', error);
-            callbacks.onError(`Process error: ${error.message}`);
-
-            // Clear process reference
-            if (this._currentProcess === process) {
-                this._currentProcess = undefined;
-            }
-
-        });
-    }
-
-    /**
-     * Clean up resources (called when VS Code closes or extension deactivates)
-     * Ensure Claude CLI process is properly terminated to prevent orphan processes
-     */
-    public dispose(): void {
-        if (this._currentProcess) {
-            const pid = this._currentProcess.pid;
-            debugLog('ClaudeProcessService', 'Disposing: killing Claude process tree on extension deactivation');
-            if (pid) {
-                // Fire-and-forget: send taskkill to kill entire process tree
-                // Don't await - dispose must be synchronous for VS Code lifecycle
-                this._windowsCompatibility.killProcess(pid).catch(error => {
-                    debugError('ClaudeProcessService', 'Error killing process tree during dispose', error);
-                });
-            }
-            try {
-                this._currentProcess.kill(); // Also send SIGTERM as fallback
-            } catch (error) {
-                // Process may already be dead
-            }
-            this._currentProcess = undefined;
-        }
-    }
-
-
-    /**
-     * Clean up Claude CLI temporary files (tmpclaude-*-cwd)
-     * These files are created by Claude CLI during execution and may be left behind
-     * Uses vscode.workspace.findFiles for fast recursive search (powered by Ripgrep)
-     * @param workspacePath The workspace directory to clean (used for single-dir cleanup)
+     * Clean up Claude CLI temporary files (tmpclaude-*-cwd).
      */
     public static cleanupTempFiles(workspacePath: string): void {
-        // First, clean the root directory synchronously (fast path)
         ClaudeProcessService.cleanupTempFilesInDir(workspacePath);
-
-        // Then, trigger async recursive cleanup for subdirectories
         ClaudeProcessService.cleanupTempFilesRecursive();
     }
 
-    /**
-     * Clean temp files in a specific directory (synchronous, for known paths)
-     */
     private static cleanupTempFilesInDir(dirPath: string): void {
         try {
             const files = fs.readdirSync(dirPath);
@@ -488,13 +1063,8 @@ export class ClaudeProcessService {
         }
     }
 
-    /**
-     * Recursively clean temp files using VS Code's findFiles API (async, fast)
-     * Uses Ripgrep under the hood, automatically excludes node_modules
-     */
     public static async cleanupTempFilesRecursive(): Promise<void> {
         try {
-            // Use VS Code's findFiles API - it's fast (Ripgrep) and respects .gitignore
             const pattern = '**/tmpclaude-*-cwd';
             const exclude = '**/node_modules/**';
 
@@ -510,10 +1080,8 @@ export class ClaudeProcessService {
 
             const tempFileRegex = /^tmpclaude-[a-f0-9]+-cwd$/;
 
-            // Delete files concurrently
             await Promise.all(files.map(async (uri) => {
                 try {
-                    // Double-check filename with regex for safety
                     const fileName = path.basename(uri.fsPath);
                     if (tempFileRegex.test(fileName)) {
                         await vscode.workspace.fs.delete(uri, { useTrash: false });
@@ -528,27 +1096,5 @@ export class ClaudeProcessService {
         } catch (error) {
             debugError('ClaudeProcessService', 'Error during recursive temp file cleanup', error);
         }
-    }
-
-    /**
-     * Detect image MIME type from base64 magic bytes.
-     * Falls back to image/png if unrecognized.
-     */
-    private _detectImageMimeType(base64Data: string): string {
-        // First 16 chars of base64 encode the first 12 bytes — enough for magic bytes
-        const header = base64Data.substring(0, 16);
-
-        if (header.startsWith('/9j/')) {
-            return 'image/jpeg';
-        }
-        if (header.startsWith('R0lGOD')) {
-            return 'image/gif';
-        }
-        if (header.startsWith('UklGR')) {
-            return 'image/webp';
-        }
-        // iVBORw0KGgo = PNG magic bytes in base64
-        // Default to PNG for unrecognized formats (most common in clipboard paste)
-        return 'image/png';
     }
 }

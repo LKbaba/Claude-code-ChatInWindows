@@ -2,6 +2,25 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [5.0.1] - 2026-06-13
+
+### Changed (major architecture)
+- **PTY interactive driver replaces `claude -p`** — the extension now drives a real interactive `claude` CLI through a node-pty pseudo-terminal instead of the programmatic (`-p` / stream-json) mode. Usage is billed against the user's **subscription pool** (Pro/Max), not the new Agent SDK billing.
+  - A single long-lived PTY session is reused across multiple turns; messages are injected via bracketed paste + Enter.
+  - On Windows, claude runs inside Git Bash (ConPTY cannot exec a `.cmd` directly).
+- **Output now comes from the transcript JSONL** (`~/.claude/projects/{slug}/{sessionId}.jsonl`) tailed in real time, not parsed from PTY stdout. Turn completion is detected from `stop_reason === "end_turn"` (B1).
+- **Removed all `-p` / stream-json arguments.** Custom-API (third-party / self-hosted key) users go through the same PTY path.
+
+### Added
+- **Permission mode setting** — `claudeCodeChatUI.permission.mode` (`bypassPermissions` default, plus `auto`/`acceptEdits`/`plan`/`default`), passed to the CLI as `--permission-mode`. No approval UI this release.
+- **Optional Stop hook completion fallback (B2)** — `claudeCodeChatUI.completion.useStopHookFallback` (default off). When enabled, injects an idempotent one-shot `Stop` hook into `~/.claude/settings.json` that writes a sentinel at end of turn; de-duplicated with B1 so a turn unlocks only once. Disabling cleans the hook back up.
+
+### Platform
+- This build is **win32-x64 only** (ships the node-pty native binary + ConPTY runtime). mac/Linux are deferred to a later release.
+
+### Notes
+- This extension automates the official `claude` interactive CLI to provide a GUI. It does not modify authentication, proxy network traffic, or touch your credentials — it reuses your already-logged-in subscription. Please review and comply with Anthropic's Terms of Service.
+
 ## [4.1.3] - 2026-06-02
 
 ### Added

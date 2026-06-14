@@ -12,7 +12,8 @@ import { BackupManager } from '../managers/BackupManager';
 import { ConversationManager } from '../managers/ConversationManager';
 import { WindowsCompatibility } from '../managers/WindowsCompatibility';
 import { ClaudeProcessService } from '../services/ClaudeProcessService';
-import { MessageProcessor } from '../services/MessageProcessor';
+import { MessageProcessor, CompactBoundaryMeta } from '../services/MessageProcessor';
+import { computeUsageCost } from '../services/ModelPricing';
 import { OperationTracker } from '../managers/OperationTracker';
 import { UndoRedoManager } from '../managers/UndoRedoManager';
 import { OperationPreviewService } from '../services/OperationPreview';
@@ -56,30 +57,12 @@ export class ClaudeChatProvider {
 	private _undoRedoManager: UndoRedoManager;
 	private _operationPreviewService: OperationPreviewService;
 	private _statisticsCache: StatisticsCache;
-	private _isCompactMode: boolean = false; // Compact mode flag
-	private _compactSummaryBuffer: string = ''; // Compact summary buffer
-
-	// Static model pricing data (using Map for better lookup efficiency)
-	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
-		// Opus model series pricing
-		['claude-opus-4-8', { input: 5.00, output: 25.00 }],               // Opus 4.8 latest flagship (May 2026)
-		['claude-opus-4-7', { input: 5.00, output: 25.00 }],               // Opus 4.7 previous flagship with self-verification
-		['claude-opus-4-6', { input: 5.00, output: 25.00 }],               // Opus 4.6 previous flagship with Adaptive Thinking
-		['claude-opus-4-5-20251101', { input: 5.00, output: 25.00 }],    // Opus 4.5 legacy (kept for history)
-		['claude-opus-4-1-20250805', { input: 15.00, output: 75.00 }],   // Opus 4.1 flagship model
-		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
-		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],     // Claude 3 Opus
-		// Sonnet model series pricing
-		['claude-sonnet-4-6', { input: 3.00, output: 15.00 }],           // Sonnet 4.6 latest intelligent model
-		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 previous intelligent model
-		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }],    // Sonnet 4
-		['claude-3-5-sonnet-20241022', { input: 3.00, output: 15.00 }],  // Claude 3.5 Sonnet
-		['claude-3-5-sonnet-20240620', { input: 3.00, output: 15.00 }],
-		['claude-3-sonnet-20240229', { input: 3.00, output: 15.00 }],    // Claude 3 Sonnet
-		// Haiku model series pricing
-		['claude-haiku-4-5-20251001', { input: 1.00, output: 5.00 }],    // Haiku 4.5 cost-effective model
-		['claude-3-haiku-20240307', { input: 0.25, output: 1.25 }],      // Claude 3 Haiku
-	]);
+	private _isCompactMode: boolean = false; // True while a user-initiated /compact is running (route B)
+	private _compactBoundaryMeta: CompactBoundaryMeta | undefined; // Latest compact_boundary stats (pre/post tokens)
+	private _compactTimeout: ReturnType<typeof setTimeout> | undefined; // Safety timeout for an in-flight /compact
+	// Max wait for a /compact to produce a compact_boundary: allows for TUI queue + ~40s server compaction.
+	private static readonly COMPACT_TIMEOUT_MS = 120000;
+	private _turnStartTime: number = 0; // Wall-clock start of the current turn (for 💰 bubble duration)
 
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
@@ -490,7 +473,9 @@ export class ClaudeChatProvider {
 	 * - Both modes only affect the current message, not the entire conversation
 	 */
 	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean, languageMode?: boolean, selectedLanguage?: string, onlyCommunicate?: boolean) {
-		if (this._processService.isProcessRunning()) {
+		// v5.0.1: the PTY session is long-lived, so isProcessRunning() is true between
+		// turns. Guard against overlapping sends using turn-in-progress instead.
+		if (this._processService.isTurnInProgress()) {
 			// DEBUG: console.log("A request is already in progress. Please wait.");
 			
 			// Send feedback to user that a request is already in progress
@@ -626,6 +611,8 @@ export class ClaudeChatProvider {
 			this._sendAndSaveMessage({ type: 'userInput', data: message });
 		}
 		this._panel?.webview.postMessage({ type: 'setProcessing', data: true });
+		// Stamp turn start so onTurnComplete can report wall-clock duration in the 💰 bubble.
+		this._turnStartTime = Date.now();
 
 		// Don't create backup commit in compact mode
 		if (!this._isCompactMode) {
@@ -652,6 +639,13 @@ export class ClaudeChatProvider {
 			// Don't reset operation tracker session here, we'll use conversationId
 		}
 
+		// Expand remaining "@<relative path>" file mentions (non-image) to absolute
+		// paths so Claude can Read the referenced file directly. The TUI's @-mention
+		// picker only fires for real keystrokes, not for our injected paste, so the
+		// bare relative mention would otherwise be ignored. Done on the CLI-bound
+		// text only; the chat bubble still shows the friendly "@path".
+		actualMessage = this._expandFileMentions(actualMessage, cwd);
+
 		// Prepare process options
 		const processOptions = {
 			message: actualMessage,
@@ -663,28 +657,86 @@ export class ClaudeChatProvider {
 			// not passed to ProcessService
 		};
 
+		// Prepare callbacks for process service (shared with the resume-for-compaction path).
+		const callbacks = this._createProcessCallbacks();
+
+		try {
+			await this._processService.startProcess(processOptions, callbacks);
+		} catch (error: any) {
+			// Log first: a silent catch here previously hid spawn failures from the
+			// debug log (the log just stopped at the spawn line with no trace).
+			debugError('ClaudeChatProvider', 'startProcess failed', error);
+			this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
+
+			// Provide more specific error messages for common Windows issues
+			let errorMessage = this._windowsCompatibility.providePlatformSpecificError(error);
+
+			this._sendAndSaveMessage({ type: 'error', data: errorMessage });
+		}
+	}
+
+
+	/**
+	 * Rewrite "@<path>" file mentions in the outgoing message into absolute paths
+	 * Claude can resolve and Read directly. A pasted image inserts a relative
+	 * mention like "@CCimages/foo.png "; because the message is delivered to the
+	 * TUI as a bracketed paste (not real keystrokes), the TUI's @-mention file
+	 * picker never fires, so the relative path alone is unreliable. We resolve
+	 * each mention against the session cwd and, if it points to an existing file,
+	 * replace the "@relative" token with the absolute path so Claude reads the
+	 * actual file. Non-file "@" tokens (e.g. "@scope/pkg") are left untouched.
+	 */
+	private _expandFileMentions(message: string, cwd: string): string {
+		// Match "@" at start or after whitespace, followed by a non-space path.
+		// Trailing punctuation that cannot be part of a filename is excluded so a
+		// mention at the end of a sentence still resolves.
+		return message.replace(/(^|\s)@([^\s]+)/g, (match, lead: string, rawPath: string) => {
+			// Strip trailing sentence punctuation (the UI appends a space, but be
+			// defensive about commas/periods a user might type right after).
+			const trailingMatch = rawPath.match(/[)\]},.;:!?]+$/);
+			const trailing = trailingMatch ? trailingMatch[0] : '';
+			const candidate = trailing ? rawPath.slice(0, -trailing.length) : rawPath;
+			if (!candidate) {
+				return match;
+			}
+			try {
+				const abs = path.isAbsolute(candidate) ? candidate : path.resolve(cwd, candidate);
+				if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+					debugLog('ClaudeChatProvider', 'Expanded @-mention to absolute path', { mention: candidate, abs });
+					return `${lead}${abs}${trailing}`;
+				}
+			} catch (error) {
+				debugError('ClaudeChatProvider', 'Failed to expand @-mention', { rawPath, error });
+			}
+			return match;
+		});
+	}
+
+	/**
+	 * Build the ProcessService callbacks that wire CLI/transcript events into the
+	 * webview and provider state. Extracted so both a normal send and the
+	 * resume-for-compaction path (which starts a PTY without an initial prompt)
+	 * share identical event handling — crucially the onCompactBoundary/
+	 * onCompactSummary handlers needed to finalize a /compact.
+	 */
+	private _createProcessCallbacks() {
 		// Track the latest updateTotals data so we can send a single 💰 bubble on process close
 		// (A single CLI process can emit multiple type:"result" events when background agents are used)
 		let lastUpdateTotalsData: any = null;
 
-		// Prepare callbacks for process service
-		const callbacks = {
+		return {
 			onData: (data: any) => {
 				this._messageProcessor.processJsonData(data, {
 					onSystemMessage: (_text: string) => {
 						// Handle system messages if needed
 					},
 					onAssistantMessage: (text: string) => {
-						if (this._isCompactMode) {
-							// In compact mode, collect summary instead of displaying immediately
-							this._compactSummaryBuffer += text;
-						} else {
-							// In normal mode, display Claude's response
-							this._sendAndSaveMessage({
-								type: 'output',
-								data: text
-							});
-						}
+						// Display Claude's response. (Native compaction summary is
+						// NOT an assistant message — it arrives via onCompactSummary.)
+						this._sendAndSaveMessage({
+							type: 'output',
+							data: text
+						});
 					},
 					onToolStatus: (toolName: string, details: string) => {
 						this._panel?.webview.postMessage({
@@ -791,7 +843,12 @@ export class ClaudeChatProvider {
 							type: 'setPlanMode',
 							data: isInPlanMode
 						});
-					}
+					},
+					// Native compaction (route B): boundary stats arrive first,
+					// then the summary text. Handlers cover both the user-initiated
+					// /compact and auto-compaction (context filled).
+					onCompactBoundary: (meta: CompactBoundaryMeta) => this._handleCompactBoundary(meta),
+					onCompactSummary: (summaryText: string) => this._handleCompactSummary(summaryText)
 				});
 			},
 			onError: (error: string) => {
@@ -801,55 +858,69 @@ export class ClaudeChatProvider {
 					debugError('ClaudeChatProvider', 'Claude is complaining about --mcp-server');
 				}
 			},
-			onClose: (code: number | null) => {
-				// Capture compact mode state before it gets reset below
-				const wasCompactMode = this._isCompactMode;
+			// v5.0.1: per-turn completion. The transcript signals end_turn (B1); this is
+			// where we unlock the UI, finalize sessionId (from the transcript filename),
+			// and emit the final totals bubble. onClose no longer fires per turn.
+			onTurnComplete: (meta: { stopReason: string; sessionId?: string }) => {
+				// Native compaction (route B) is finalized in _handleCompactSummary,
+				// not here — it emits no assistant end_turn line.
 
-				// In compact mode, send compactComplete message
-				// This clears the frontend message list and displays the summary
-				if (this._isCompactMode && this._compactSummaryBuffer.trim()) {
-					const summaryMessage = `## ⚡ Conversation Summary\n\n${this._compactSummaryBuffer}\n\n---\n*This is a summary of the previous conversation. Starting a new conversation now.*`;
-
-					debugLog('ClaudeChatProvider', 'Sending compactComplete message');
-
-					// Send compactComplete message, frontend will clear message list and display summary
-					this._panel?.webview.postMessage({
-						type: 'compactComplete',
-						summary: summaryMessage
+				// sessionId now comes from the transcript filename (no result line).
+				if (meta.sessionId) {
+					this._currentSessionId = meta.sessionId;
+					if (!this._conversationId) {
+						this._conversationId = meta.sessionId;
+						debugLog('ClaudeChatProvider', `Set conversationId: ${this._conversationId}`);
+					}
+					if (this._conversationId) {
+						this._operationTracker.setCurrentSession(this._conversationId);
+					}
+					this._sendAndSaveMessage({
+						type: 'sessionInfo',
+						data: { sessionId: meta.sessionId }
 					});
-
-					// Also save to conversation history
-					this._conversationManager.addMessage({
-						timestamp: new Date().toISOString(),
-						messageType: 'output',
-						data: summaryMessage
-					});
-					void this._conversationManager.saveCurrentConversation(
-						this._currentSessionId || Date.now().toString(),
-						this._totalCost,
-						this._totalTokensInput,
-						this._totalTokensOutput
-					);
-
-					// Clear buffer
-					this._compactSummaryBuffer = '';
-
-					// Reset compact mode flag
-					this._isCompactMode = false;
 				}
 
+				// Finalize this turn: bump request count and snapshot per-turn
+				// cost/tokens (subscription/PTY mode has no `result` event).
+				const turn = this._messageProcessor.completeTurn();
+
+				// Update totals from message processor (now includes the bumped count).
+				const totals = this._messageProcessor.getTotals();
+				this._totalCost = totals.totalCost;
+				this._totalTokensInput = totals.totalTokensInput;
+				this._totalTokensOutput = totals.totalTokensOutput;
+				this._requestCount = totals.requestCount;
+
+				// Unlock the UI for this turn.
 				this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
 
-				// Send the final 💰 cost bubble (only once, at process close)
-				// Skip in compact mode since cost stats are not shown in that mode
-				if (lastUpdateTotalsData && !wasCompactMode) {
-					this._panel?.webview.postMessage({
-						type: 'updateTotals',
-						data: lastUpdateTotalsData
-					});
-				}
+				// Emit the 💰 bubble + status-bar totals for this turn. Cost is
+				// computed from token usage × model pricing (consistent with the
+				// original version, which read total_cost_usd from the result event).
+				const currentDuration = this._turnStartTime > 0 ? Date.now() - this._turnStartTime : 0;
+				this._panel?.webview.postMessage({
+					type: 'updateTotals',
+					data: {
+						totalCost: totals.totalCost,
+						totalTokensInput: totals.totalTokensInput,
+						totalTokensOutput: totals.totalTokensOutput,
+						requestCount: totals.requestCount,
+						currentCost: turn.cost,
+						currentDuration: currentDuration,
+						currentTokensInput: turn.tokensInput,
+						currentTokensOutput: turn.tokensOutput
+					}
+				});
+				lastUpdateTotalsData = null;
+			},
+			onClose: (code: number | null) => {
+				// v5.0.1: this now fires only when the whole PTY session exits
+				// (VS Code close / endSession), not per turn. Per-turn unlock is in
+				// onTurnComplete; here we just ensure the UI is unlocked and clean up.
+				this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
 
-				// Clean up Claude CLI temp files after process ends
+				// Clean up Claude CLI temp files after the session ends.
 				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 				if (workspacePath) {
 					ClaudeProcessService.cleanupTempFiles(workspacePath);
@@ -860,17 +931,6 @@ export class ClaudeChatProvider {
 				}
 			}
 		};
-
-		try {
-			await this._processService.startProcess(processOptions, callbacks);
-		} catch (error: any) {
-			this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
-			
-			// Provide more specific error messages for common Windows issues
-			let errorMessage = this._windowsCompatibility.providePlatformSpecificError(error);
-			
-			this._sendAndSaveMessage({ type: 'error', data: errorMessage });
-		}
 	}
 
 	// This method is no longer used - replaced by MessageProcessor
@@ -878,6 +938,9 @@ export class ClaudeChatProvider {
 
 	private _newSession(isCompacting: boolean = false) {
 		debugLog('ClaudeChatProvider', `_newSession called, isCompacting: ${isCompacting}`);
+
+		// v5.0.1: end the long-lived PTY session so the next send starts a fresh one.
+		this._processService.endSession();
 
 		// Clear current session and conversation ID
 		this._currentSessionId = undefined;
@@ -1662,25 +1725,10 @@ export class ClaudeChatProvider {
 			                    (entry.usage.cache_creation_input_tokens || 0) +
 			                    (entry.usage.cache_read_input_tokens || 0);
 
-			// Use Map to calculate cost if 0 or missing
+			// Use shared pricing to calculate cost if 0 or missing
 			let cost = entry.costUSD || 0;
 			if (cost === 0 && entry.model) {
-				const pricing = ClaudeChatProvider.MODEL_PRICING.get(entry.model);
-				if (pricing) {
-					// Calculate normal input token cost (excluding cache read)
-					const normalInputCost = ((entry.usage.input_tokens || 0) * pricing.input) / 1000000;
-
-					// Calculate cache read token cost (10% of input price)
-					const cacheReadCost = ((entry.usage.cache_read_input_tokens || 0) * pricing.input * 0.1) / 1000000;
-
-					// Calculate output token cost
-					const outputCost = ((entry.usage.output_tokens || 0) * pricing.output) / 1000000;
-
-					// Calculate cache creation token cost (25% of output price)
-					const cacheCreationCost = ((entry.usage.cache_creation_input_tokens || 0) * pricing.output * 0.25) / 1000000;
-
-					cost = normalInputCost + cacheReadCost + outputCost + cacheCreationCost;
-				}
+				cost = computeUsageCost(entry.usage, entry.model);
 			}
 			stats.cost += cost;
 
@@ -1866,8 +1914,8 @@ export class ClaudeChatProvider {
 
 	private async _stopClaudeProcess(): Promise<void> {
 		// DEBUG: console.log('Stop request received');
-		
-		if (this._processService.isProcessRunning()) {
+		// v5.0.1: stop = ESC-interrupt the current turn (the session stays alive).
+		if (this._processService.isTurnInProgress()) {
 			// DEBUG: console.log('Terminating Claude process...');
 			
 			try {
@@ -1902,6 +1950,19 @@ export class ClaudeChatProvider {
 	private async _loadConversationHistory(filename: string): Promise<void> {
 		const conversationData = await this._conversationManager.loadConversationHistory(filename);
 		if (!conversationData) {return;}
+
+		// v5.0.1: end any live PTY session (it belongs to the previous conversation);
+		// the next send will spawn a fresh session and --resume the loaded one.
+		this._processService.endSession();
+
+		// Track the loaded session so a subsequent send resumes it AND so /compact
+		// can resume it even before any new message is sent. Guard against the
+		// 'unknown' sentinel used for conversations saved without a real session.
+		const loadedSessionId = conversationData.sessionId;
+		if (loadedSessionId && loadedSessionId !== 'unknown') {
+			this._currentSessionId = loadedSessionId;
+			this._conversationId = loadedSessionId;
+		}
 
 		// Update current state from loaded conversation
 		this._totalCost = conversationData.totalCost || 0;
@@ -3136,6 +3197,15 @@ export class ClaudeChatProvider {
 	private _setSelectedModel(model: string): void {
 		// Validate model name to prevent issues
 		if (VALID_MODELS.includes(model as ValidModel)) {
+			// The model picker row fires selectModel twice per click (clicking the
+			// <label> bubbles both the label's own click AND the synthesized radio
+			// click up to the row's onclick). Ignore the duplicate so /model is not
+			// typed into the PTY twice concurrently — that interleaves into garbage
+			// like "//mmooddeell..." and never actually switches the model.
+			if (model === this._selectedModel) {
+				debugLog('ClaudeChatProvider', 'Model selection unchanged; ignoring duplicate', { model });
+				return;
+			}
 			this._selectedModel = model;
 			// DEBUG: console.log('Model selected:', model);
 
@@ -3187,6 +3257,17 @@ export class ClaudeChatProvider {
 
 			// Show confirmation message
 			vscode.window.showInformationMessage(message);
+
+			// If a PTY session is live, switch the model mid-session by injecting
+			// the native /model slash command. Without this the change only takes
+			// effect on the NEXT new session (via the --model launch arg), so a
+			// user switching models mid-conversation would see no effect until they
+			// started over. injectSlashCommand waits internally for input-box
+			// readiness, so this is safe to fire even right after a resume.
+			if (this._processService.isProcessRunning()) {
+				debugLog('ClaudeChatProvider', 'Live session: injecting /model to switch mid-session', { model });
+				void this._processService.injectSlashCommand(`/model ${model}`);
+			}
 		} else {
 			debugError('ClaudeChatProvider', 'Invalid model selected', model);
 			vscode.window.showErrorMessage(`Invalid model: ${model}. Please select one of: ${VALID_MODELS.join(', ')}.`);
@@ -3467,16 +3548,23 @@ export class ClaudeChatProvider {
 		});
 	}
 
-	// Compact conversation feature
-	// New design: show compacting status first, then clear and display summary after generation
-	private async _compactConversation(languageMode?: boolean, selectedLanguage?: string): Promise<void> {
+	// Compact conversation feature (route B: native /compact in the live PTY).
+	//
+	// Instead of self-summarizing the conversation and starting a new session
+	// (the old stream-json design, which fought Claude's own context model under
+	// PTY), this injects the native `/compact` slash command. Compaction runs
+	// server-side in the SAME session (same sessionId/transcript) and writes a
+	// `compact_boundary` line (with pre/post token stats) followed by the
+	// summary line (`isCompactSummary`). Completion is detected in
+	// _handleCompactSummary; see scripts/verify-claude-precompact.js.
+	private async _compactConversation(_languageMode?: boolean, _selectedLanguage?: string): Promise<void> {
 		try {
-			debugLog('ClaudeChatProvider', 'Starting conversation compaction');
+			debugLog('ClaudeChatProvider', 'Starting conversation compaction (route B: /compact)');
 
-			// Get current conversation content (before any operations)
-			const conversationData = this._conversationManager.getConversationForSummary();
-
-			if (!conversationData || (conversationData.userMessages.length === 0 && conversationData.assistantMessages.length === 0)) {
+			// /compact compacts the current session's context, so it needs a
+			// sessionId to resume. A loaded/restored conversation has one even
+			// before any message is sent.
+			if (!this._currentSessionId) {
 				this._panel?.webview.postMessage({
 					type: 'error',
 					data: 'No conversation to compact'
@@ -3484,81 +3572,62 @@ export class ClaudeChatProvider {
 				return;
 			}
 
-			// Step 1: Notify frontend to start compacting (show compacting message, set Processing state)
-			// Use single message to avoid race conditions
-			debugLog('ClaudeChatProvider', 'Sending compactStart message');
-			this._panel?.webview.postMessage({
-				type: 'compactStart'
-			});
+			// Re-entrancy guard: ignore a second click while one is in flight.
+			if (this._isCompactMode) {
+				debugLog('ClaudeChatProvider', 'Compaction already in progress; ignoring');
+				return;
+			}
+			this._isCompactMode = true;
+			this._compactBoundaryMeta = undefined;
 
-			// Format conversation content
-			let conversationText = '';
-			const maxMessages = Math.max(conversationData.userMessages.length, conversationData.assistantMessages.length);
+			// Notify frontend to show the compacting state (also sets Processing).
+			this._panel?.webview.postMessage({ type: 'compactStart' });
 
-			for (let i = 0; i < maxMessages; i++) {
-				if (i < conversationData.userMessages.length) {
-					conversationText += `User: ${conversationData.userMessages[i]}\n\n`;
-				}
-				if (i < conversationData.assistantMessages.length) {
-					conversationText += `Assistant: ${conversationData.assistantMessages[i]}\n\n`;
-				}
+			// A loaded/restored conversation has no live PTY yet (the session is
+			// lazily resumed on the next send). Bring it back to life WITHOUT
+			// injecting a prompt so /compact has a live TUI to act on.
+			if (!this._processService.isProcessRunning()) {
+				debugLog('ClaudeChatProvider', 'No live PTY; resuming session for compaction', {
+					sessionId: this._currentSessionId
+				});
+				const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+				const cwd = workspaceFolder ? workspaceFolder.uri.fsPath : process.cwd();
+				await this._processService.startProcess({
+					message: '',
+					cwd: cwd,
+					sessionId: this._currentSessionId,
+					model: this._selectedModel,
+					skipInitialMessage: true
+				}, this._createProcessCallbacks());
 			}
 
-			// Construct compact prompt (English prompt)
-			const compactPrompt = `Please summarize the following conversation within 500 words. Focus on:
-1. The main topics discussed
-2. Key decisions made
-3. Important code changes (list filenames and change types)
-4. Any unresolved issues or todos
-5. Any errors or issues that need attention
+			// Inject the native slash command into the live PTY. If a turn is in
+			// flight the TUI queues it and runs it once idle.
+			await this._processService.injectSlashCommand('/compact');
 
-Conversation:
-${conversationText}
-
-Please provide a well-structured summary.`;
-
-			// Save current conversation history (before compaction)
-			const currentSessionId = Date.now().toString();
-			await this._conversationManager.saveCurrentConversation(
-				currentSessionId,
-				this._totalCost,
-				this._totalTokensInput,
-				this._totalTokensOutput
-			);
-
-			// Reset backend state (but don't send sessionCleared message to frontend)
-			this._currentSessionId = undefined;
-			this._conversationId = undefined;
-			this._conversationManager.clearCurrentConversation();
-			this._totalCost = 0;
-			this._totalTokensInput = 0;
-			this._totalTokensOutput = 0;
-			this._requestCount = 0;
-			this._messageProcessor.reset();
-			this._operationTracker.setCurrentSession('');
-
-			// Generate summary in background (don't display prompt)
-			debugLog('ClaudeChatProvider', 'Starting compact summary generation');
-			await this._generateCompactSummary(compactPrompt, conversationData, languageMode, selectedLanguage);
-			debugLog('ClaudeChatProvider', 'Compact summary generation complete');
-
-			// Note: compactingEnd and setProcessing: false will be sent in onClose callback
+			// Safety timeout: compaction is slow (~30-40s) and may sit queued
+			// behind an in-flight turn. If no compact_boundary arrives, abort and
+			// unlock the UI so the user is never stuck.
+			if (this._compactTimeout) { clearTimeout(this._compactTimeout); }
+			this._compactTimeout = setTimeout(() => {
+				if (!this._isCompactMode) { return; }
+				debugError('ClaudeChatProvider', 'Compaction timed out (no compact_boundary)');
+				this._isCompactMode = false;
+				this._compactTimeout = undefined;
+				this._panel?.webview.postMessage({ type: 'compactingEnd' });
+				this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
+				this._panel?.webview.postMessage({
+					type: 'error',
+					data: 'Compaction timed out — no compaction boundary was detected.'
+				});
+			}, ClaudeChatProvider.COMPACT_TIMEOUT_MS);
 
 		} catch (error: any) {
 			debugError('ClaudeChatProvider', 'Failed to compact conversation', error);
-
-			// Notify frontend compaction ended (even on error)
-			this._panel?.webview.postMessage({
-				type: 'compactingEnd'
-			});
-
-			// Restore processing state
-			this._panel?.webview.postMessage({
-				type: 'setProcessing',
-				data: false
-			});
-
-			// Show error message
+			this._isCompactMode = false;
+			if (this._compactTimeout) { clearTimeout(this._compactTimeout); this._compactTimeout = undefined; }
+			this._panel?.webview.postMessage({ type: 'compactingEnd' });
+			this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
 			this._panel?.webview.postMessage({
 				type: 'error',
 				data: `Failed to compact conversation: ${error.message}`
@@ -3566,25 +3635,65 @@ Please provide a well-structured summary.`;
 		}
 	}
 
-	// Generate compact summary in background
-	private async _generateCompactSummary(prompt: string, _conversationData: any, languageMode?: boolean, selectedLanguage?: string): Promise<void> {
-		// If language mode not specified, default to English
-		let actualPrompt = prompt;
+	/**
+	 * Native compaction boundary (route B). Fires BEFORE the summary line and
+	 * carries the authoritative pre/post token stats. Stored so the summary
+	 * handler can drive the Context Window progress bar from `postTokens`.
+	 */
+	private _handleCompactBoundary(meta: CompactBoundaryMeta): void {
+		debugLog('ClaudeChatProvider', 'Compact boundary', meta);
+		this._compactBoundaryMeta = meta;
+	}
 
-		// Use special compact mode to send message
-		// Note: _isCompactMode flag is reset in onClose callback (around line 688)
-		// Cannot reset here because _sendMessageToClaude is async and returns immediately
-		// while onAssistantMessage callback is called during process execution
-		this._isCompactMode = true;
+	/**
+	 * Native compaction summary (route B). Renders the summary in the existing
+	 * "⚡ Conversation Summary" style and reflects the post-compaction context
+	 * occupancy. Handles BOTH user-initiated /compact (clears history, current
+	 * style) and auto-compaction (keeps history, just appends the summary).
+	 */
+	private _handleCompactSummary(summaryText: string): void {
+		const wasManual = this._isCompactMode; // true only when WE injected /compact
+		const meta = this._compactBoundaryMeta;
+		const postTokens = meta?.postTokens ?? 0;
 
-		// Send compact prompt (won't display in UI)
-		// Pass language settings to support Language Mode
-		await this._sendMessageToClaude(actualPrompt, false, false, languageMode || false, selectedLanguage);
+		debugLog('ClaudeChatProvider', 'Compact summary received', {
+			wasManual, postTokens, trigger: meta?.trigger
+		});
 
-		// Note: Don't reset _isCompactMode here because:
-		// 1. _sendMessageToClaude just starts the process and returns immediately
-		// 2. onAssistantMessage callback is called during process execution
-		// 3. _isCompactMode will be correctly reset in onClose callback
+		if (this._compactTimeout) { clearTimeout(this._compactTimeout); this._compactTimeout = undefined; }
+
+		const summaryMessage = `## ⚡ Conversation Summary\n\n${summaryText}\n\n---\n*This is a summary of the previous conversation.*`;
+
+		this._panel?.webview.postMessage({
+			type: 'compactComplete',
+			summary: summaryMessage,
+			contextUsed: postTokens,     // post-compaction context occupancy
+			clearHistory: wasManual      // manual collapses history; auto appends
+		});
+
+		// Persist the summary into the conversation history.
+		this._conversationManager.addMessage({
+			timestamp: new Date().toISOString(),
+			messageType: 'output',
+			data: summaryMessage
+		});
+		void this._conversationManager.saveCurrentConversation(
+			this._currentSessionId || Date.now().toString(),
+			this._totalCost,
+			this._totalTokensInput,
+			this._totalTokensOutput
+		);
+
+		// Only the user-initiated path drives the compacting UI state; for an
+		// auto-compaction the surrounding turn is still running and must NOT be
+		// unlocked here (onTurnComplete handles it).
+		if (wasManual) {
+			this._panel?.webview.postMessage({ type: 'compactingEnd' });
+			this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
+		}
+
+		this._isCompactMode = false;
+		this._compactBoundaryMeta = undefined;
 	}
 
 	public dispose() {

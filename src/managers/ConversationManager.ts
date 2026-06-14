@@ -218,7 +218,11 @@ export class ConversationManager {
         inputTokens: number;
         outputTokens: number;
     } {
-        const TOTAL_TOKENS = 200000; // Claude's 200K context window, fixed value
+        // Context window capacity is configurable (defaults to Claude's 200K window;
+        // can be raised, e.g. to 400000, when the 1M beta context is enabled).
+        const TOTAL_TOKENS = vscode.workspace
+            .getConfiguration('claudeCodeChatUI')
+            .get<number>('contextWindowTokens', 200000);
 
         // Use actual cumulative values (similar to usage statistics)
         // These values are passed from MessageProcessor representing actual usage

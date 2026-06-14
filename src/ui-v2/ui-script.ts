@@ -887,6 +887,10 @@ export const uiScript = `
 		const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 		let lastContextTokens = 0; // Track latest context window usage
 		let maxContextTokensInSession = 0; // Track maximum context usage in current session
+		// Context Window total capacity (progress-bar denominator). Pushed from the
+		// extension via settingsData (claudeCodeChatUI.contextWindowTokens); falls
+		// back to Claude's standard 200K window when no value has arrived yet.
+		let contextWindowTotalTokens = 200000;
 		
 		// Tool execution tracking
 		let currentToolExecution = null;
@@ -906,12 +910,18 @@ export const uiScript = `
 		}
 
 		function updateStatusWithTotals() {
-			if (isProcessing) {
-				// While processing, show tokens and elapsed time
-				const totalTokens = totalTokensInput + totalTokensOutput;
-				const tokensStr = totalTokens > 0 ?
-					\`\${totalTokens.toLocaleString()} tokens\` : '0 tokens';
+			// Status bar token count reflects the current context-window usage
+			// (input + cache_creation + cache_read), matching the Context Window
+			// progress bar via maxContextTokensInSession. Summing raw
+			// input+output across turns is wrong under prompt caching:
+			// input_tokens is only the per-turn delta (~2) and cache_read repeats
+			// every turn, so a cumulative sum is meaningless and reads ~= output.
+			const contextTokens = maxContextTokensInSession;
+			const tokensStr = contextTokens > 0 ?
+				\`\${contextTokens.toLocaleString()} tokens\` : '0 tokens';
 
+			if (isProcessing) {
+				// While processing, show context tokens and elapsed time
 				let elapsedStr = '';
 				if (requestStartTime) {
 					const elapsedSeconds = Math.floor((Date.now() - requestStartTime) / 1000);
@@ -929,9 +939,6 @@ export const uiScript = `
 			} else {
 				// When ready, show full info
 				const costStr = totalCost > 0 ? \`$\${totalCost.toFixed(4)}\` : '$0.00';
-				const totalTokens = totalTokensInput + totalTokensOutput;
-				const tokensStr = totalTokens > 0 ?
-					\`\${totalTokens.toLocaleString()} tokens\` : '0 tokens';
 				const requestStr = requestCount > 0 ? \`\${requestCount} requests\` : '';
 
 				const statusText = \`Ready • \${costStr} • \${tokensStr}\${requestStr ? \` • \${requestStr}\` : ''}\`;
@@ -2781,10 +2788,14 @@ export const uiScript = `
 					hideCompactingMessage();
 					break;
 
-				case 'compactComplete':
-					// Compacting fully complete: clear message list, show summary
-					// This message is sent after summary is generated
-					console.log('[Compact] compactComplete received with summary');
+				case 'compactComplete': {
+					// Native compaction finished (route B). The session lives on
+					// (same sessionId/transcript), so cumulative cost/token totals
+					// are PRESERVED — only the context window collapses.
+					console.log('[Compact] compactComplete received', {
+						clearHistory: message.clearHistory,
+						contextUsed: message.contextUsed
+					});
 
 					// First stop Processing state (avoid delay)
 					isProcessing = false;
@@ -2792,35 +2803,42 @@ export const uiScript = `
 					hideStopButton();
 					enableButtons();
 
-					// Clear message list (including compacting message)
-					messagesDiv.innerHTML = '';
-					hideSessionInfo();
+					// Manual /compact collapses the visible history; auto-compaction
+					// keeps prior messages and just appends the summary.
+					if (message.clearHistory) {
+						messagesDiv.innerHTML = '';
+						hideSessionInfo();
+					} else {
+						hideCompactingMessage();
+					}
 
-					// Show compact summary
+					// Show compact summary in the existing "⚡ Conversation Summary" style
 					if (message.summary) {
 						// Escape HTML to prevent angle brackets from being treated as tags
 						const escapedSummary = escapeHtml(message.summary);
 						addMessage(parseSimpleMarkdown(escapedSummary, imagePathMap), 'claude');
 					}
 
-					// Reset statistics
-					totalCost = 0;
-					totalTokensInput = 0;
-					totalTokensOutput = 0;
-					requestCount = 0;
-					lastContextTokens = 0;
-					maxContextTokensInSession = 0;
-					updateStatusWithTotals();
-
-					// Reset Context Window indicator to 100% (important!)
+					// Reflect the post-compaction context occupancy from the
+					// authoritative compactMetadata.postTokens.
+					const postTokens = message.contextUsed || 0;
+					lastContextTokens = postTokens;
+					maxContextTokensInSession = postTokens; // force the max-only bar to drop
+					const TOTAL_CONTEXT = contextWindowTotalTokens;
+					const usedPercentage = (postTokens / TOTAL_CONTEXT) * 100;
+					const remainingPercentage = Math.max(0, 100 - usedPercentage);
 					updateTokenUsageIndicator({
-						used: 0,
-						total: 200000,
-						percentage: 100,
-						inputTokens: 0,
+						used: postTokens,
+						total: TOTAL_CONTEXT,
+						percentage: Math.round(remainingPercentage),
+						inputTokens: postTokens,
 						outputTokens: 0
 					});
+
+					// Status bar keeps cumulative totals; just refresh the display.
+					updateStatusWithTotals();
 					break;
+				}
 
 				case 'setProcessing':
 					console.log('[Compact] setProcessing received:', message.data, 'messagesDiv children:', messagesDiv.children.length);
@@ -2959,7 +2977,7 @@ export const uiScript = `
 						maxContextTokensInSession = lastContextTokens;
 
 						// Update Context Window display
-						const TOTAL_CONTEXT = 200000;
+						const TOTAL_CONTEXT = contextWindowTotalTokens;
 						const usedPercentage = (maxContextTokensInSession / TOTAL_CONTEXT) * 100;
 						const remainingPercentage = Math.max(0, 100 - usedPercentage);
 
@@ -3241,6 +3259,13 @@ export const uiScript = `
 			}
 
 			if (message.type === 'settingsData') {
+				// Pick up the configurable Context Window capacity (progress-bar
+				// denominator). Falls back to 200000 when unset/invalid.
+				const cfgContextTokens = Number(message.data['contextWindowTokens']);
+				if (Number.isFinite(cfgContextTokens) && cfgContextTokens > 0) {
+					contextWindowTotalTokens = cfgContextTokens;
+				}
+
 				// Restore thinking mode settings
 				const savedThinkingMode = message.data['thinking.enabled'] || false;
 				const thinkingIntensity = message.data['thinking.intensity'] || 'think';
@@ -3417,7 +3442,7 @@ export const uiScript = `
 			maxContextTokensInSession = 0;
 			updateTokenUsageIndicator({
 				used: 0,
-				total: 200000,
+				total: contextWindowTotalTokens,
 				percentage: 100,
 				inputTokens: 0,
 				outputTokens: 0

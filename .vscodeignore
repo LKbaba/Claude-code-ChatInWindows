@@ -14,6 +14,17 @@ vsc-extension-quickstart.md
 # 依赖优化 - 排除不必要的 node_modules
 node_modules/**
 !node_modules/glob/**
+# node-pty native module: platform-specific VSIX (win32-x64) must ship the
+# prebuilt .node binaries. node-pty 1.1.0 is N-API based, so the prebuild is
+# ABI-stable across Electron versions (no @electron/rebuild needed).
+# Re-include only the win32-x64 runtime files; .pdb debug symbols (~40MB) and
+# other-OS prebuilds are intentionally left excluded by the broad node_modules/** rule.
+!node_modules/node-pty/lib/**
+!node_modules/node-pty/package.json
+!node_modules/node-pty/prebuilds/win32-x64/*.node
+!node_modules/node-pty/prebuilds/win32-x64/winpty.dll
+!node_modules/node-pty/prebuilds/win32-x64/winpty-agent.exe
+!node_modules/node-pty/prebuilds/win32-x64/conpty/**
 
 # 文档和测试文件
 **/*.test.js

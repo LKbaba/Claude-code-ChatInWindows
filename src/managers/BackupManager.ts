@@ -6,6 +6,15 @@ import { debugLog, debugError } from '../services/DebugLogger';
 
 const execFile = util.promisify(cp.execFile);
 
+// Backup is best-effort: a hung git call must never freeze the message-send
+// pipeline. execFile's own `timeout` is not enough on Windows — when git
+// leaves a background helper (fsmonitor daemon, credential manager) holding the
+// stdout pipe open, Node never sees EOF and the promise never settles even
+// after the child is killed. So we ALSO race every git call against a
+// wall-clock timer that gives up regardless of whether the child ever exits.
+const GIT_EXEC_OPTS: cp.ExecFileOptions = { timeout: 10000, windowsHide: true };
+const GIT_WALL_CLOCK_MS = 12000;
+
 export interface CommitInfo {
     id: string;
     sha: string;
@@ -18,6 +27,26 @@ export class BackupManager {
     private _commits: CommitInfo[] = [];
 
     constructor(private readonly _context: vscode.ExtensionContext) {}
+
+    /**
+     * Run a git command with a hard wall-clock cap. Resolves/rejects regardless
+     * of whether the spawned child (or a git background helper that inherited the
+     * stdout pipe) ever exits, so a stuck git can never freeze the send pipeline.
+     */
+    private _git(args: string[]): Promise<{ stdout: string; stderr: string }> {
+        const exec = execFile('git', args, GIT_EXEC_OPTS) as Promise<{ stdout: string; stderr: string }>;
+        // Swallow a late rejection from a leaked, still-dying child so it can't
+        // surface as an unhandled rejection after the wall-clock race gave up.
+        exec.catch(() => { /* ignore */ });
+        let timer: NodeJS.Timeout | undefined;
+        const wall = new Promise<{ stdout: string; stderr: string }>((_, reject) => {
+            timer = setTimeout(
+                () => reject(new Error(`git timed out after ${GIT_WALL_CLOCK_MS}ms: ${args.join(' ')}`)),
+                GIT_WALL_CLOCK_MS
+            );
+        });
+        return Promise.race([exec, wall]).finally(() => { if (timer) { clearTimeout(timer); } });
+    }
 
     get commits(): CommitInfo[] {
         return this._commits;
@@ -61,10 +90,10 @@ export class BackupManager {
 
                 // Initialize git repo with workspace as work-tree
                 debugLog('BackupManager', `Running init command: git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" init`);
-                await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'init']);
+                await this._git(['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'init']);
 
-                await execFile('git', ['--git-dir', this._backupRepoPath, 'config', 'user.name', 'Claude Code Chat']);
-                await execFile('git', ['--git-dir', this._backupRepoPath, 'config', 'user.email', 'claude@anthropic.com']);
+                await this._git(['--git-dir', this._backupRepoPath, 'config', 'user.name', 'Claude Code Chat']);
+                await this._git(['--git-dir', this._backupRepoPath, 'config', 'user.email', 'claude@anthropic.com']);
 
                 debugLog('BackupManager', `Initialized backup repository at: ${this._backupRepoPath}`);
             }
@@ -75,6 +104,14 @@ export class BackupManager {
 
     async createBackupCommit(userMessage: string): Promise<CommitInfo | undefined> {
         try {
+            // Opt-in: the restore checkpoint is off by default (limited value in
+            // practice + extra git latency). Only run when explicitly enabled.
+            const backupEnabled = vscode.workspace.getConfiguration('claudeCodeChatUI').get<boolean>('backup.enabled', false);
+            if (!backupEnabled) {
+                debugLog('BackupManager', 'Backup disabled (claudeCodeChatUI.backup.enabled=false), skipping checkpoint');
+                return undefined;
+            }
+
             debugLog('BackupManager', `Creating backup commit for message: ${userMessage.substring(0, 50)}`);
 
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -91,13 +128,13 @@ export class BackupManager {
 
             // Add all files using git-dir and work-tree (excludes .git automatically)
             debugLog('BackupManager', `Running add command: git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" add -A`);
-            await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'add', '-A']);
+            await this._git(['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'add', '-A']);
 
             // Check if this is the first commit (no HEAD exists yet)
             let isFirstCommit = false;
             try {
                 debugLog('BackupManager', `Checking for HEAD: git --git-dir="${this._backupRepoPath}" rev-parse HEAD`);
-                await execFile('git', ['--git-dir', this._backupRepoPath, 'rev-parse', 'HEAD']);
+                await this._git(['--git-dir', this._backupRepoPath, 'rev-parse', 'HEAD']);
             } catch (e) {
                 debugLog('BackupManager', 'No HEAD found, this is the first commit');
                 isFirstCommit = true;
@@ -105,7 +142,7 @@ export class BackupManager {
 
             // Check if there are changes to commit
             debugLog('BackupManager', `Running status command: git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" status --porcelain`);
-            const { stdout: status } = await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'status', '--porcelain']);
+            const { stdout: status } = await this._git(['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'status', '--porcelain']);
 
             debugLog('BackupManager', 'Git status check', {
                 isFirstCommit,
@@ -127,10 +164,10 @@ export class BackupManager {
 
                 // Create commit - use execFile to prevent shell injection via actualMessage
                 debugLog('BackupManager', `Running commit command: git --git-dir="${this._backupRepoPath}" --work-tree="${workspacePath}" commit -m "${actualMessage}"`);
-                await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'commit', '-m', actualMessage]);
+                await this._git(['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'commit', '-m', actualMessage]);
 
                 debugLog('BackupManager', `Getting commit SHA: git --git-dir="${this._backupRepoPath}" rev-parse HEAD`);
-                const { stdout: sha } = await execFile('git', ['--git-dir', this._backupRepoPath, 'rev-parse', 'HEAD']);
+                const { stdout: sha } = await this._git(['--git-dir', this._backupRepoPath, 'rev-parse', 'HEAD']);
 
                 // Store commit info
                 const commitInfo: CommitInfo = {
@@ -170,7 +207,7 @@ export class BackupManager {
             const workspacePath = workspaceFolder.uri.fsPath;
 
             // Restore files directly to workspace using git checkout
-            await execFile('git', ['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'checkout', commitSha, '--', '.']);
+            await this._git(['--git-dir', this._backupRepoPath, '--work-tree', workspacePath, 'checkout', commitSha, '--', '.']);
 
             vscode.window.showInformationMessage(`Restored to commit: ${commit.message}`);
 

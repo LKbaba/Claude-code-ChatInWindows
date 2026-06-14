@@ -11,6 +11,8 @@
 
 **🌐 語言: [English](./README.md) | [简体中文](./README.zh-CN.md) | 繁體中文**
 
+> **說明：** 本擴充功能透過自動化操作官方 `claude` 互動式 CLI 來提供圖形介面。它不修改身分驗證、不代理網路流量、不接觸你的憑證 —— 而是複用你已登入的訂閱。請閱讀並遵守 [Anthropic 服務條款](https://www.anthropic.com/legal/consumer-terms)。
+
 ---
 
 ## 為什麼選擇這個擴充套件？
@@ -38,6 +40,7 @@
 
 | 版本 | 日期 | 亮點 |
 |------|------|------|
+| **v5.0.1** | 2026-06-13 | PTY 互動模式驅動取代 `claude -p`（用量計入你的訂閱額度）；輸出改從 transcript JSONL 讀取；新增權限模式設定；可選的 Stop hook 完成兜底；僅支援 win32-x64 |
 | **v4.1.3** | 2026-06-02 | 新增 Claude Opus 4.8 模型支援；Opus 4.7 降級為 Previous；Opus 4.5 從 UI 隱藏（保留用於歷史會話與費用計算） |
 | **v4.1.2** | 2026-05-18 | 安全修復：npm audit 漏洞 23→5；tsconfig 嚴格檢查（noImplicitReturns、noUnusedParameters）；程式碼去重：統一 escapeHtml、集中 MODEL_DISPLAY_NAMES、通用 openModal/closeModal |
 | **v4.1.1** | 2026-04-21 | Gemini Vertex AI ADC 認證模式；MCP 子程序環境變數回填修復（APPDATA/PATH/代理）；Windows `node` stdio 包裝 bug 修復；認證 UI 兩級層級化 |

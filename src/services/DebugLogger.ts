@@ -128,9 +128,11 @@ export class DebugLogger {
             console.log(`[${tag}] ${message}`);
         }
 
-        // Delayed file write (avoid frequent IO)
+        // Synchronous file write: a debounced setTimeout writer is invisible
+        // when the event loop is blocked synchronously (the buffered logs never
+        // flush), which hides exactly the hangs we need to diagnose. Write now.
         if (this.enabled && this.logFile) {
-            this.scheduleWrite();
+            this.writeToFile();
         }
     }
 

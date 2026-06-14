@@ -10,6 +10,7 @@ import { ConversationManager } from '../managers/ConversationManager';
 import { OperationTracker } from '../managers/OperationTracker';
 import { Operation, OperationType, OperationData } from '../types/Operation';
 import { debugLog, debugError } from './DebugLogger';
+import { computeUsageCost, MODEL_PRICING } from './ModelPricing';
 
 export interface MessageCallbacks {
     onSystemMessage: (data: any) => void;
@@ -24,6 +25,18 @@ export interface MessageCallbacks {
     onOperationTracked?: (operation: Operation) => void;
     // Plan Mode state change callback: triggered when Claude calls EnterPlanMode/ExitPlanMode
     onPlanModeChange?: (isInPlanMode: boolean) => void;
+    // Native compaction (route B): the transcript `compact_boundary` line fires
+    // this with the pre/post token stats once server-side compaction completes.
+    onCompactBoundary?: (meta: CompactBoundaryMeta) => void;
+    // Native compaction summary text (the `isCompactSummary` user line).
+    onCompactSummary?: (summaryText: string) => void;
+}
+
+export interface CompactBoundaryMeta {
+    trigger: string;      // "manual" (user /compact) or "auto" (context filled)
+    preTokens: number;    // context size before compaction
+    postTokens: number;   // context size after compaction
+    durationMs: number;
 }
 
 export interface TokenUpdate {
@@ -54,6 +67,13 @@ export class MessageProcessor {
     private _lastOperationTracked: boolean = false;
     private _currentRequestTokensInput: number = 0;
     private _currentRequestTokensOutput: number = 0;
+    // Per-turn cost accumulator (subscription/PTY mode computes cost from tokens).
+    private _currentRequestCost: number = 0;
+    // Models seen without a pricing entry; warn once each to avoid log spam.
+    private _warnedUnknownModels: Set<string> = new Set();
+    // Tripwires: warn once if assumptions behind the flat-rate pricing break.
+    private _warnedFastSpeed: boolean = false;
+    private _warned200kModels: Set<string> = new Set();
     private _currentMessageId: string | undefined;
 
     constructor(
@@ -77,6 +97,7 @@ export class MessageProcessor {
         this._lastOperationTracked = false;
         this._currentRequestTokensInput = 0;
         this._currentRequestTokensOutput = 0;
+        this._currentRequestCost = 0;
         this._currentMessageId = undefined;
     }
 
@@ -95,6 +116,29 @@ export class MessageProcessor {
             totalTokensOutput: this._totalTokensOutput,
             requestCount: this._requestCount
         };
+    }
+
+    /**
+     * Finalize a conversation turn (one end_turn). Increments the request
+     * counter, snapshots the current-turn cost/token tallies for the 💰 bubble,
+     * then resets the per-turn accumulators. Used in PTY mode where there is no
+     * `result` event to mark a turn boundary.
+     */
+    public completeTurn(): {
+        cost: number;
+        tokensInput: number;
+        tokensOutput: number;
+    } {
+        this._requestCount++;
+        const turn = {
+            cost: this._currentRequestCost,
+            tokensInput: this._currentRequestTokensInput,
+            tokensOutput: this._currentRequestTokensOutput
+        };
+        this._currentRequestCost = 0;
+        this._currentRequestTokensInput = 0;
+        this._currentRequestTokensOutput = 0;
+        return turn;
     }
 
     /**
@@ -117,6 +161,34 @@ export class MessageProcessor {
      */
     public processJsonData(jsonData: any, callbacks: MessageCallbacks): void {
         const type = jsonData.type;
+
+        // --- Native compaction (route B: injected `/compact`) ---
+        // The boundary marker carries the pre/post token stats and is written
+        // BEFORE the summary line. Both manual (`/compact`) and auto (context
+        // filled) compaction emit this same line (only `trigger` differs).
+        if (type === 'system' && jsonData.subtype === 'compact_boundary') {
+            const m = jsonData.compactMetadata || {};
+            callbacks.onCompactBoundary?.({
+                trigger: typeof m.trigger === 'string' ? m.trigger : 'manual',
+                preTokens: Number(m.preTokens) || 0,
+                postTokens: Number(m.postTokens) || 0,
+                durationMs: Number(m.durationMs) || 0
+            });
+            return;
+        }
+        // The compacted summary rides on a user-role line flagged
+        // `isCompactSummary`. Route it to the compact handler instead of
+        // rendering it as an ordinary user message.
+        if (jsonData.isCompactSummary === true) {
+            callbacks.onCompactSummary?.(this._extractMessageText(jsonData.message));
+            return;
+        }
+        // Suppress the slash-command echo lines native `/compact` writes to the
+        // transcript (`<command-name>` / `<local-command-stdout>` / caveat) —
+        // these are internal TUI artifacts, never real user input.
+        if (type === 'user' && this._isSlashCommandEcho(jsonData.message)) {
+            return;
+        }
 
         // Handle known message types
         if ((type === 'assistant' || type === 'user' || type === 'system') && jsonData.message) {
@@ -185,10 +257,58 @@ export class MessageProcessor {
     /**
      * Process a message object
      */
+    /** Extract plain text from a transcript message (content may be string or block array). */
+    private _extractMessageText(message: any): string {
+        const content = message?.content;
+        if (typeof content === 'string') {
+            return content;
+        }
+        if (Array.isArray(content)) {
+            return content
+                .filter((c: any) => c?.type === 'text' && typeof c.text === 'string')
+                .map((c: any) => c.text)
+                .join('\n');
+        }
+        return '';
+    }
+
+    /**
+     * True for the internal slash-command echo lines Claude writes when a slash
+     * command runs (e.g. `/compact`): the command name/message/args block and
+     * the `<local-command-stdout>` / `<local-command-caveat>` wrappers. These
+     * must not be rendered as user chat messages.
+     */
+    private _isSlashCommandEcho(message: any): boolean {
+        if (!message || message.role !== 'user') {
+            return false;
+        }
+        const text = this._extractMessageText(message).trimStart();
+        return text.startsWith('<command-name>') ||
+            text.startsWith('<command-message>') ||
+            text.startsWith('<local-command-stdout>') ||
+            text.startsWith('<local-command-caveat>');
+    }
+
     private _processMessage(message: any, callbacks: MessageCallbacks): void {
-        // Process token usage
-        if (message.usage) {
-            this._updateTokens(message.usage, callbacks);
+        // Transcript JSONL has no `system/init` line, so emit the one-time
+        // `connected` signal on the first message of any role. Idempotent via
+        // _isFirstSystemMessage (the legacy init/system paths share the flag).
+        if (this._isFirstSystemMessage) {
+            this._isFirstSystemMessage = false;
+            callbacks.sendToWebview({ type: 'connected' });
+        }
+
+        // Process token usage.
+        // NOTE (transcript double-count guard): transcript writes each content
+        // block (thinking/text/tool_use) of a single assistant message as a
+        // SEPARATE line, and every such line repeats `message.usage` with growing
+        // values; only the terminal block of a message carries a non-null
+        // `stop_reason` together with the cumulative usage. Counting every line
+        // would multiply-count tokens, so only accumulate on the terminal block.
+        // Legacy stream-json assistant messages always carry a stop_reason, so
+        // this gate is a no-op for the old `-p` path.
+        if (message.usage && message.stop_reason != null) {
+            this._updateTokens(message.usage, message.model, callbacks);
         }
 
         // Process message content by role
@@ -242,12 +362,16 @@ export class MessageProcessor {
                 debugLog('MessageProcessor', 'Assistant text', content.text);
                 // Regular text response - handled by onAssistantMessage callback
                 callbacks.onAssistantMessage(content.text);
-            } else if (content.type === 'thinking' && content.text) {
-                // Thinking process
-                callbacks.saveMessage({
-                    type: 'thinking',
-                    data: content.text
-                });
+            } else if (content.type === 'thinking') {
+                // Thinking process. Transcript JSONL stores the reasoning text in
+                // `content.thinking`; the legacy stream-json path used `content.text`.
+                const thinkingText = content.thinking || content.text;
+                if (thinkingText) {
+                    callbacks.saveMessage({
+                        type: 'thinking',
+                        data: thinkingText
+                    });
+                }
             } else if (content.type === 'tool_use') {
                 // Tool usage
                 this._processToolUse(content, callbacks);
@@ -846,17 +970,46 @@ export class MessageProcessor {
     /**
      * Update token counts
      */
-    private _updateTokens(usage: any, callbacks: MessageCallbacks): void {
+    private _updateTokens(usage: any, model: string | undefined, callbacks: MessageCallbacks): void {
         const inputTokens = usage.input_tokens || 0;
         const outputTokens = usage.output_tokens || 0;
         // Cache-related tokens are not counted in totals, only passed to frontend for display
         const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
         const cacheReadTokens = usage.cache_read_input_tokens || 0;
-        
+
         this._totalTokensInput += inputTokens;
         this._totalTokensOutput += outputTokens;
         this._currentRequestTokensInput += inputTokens;
         this._currentRequestTokensOutput += outputTokens;
+
+        // Subscription/PTY mode has no `result` event with total_cost_usd, so
+        // recompute the cost of this usage block (cache-aware) and accumulate it.
+        const blockCost = computeUsageCost(usage, model);
+        this._totalCost += blockCost;
+        this._currentRequestCost += blockCost;
+
+        // Tripwire: a model with no pricing entry yields $0 cost silently. Warn
+        // once per unknown model so missing rates surface (e.g. a new release).
+        if (model && !MODEL_PRICING.has(model) && !this._warnedUnknownModels.has(model)) {
+            this._warnedUnknownModels.add(model);
+            debugError('MessageProcessor', `No pricing for model "${model}"; cost will be $0. Add it to MODEL_PRICING.`);
+        }
+
+        // Tripwire: our flat-rate pricing assumes speed=="standard". If a "fast"
+        // block ever appears, fast-tier rates would be undercounted. Warn once.
+        if (usage.speed === 'fast' && !this._warnedFastSpeed) {
+            this._warnedFastSpeed = true;
+            debugError('MessageProcessor', `Encountered usage.speed=="fast"; pricing uses standard rates only and may undercount. Add fast-tier rates.`);
+        }
+
+        // Tripwire: our pricing assumes flat 1M rates (no >200k surcharge) for the
+        // default models. If a single block exceeds 200k input-equivalent tokens,
+        // a tiered model (e.g. Sonnet 4.5 1M beta) may be undercounted. Warn once.
+        const blockInputEquiv = inputTokens + cacheReadTokens + cacheCreationTokens;
+        if (blockInputEquiv > 200_000 && model && !this._warned200kModels.has(model)) {
+            this._warned200kModels.add(model);
+            debugError('MessageProcessor', `Model "${model}" block exceeds 200k input tokens (${blockInputEquiv}); verify it has no >200k tiered pricing.`);
+        }
 
         callbacks.onTokenUpdate({
             totalTokensInput: this._totalTokensInput,
@@ -879,20 +1032,21 @@ export class MessageProcessor {
             return;
         }
 
-        // Current request tokens are already tracked in the instance variables
+        // Current request tokens/cost are already tracked in the instance variables.
         const currentTokensInput = this._currentRequestTokensInput;
         const currentTokensOutput = this._currentRequestTokensOutput;
+        // Cost is computed from token usage in _updateTokens (cache-aware), so it
+        // is already accumulated. Do NOT add jsonData.total_cost_usd here or it
+        // would double-count in the legacy stream-json path.
+        const currentCost = this._currentRequestCost;
 
         // Update tracking
         this._requestCount++;
-        if (jsonData.total_cost_usd) {
-            this._totalCost += jsonData.total_cost_usd;
-        }
 
         // Send result info
         callbacks.onFinalResult({
             sessionId: jsonData.session_id,
-            totalCost: jsonData.total_cost_usd,
+            totalCost: this._totalCost,
             duration: jsonData.duration_ms,
             turns: jsonData.num_turns
         });
@@ -905,7 +1059,7 @@ export class MessageProcessor {
                 totalTokensInput: this._totalTokensInput,
                 totalTokensOutput: this._totalTokensOutput,
                 requestCount: this._requestCount,
-                currentCost: jsonData.total_cost_usd,
+                currentCost: currentCost,
                 currentDuration: jsonData.duration_ms,
                 currentTurns: jsonData.num_turns,
                 currentTokensInput: currentTokensInput,
@@ -913,9 +1067,10 @@ export class MessageProcessor {
             }
         });
 
-        // Reset current request tokens
+        // Reset current request tokens/cost
         this._currentRequestTokensInput = 0;
         this._currentRequestTokensOutput = 0;
+        this._currentRequestCost = 0;
     }
 
     /**
