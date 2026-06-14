@@ -40,6 +40,7 @@
 
 | 版本 | 日期 | 亮點 |
 |------|------|------|
+| **v5.0.2** | 2026-06-14 | 圖片首輪即視覺：分步 PTY 注入讓貼上/選擇的圖片以原生 `[Image #N]` 多模態附件進入對話（0 次 `Read`，不再「我看不到圖」）；重注入看門狗下冪等；無 chip 時降級走 `Read` 不丟圖；中文/空格路徑與多圖已驗證 |
 | **v5.0.1** | 2026-06-13 | PTY 互動模式驅動取代 `claude -p`（用量計入你的訂閱額度）；輸出改從 transcript JSONL 讀取；新增權限模式設定；可選的 Stop hook 完成兜底；僅支援 win32-x64 |
 | **v4.1.3** | 2026-06-02 | 新增 Claude Opus 4.8 模型支援；Opus 4.7 降級為 Previous；Opus 4.5 從 UI 隱藏（保留用於歷史會話與費用計算） |
 | **v4.1.2** | 2026-05-18 | 安全修復：npm audit 漏洞 23→5；tsconfig 嚴格檢查（noImplicitReturns、noUnusedParameters）；程式碼去重：統一 escapeHtml、集中 MODEL_DISPLAY_NAMES、通用 openModal/closeModal |

@@ -127,6 +127,23 @@ export class ClaudeProcessService {
     // (so we must keep scanning post-ready), and capped to recent bytes.
     private _markerBuffer = '';
 
+    // Rolling buffer for image-chip scanning. The interactive TUI converts a
+    // bare absolute image path (pasted ALONE) into an "[Image #N]" attachment
+    // chip; staged image injection waits for that chip before pasting the next
+    // path / the message text. Reset at the start of each staged injection so a
+    // prior turn's chip cannot false-trigger. Capped to recent bytes.
+    private _chipScanBuffer = '';
+    // Staged-injection idempotency guards. The first-turn (_discoverWithReinject)
+    // and subsequent-turn (_beginSubsequentTurn) reinject watchdogs both re-call
+    // _beginTurn when the transcript does not grow. For a staged image turn that
+    // would otherwise stack duplicate chips, so:
+    //  - _stagedInjectInProgress: a staged injection is mid-flight -> ignore any
+    //    re-entrant _beginTurn (do not start a second one).
+    //  - _stagedArmed: images mounted + text pasted, the input box only needs its
+    //    submitting Enter -> a watchdog re-call re-sends Enter ONLY (never re-stages).
+    private _stagedInjectInProgress = false;
+    private _stagedArmed = false;
+
     private static readonly READY_SILENCE_MS = 400;   // quiet window => TUI ready
     // Floor before a silence window may resolve "ready". claude prints a short
     // preamble (cmd.exe title + node warnings) then pauses >400ms loading its
@@ -169,6 +186,15 @@ export class ClaudeProcessService {
     // Validated against the native claude.exe by scripts/verify-claude-precompact.js.
     private static readonly SLASH_CHAR_DELAY_MS = 60;
     private static readonly SLASH_SUBMIT_DELAY_MS = 1000;
+    // Staged image injection: after pasting a bare image path ALONE, the TUI
+    // takes a beat to render it as an "[Image #N]" attachment chip. Wait up to
+    // IMAGE_CHIP_TIMEOUT_MS per image (polling every IMAGE_CHIP_POLL_MS) for that
+    // chip; on timeout we degrade to inlining the path for a Read (Task 4). The
+    // ready-gate timeout bounds how long we wait for the input box before staging.
+    // Validated by scripts/verify-image-staged.js / verify-image-staged-edge.js.
+    private static readonly IMAGE_CHIP_TIMEOUT_MS = 2500;
+    private static readonly IMAGE_CHIP_POLL_MS = 100;
+    private static readonly IMAGE_CHIP_READY_TIMEOUT_MS = 8000;
     // Max time injectSlashCommand waits for the input-box footer marker before
     // typing. A cold --resume (e.g. /compact on a freshly loaded conversation)
     // can take ~15-20s to paint the input box; an alive idle session resolves
@@ -332,7 +358,9 @@ export class ClaudeProcessService {
                 return;
             }
 
-            // Inject the first user message.
+            // Inject the first user message. Reset staged guards: this is a fresh
+            // turn, not a watchdog re-call (those must preserve the guards).
+            this._resetStagedState();
             this._beginTurn(options);
 
             // Fresh session: claude writes the transcript only after it accepts
@@ -365,8 +393,11 @@ export class ClaudeProcessService {
                 debugError('ClaudeProcessService', 'Failed to send ESC interrupt', error);
             }
             this._turnInProgress = false;
-            // User interrupted -> never resurrect the prompt via the watchdog.
+            // User interrupted -> never resurrect the prompt via the watchdog,
+            // and abort any in-flight staged image injection (its loop checks
+            // _turnInProgress between writes).
             this._clearReinjectWatchdog();
+            this._resetStagedState();
         }
     }
 
@@ -439,6 +470,9 @@ export class ClaudeProcessService {
         this._startupGateHandled = false;
         this._inputBoxReady = false;
         this._markerBuffer = '';
+        this._chipScanBuffer = '';
+        this._stagedInjectInProgress = false;
+        this._stagedArmed = false;
         this._currentTranscriptFile = undefined;
         this._spawnTs = Date.now();
 
@@ -460,12 +494,42 @@ export class ClaudeProcessService {
         return s.split('\x1b[200~').join('').split('\x1b[201~').join('');
     }
 
+    /** Reset staged-injection guards at a genuine new-turn boundary (NOT on a
+     * watchdog re-call, which must preserve them to stay idempotent). */
+    private _resetStagedState(): void {
+        this._stagedInjectInProgress = false;
+        this._stagedArmed = false;
+    }
+
     /** Inject one user message into the live PTY and submit it (matches reference). */
     private _beginTurn(options: ProcessOptions): void {
         if (!this._pty) {
             return;
         }
         this._turnInProgress = true;
+
+        // Image turn -> staged injection (paste each path alone to mount an
+        // "[Image #N]" attachment chip, then the text, then a single Enter). A
+        // path embedded in multi-line text gets swallowed by the TUI, losing the
+        // image; the chip path delivers a true multimodal attachment. See
+        // scripts/verify-image-staged.js and PRD v13 §2.1.
+        const imageAbsPaths = (options.imagesInMessage ?? []).filter((p) => typeof p === 'string' && p.trim().length > 0);
+        if (imageAbsPaths.length > 0) {
+            if (this._stagedInjectInProgress) {
+                // A staged injection is already running for this turn; a watchdog
+                // re-call must not start a second one (would stack duplicate chips).
+                return;
+            }
+            if (this._stagedArmed) {
+                // Images already mounted + text pasted, but the transcript did not
+                // grow -> the submitting Enter was dropped. Re-send Enter ONLY.
+                debugLog('ClaudeProcessService', 'Staged message already armed; re-sending submit Enter (idempotent)');
+                this._submitStaged();
+                return;
+            }
+            void this._injectStagedMessage(imageAbsPaths, this._stripPasteMarkers(options.message ?? ''));
+            return;
+        }
 
         const rawText = options.message ?? '';
 
@@ -503,6 +567,159 @@ export class ClaudeProcessService {
     }
 
     /**
+     * Staged image injection. Paste each image's bare absolute path ALONE so the
+     * TUI converts it into an "[Image #N]" attachment chip (a true multimodal
+     * attachment), wait for that chip, then paste the text and submit once. A
+     * path embedded in multi-line text is swallowed by the TUI -> the image is
+     * lost; staging avoids that. Idempotent under watchdog re-calls via
+     * _stagedInjectInProgress / _stagedArmed (see _beginTurn).
+     */
+    private async _injectStagedMessage(imageAbsPaths: string[], text: string): Promise<void> {
+        this._stagedInjectInProgress = true;
+        // Reset the chip scan buffer so a prior turn's "[Image #N]" cannot
+        // false-trigger this turn's chip detection.
+        this._chipScanBuffer = '';
+        try {
+            // Gate on input-box readiness: a path pasted before the box is
+            // interactive is dropped (same risk the text path's watchdog covers).
+            const ready = await this.waitForInputBoxReady(ClaudeProcessService.IMAGE_CHIP_READY_TIMEOUT_MS);
+            if (!ready || !this._pty) {
+                debugError('ClaudeProcessService', 'Input box not ready for staged image injection; degrading to inline');
+                this._degradeToInline(imageAbsPaths, text);
+                return;
+            }
+
+            debugLog('ClaudeProcessService', 'Staged image injection start', { images: imageAbsPaths.length, hasText: text.length > 0 });
+
+            for (let i = 0; i < imageAbsPaths.length; i++) {
+                // Bail if the session died or the user interrupted mid-stage.
+                if (!this._pty || !this._turnInProgress) {
+                    return;
+                }
+                const p = this._stripPasteMarkers(imageAbsPaths[i]);
+                // Paste the path ALONE (no other chars, no Enter) so the TUI treats
+                // it as an attachable file rather than prompt text.
+                this._pty.write(`\x1b[200~${p}\x1b[201~`);
+                const ok = await this._waitForImageChip(i + 1, ClaudeProcessService.IMAGE_CHIP_TIMEOUT_MS);
+                if (!ok) {
+                    // Chip never appeared (older/newer TUI, odd path). Keep the
+                    // chips already mounted and degrade the REMAINING images to an
+                    // inline Read path so we never fully lose an image. (Task 4.)
+                    debugError('ClaudeProcessService', 'Image chip not detected; degrading remaining images to inline', { chipIndex: i + 1 });
+                    this._degradeToInline(imageAbsPaths.slice(i), text);
+                    return;
+                }
+                debugLog('ClaudeProcessService', 'Image chip mounted', { chipIndex: i + 1 });
+            }
+
+            if (!this._pty) {
+                return;
+            }
+            // All images mounted -> paste the (optional, possibly multi-line) text,
+            // then arm and submit. Text after chips stays in the prompt body and is
+            // NOT swallowed (only a bare path on its own line is).
+            if (text) {
+                this._pty.write(`\x1b[200~${text}\x1b[201~`);
+            }
+            this._stagedArmed = true;
+            await this._sleep(ClaudeProcessService.PASTE_SUBMIT_DELAY_MS);
+            this._submitStaged();
+        } catch (error) {
+            // Never let a staged-injection failure escape and wedge the turn.
+            debugError('ClaudeProcessService', 'Staged image injection failed', error);
+        } finally {
+            this._stagedInjectInProgress = false;
+        }
+    }
+
+    /**
+     * Degrade path: chips did not appear, so inline the (remaining) image absolute
+     * paths into the text and submit as one paste. Claude then Reads them (one
+     * extra round-trip) instead of receiving a native attachment -- never a total
+     * image loss. Any chips already mounted this turn stay in the input box; this
+     * only handles the un-mounted remainder.
+     *
+     * Layout safety (per PRD v13 §1): a path ALONE on its own line inside a
+     * multi-line paste is swallowed by the TUI. So we strip trailing whitespace
+     * from the text first (so it never ends in a newline) and join the paths onto
+     * the text's LAST line with spaces -- the paths are never alone on a line.
+     * When there is no text, the paths form a single line together (single-step
+     * inline form, also safe).
+     */
+    private _degradeToInline(remainingImageAbsPaths: string[], text: string): void {
+        const flatText = text.replace(/\s+$/, ''); // no trailing newline before a path
+        const parts: string[] = [];
+        if (flatText) {
+            parts.push(flatText);
+        }
+        for (const p of remainingImageAbsPaths) {
+            parts.push(this._stripPasteMarkers(p));
+        }
+        const inline = parts.join(' ').trim();
+        this._stagedArmed = true; // a single paste is in the box; only Enter remains
+        try {
+            if (this._pty && inline) {
+                this._pty.write(`\x1b[200~${inline}\x1b[201~`);
+            }
+        } catch (error) {
+            debugError('ClaudeProcessService', 'Failed to write inline-degrade paste', error);
+        }
+        setTimeout(() => this._submitStaged(), ClaudeProcessService.PASTE_SUBMIT_DELAY_MS);
+    }
+
+    /** Send the single submitting Enter for a staged/degraded message. */
+    private _submitStaged(): void {
+        try {
+            this._pty?.write('\r');
+            debugLog('ClaudeProcessService', 'Submitted staged message (Enter)');
+        } catch (error) {
+            debugError('ClaudeProcessService', 'Failed to submit staged message Enter', error);
+        }
+    }
+
+    /**
+     * Resolve true once the n-th image attachment chip ("[Image #<n>]") is seen
+     * in the PTY stream, or false on timeout. Scans the rolling _chipScanBuffer
+     * fed by _onPtyData (no separate PTY listener). The bracketed form is matched
+     * so a pasted path that merely CONTAINS "imageN" (e.g. image1.png) cannot
+     * false-trigger before the real chip renders.
+     */
+    private _waitForImageChip(n: number, timeoutMs: number): Promise<boolean> {
+        const deadline = Date.now() + timeoutMs;
+        return new Promise<boolean>((resolve) => {
+            const poll = (): void => {
+                if (!this._pty) {
+                    resolve(false);
+                    return;
+                }
+                if (this._detectImageChip(this._chipScanBuffer, n)) {
+                    resolve(true);
+                    return;
+                }
+                if (Date.now() >= deadline) {
+                    resolve(false);
+                    return;
+                }
+                setTimeout(poll, ClaudeProcessService.IMAGE_CHIP_POLL_MS);
+            };
+            poll();
+        });
+    }
+
+    /** True when a "[Image #m]" chip with m >= n is present (ANSI stripped). */
+    private _detectImageChip(buffer: string, n: number): boolean {
+        const stripped = buffer.replace(ClaudeProcessService.ANSI_PATTERN, '');
+        const re = /\[\s*image\s*#?\s*(\d+)\s*\]/gi;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(stripped)) !== null) {
+            if (parseInt(m[1], 10) >= n) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Inject a subsequent-turn message and arm a lightweight reinject watchdog.
      * Unlike the first turn (covered by _discoverWithReinject), turns 2+ inject
      * exactly once into an already-settled TUI. That paste can still be silently
@@ -514,6 +731,9 @@ export class ClaudeProcessService {
      */
     private _beginSubsequentTurn(options: ProcessOptions): void {
         this._clearReinjectWatchdog();
+        // Fresh turn -> clear staged guards so the watchdog's later re-calls
+        // (which preserve them) behave correctly for this new message.
+        this._resetStagedState();
 
         // Baseline the transcript size BEFORE injecting. Growth afterwards means
         // claude accepted the prompt (it writes the user line + response).
@@ -674,6 +894,9 @@ export class ClaudeProcessService {
         this._startupGateHandled = false;
         this._inputBoxReady = false;
         this._markerBuffer = '';
+        this._chipScanBuffer = '';
+        this._stagedInjectInProgress = false;
+        this._stagedArmed = false;
         this._currentTranscriptFile = undefined;
         // Wake any pending readiness waiters so they resolve false (session gone)
         // instead of hanging until their own timeout.
@@ -697,6 +920,10 @@ export class ClaudeProcessService {
         // resolve well before the input box paints, so this positive signal must
         // keep being checked even after _sessionReady is set.
         this._scanInputBoxReady(data);
+
+        // Accumulate output for image-chip detection (post-ready: chips paint
+        // only while a turn is being composed, long after the session is ready).
+        this._chipScanBuffer = (this._chipScanBuffer + data).slice(-ClaudeProcessService.STARTUP_BUFFER_CAP);
 
         if (this._sessionReady) {
             return;

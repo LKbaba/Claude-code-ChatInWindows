@@ -2,6 +2,19 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [5.0.2] - 2026-06-14
+
+### Added
+- **First-turn image vision via staged PTY injection** — pasted/selected images now reach Claude as a native `[Image #N]` multimodal attachment on the very first turn (0 `Read` round-trips, no "I don't see an image"). The injector pastes each image's bare absolute path ALONE so the interactive TUI converts it into an attachment chip, then pastes the message text, then submits with a single Enter.
+  - `ClaudeChatProvider._splitImageMentions` pulls image `@<path>` mentions out of the CLI-bound text and passes their absolute paths through `ProcessOptions.imagesInMessage`; the chat bubble still shows the friendly `@relative` path.
+  - `ClaudeProcessService` staged injection (`_injectStagedMessage` / `_waitForImageChip`) is idempotent under the reinject watchdog (`_stagedInjectInProgress` / `_stagedArmed`) so a re-call never stacks duplicate chips or re-submits.
+  - Graceful degrade: if the chip never appears, the remaining image paths are inlined onto the text's last line for a `Read` so an image is never fully lost (trailing whitespace stripped to avoid the TUI swallowing an own-line path).
+  - Non-image `@<path>` mentions continue to use the absolute-path expand + `Read` flow (unchanged).
+- Headless probes: `scripts/verify-image-staged.js`, `verify-image-staged-edge.js` (CJK/space paths + multi-image), `verify-image-pipeline.js` (end-to-end), `verify-msg-split.js`, `verify-image-inject.js`, `verify-ide-atmention.js`.
+
+### Notes
+- Verified on the npm-installed `claude` 2.1.85 (the build the extension launches) and cross-checked on 2.1.119; CJK/space paths and multi-image both yield 0-`Read` attachments. The IDE-WebSocket / `at_mentioned` route was investigated and rejected (ineffective for images, version-fragile) in favor of this pure-PTY approach.
+
 ## [5.0.1] - 2026-06-13
 
 ### Changed (major architecture)

@@ -639,6 +639,15 @@ export class ClaudeChatProvider {
 			// Don't reset operation tracker session here, we'll use conversationId
 		}
 
+		// Route image "@<path>" mentions to the staged-attachment channel: pull
+		// them out of the CLI-bound text and pass their absolute paths separately,
+		// so ProcessService can mount them as native "[Image #N]" attachments
+		// (true multimodal vision). An image path left inline in (multi-line) text
+		// is swallowed by the TUI and the image is lost. Non-image mentions stay in
+		// the text and are expanded below for the Read path.
+		const { imageAbsPaths, text: textWithoutImages } = this._splitImageMentions(actualMessage, cwd);
+		actualMessage = textWithoutImages;
+
 		// Expand remaining "@<relative path>" file mentions (non-image) to absolute
 		// paths so Claude can Read the referenced file directly. The TUI's @-mention
 		// picker only fires for real keystrokes, not for our injected paste, so the
@@ -652,7 +661,9 @@ export class ClaudeChatProvider {
 			cwd: cwd,
 			sessionId: this._currentSessionId,
 			model: this._selectedModel,
-			platformEnvironmentInfo: platformEnvironmentInfo
+			platformEnvironmentInfo: platformEnvironmentInfo,
+			// Image absolute paths -> staged "[Image #N]" attachment injection.
+			imagesInMessage: imageAbsPaths
 			// Note: planMode and thinkingMode are handled through message prefixes above,
 			// not passed to ProcessService
 		};
@@ -675,6 +686,47 @@ export class ClaudeChatProvider {
 		}
 	}
 
+	// Image extensions routed to the staged multimodal-attachment channel.
+	private static readonly IMAGE_MENTION_EXT = /\.(png|jpe?g|gif|webp|bmp)$/i;
+
+	/**
+	 * Split image "@<path>" mentions out of the outgoing message. Returns the
+	 * resolved absolute paths of existing image files plus the text with those
+	 * tokens removed. Handles both "@relative" (the form pasted/inserted by the
+	 * image entry points) and "@<absolute>". Non-image mentions are left in place
+	 * for _expandFileMentions to handle (the Read path is unchanged). The original
+	 * user text shown in the chat bubble is NOT affected — only the CLI-bound copy.
+	 */
+	private _splitImageMentions(message: string, cwd: string): { imageAbsPaths: string[]; text: string } {
+		const imageAbsPaths: string[] = [];
+		const text = message.replace(/(^|\s)@([^\s]+)/g, (match, lead: string, rawPath: string) => {
+			// Strip trailing sentence punctuation (mirrors _expandFileMentions).
+			const trailingMatch = rawPath.match(/[)\]},.;:!?]+$/);
+			const trailing = trailingMatch ? trailingMatch[0] : '';
+			const candidate = trailing ? rawPath.slice(0, -trailing.length) : rawPath;
+			if (!candidate || !ClaudeChatProvider.IMAGE_MENTION_EXT.test(candidate)) {
+				return match; // not an image mention -> leave untouched
+			}
+			try {
+				const abs = path.isAbsolute(candidate) ? candidate : path.resolve(cwd, candidate);
+				if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+					if (!imageAbsPaths.includes(abs)) {
+						imageAbsPaths.push(abs);
+					}
+					debugLog('ClaudeChatProvider', 'Routed image @-mention to staged attachment', { mention: candidate, abs });
+					// Drop the path token; keep the leading separator + any trailing
+					// punctuation so surrounding words are not glued together.
+					return `${lead}${trailing}`;
+				}
+			} catch (error) {
+				debugError('ClaudeChatProvider', 'Failed to resolve image @-mention', { rawPath, error });
+			}
+			return match;
+		});
+		// Collapse the whitespace left where tokens were removed, and trim.
+		const cleaned = text.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').trim();
+		return { imageAbsPaths, text: cleaned };
+	}
 
 	/**
 	 * Rewrite "@<path>" file mentions in the outgoing message into absolute paths
