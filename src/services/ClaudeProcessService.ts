@@ -149,6 +149,27 @@ export class ClaudeProcessService {
     // transcript fails to grow after injection. undefined => not armed.
     private _reinjectTimer: NodeJS.Timeout | undefined;
 
+    // B3 (PTY-idle completion fallback) state. claude does NOT always write the
+    // turn's final assistant line with stop_reason=end_turn: responses that
+    // contain a thinking block (and some large-context first turns) are
+    // finalized with stop_reason=null, so B1 (TranscriptTailService end_turn
+    // detection) never fires and the UI hangs forever. The robust idle signal is
+    // the TUI's spinner stopping: while generating, claude repaints the spinner
+    // every few hundred ms (continuous PTY output); when the turn truly ends the
+    // PTY goes quiet. We complete the turn after IDLE_SILENCE_MS of PTY silence,
+    // but ONLY once an assistant line has appeared this turn (the gate below) so
+    // the pre-generation quiet gap (MCP startup / reinject wait) cannot
+    // false-complete. Deduped against B1/B2 via the shared _completeTurn guard.
+    private _idleTimer: NodeJS.Timeout | undefined;
+    // True once the transcript has produced an assistant line for the current
+    // turn -> generation has actually started, so PTY silence now means "done".
+    private _assistantSeenThisTurn = false;
+    // True once a real user/assistant transcript line appears for the current
+    // turn, i.e. claude actually accepted the injected prompt. file-history-
+    // snapshot lines do NOT set this, so they cannot fool the reinject watchdog
+    // into thinking a dropped prompt was accepted.
+    private _promptAcceptedThisTurn = false;
+
     // Guards against two slash commands typing into the PTY at the same time.
     // injectSlashCommand types char-by-char with delays; if a second call starts
     // before the first finishes, their keystrokes interleave into garbage
@@ -218,6 +239,13 @@ export class ClaudeProcessService {
     // buffered (verified: the transcript shows the prompt exactly once after
     // several re-injects), so repeating injection cannot duplicate the message.
     private static readonly REINJECT_INTERVAL_MS = 3500;
+    // B3: PTY silence window that means the spinner stopped => the turn ended.
+    // claude's spinner is animated client-side on a timer and repaints every
+    // ~150-400ms throughout generation (including thinking and tool execution),
+    // so output never goes quiet this long mid-turn; sustained silence is a
+    // reliable end-of-generation signal. Generous margin over the repaint cadence
+    // to avoid completing on a transient stall.
+    private static readonly IDLE_SILENCE_MS = 1500;
     private static readonly PTY_LOG_THROTTLE_MS = 300; // min gap between raw-stream log lines
     private static readonly PTY_LOG_PREVIEW_CHARS = 160; // truncate raw-stream preview
     private static readonly STARTUP_BUFFER_CAP = 16000; // retained pre-ready bytes for gate detection
@@ -430,19 +458,29 @@ export class ClaudeProcessService {
             // Inject the first user message. Reset staged guards: this is a fresh
             // turn, not a watchdog re-call (those must preserve the guards).
             this._resetStagedState();
+            this._promptAcceptedThisTurn = false;
             this._beginTurn(options);
 
-            // Fresh session: claude writes the transcript only after it accepts
-            // the first prompt. Discover the new jsonl, re-injecting on an interval
-            // until it appears (the input box can silently drop the first paste
-            // while still loading, e.g. MCP servers), then tail from the beginning.
             if (!sid) {
+                // Fresh session: claude writes the transcript only after it accepts
+                // the first prompt. Discover the new jsonl, re-injecting on an
+                // interval until it appears (the input box can silently drop the
+                // first paste while still loading, e.g. MCP servers), then tail
+                // from the beginning.
                 const file = await this._discoverWithReinject(options, since);
                 if (file) {
                     this._startTail(file, 0);
                 } else {
                     debugError('ClaudeProcessService', 'Could not discover new transcript file after launch (after re-injects)');
                 }
+            } else {
+                // Resume: the transcript already exists and is being tailed, so
+                // _discoverWithReinject's file-appearance heuristic does not apply.
+                // The input box can still be loading when we inject (the footer
+                // readiness marker can appear after _waitForReady resolves), which
+                // silently drops the first paste and leaves the turn with no reply.
+                // Arm the reinject watchdog so a dropped resume prompt is re-sent.
+                this._armReinjectWatchdog(options);
             }
         } finally {
             this._isStarting = false;
@@ -466,6 +504,9 @@ export class ClaudeProcessService {
             // and abort any in-flight staged image injection (its loop checks
             // _turnInProgress between writes).
             this._clearReinjectWatchdog();
+            this._clearIdleTimer();
+            this._assistantSeenThisTurn = false;
+            this._promptAcceptedThisTurn = false;
             this._resetStagedState();
         }
     }
@@ -576,6 +617,11 @@ export class ClaudeProcessService {
             return;
         }
         this._turnInProgress = true;
+        // Fresh turn -> reset the B3 idle gate. Watchdog re-calls of _beginTurn
+        // happen only BEFORE any assistant line appears (they stop once the
+        // transcript grows), so clearing this here cannot drop a real signal.
+        this._assistantSeenThisTurn = false;
+        this._clearIdleTimer();
 
         // Image turn -> staged injection (paste each path alone to mount an
         // "[Image #N]" attachment chip, then the text, then a single Enter). A
@@ -789,38 +835,32 @@ export class ClaudeProcessService {
     }
 
     /**
-     * Inject a subsequent-turn message and arm a lightweight reinject watchdog.
-     * Unlike the first turn (covered by _discoverWithReinject), turns 2+ inject
-     * exactly once into an already-settled TUI. That paste can still be silently
-     * dropped if the input box is momentarily busy (heavy MCP activity, or a turn
-     * submitted right after the previous turn's very early transcript flush). The
-     * watchdog re-sends the prompt if the transcript file does not grow within
-     * REINJECT_INTERVAL_MS, and stops the instant growth is observed so an
-     * accepted prompt is never injected twice (idempotent).
+     * Inject a subsequent-turn message and arm the reinject watchdog. Unlike the
+     * first turn (covered by _discoverWithReinject), turns 2+ inject exactly once
+     * into an already-settled TUI. That paste can still be silently dropped if the
+     * input box is momentarily busy (heavy MCP activity, or a turn submitted right
+     * after the previous turn's very early transcript flush).
      */
     private _beginSubsequentTurn(options: ProcessOptions): void {
         this._clearReinjectWatchdog();
         // Fresh turn -> clear staged guards so the watchdog's later re-calls
         // (which preserve them) behave correctly for this new message.
         this._resetStagedState();
-
-        // Baseline the transcript size BEFORE injecting. Growth afterwards means
-        // claude accepted the prompt (it writes the user line + response).
-        const file = this._currentTranscriptFile;
-        let baselineSize = -1;
-        if (file) {
-            try { baselineSize = fs.statSync(file).size; } catch { baselineSize = -1; }
-        }
-
+        this._promptAcceptedThisTurn = false;
         this._beginTurn(options);
+        this._armReinjectWatchdog(options);
+    }
 
-        // No transcript to compare against -> cannot run the growth heuristic;
-        // fall back to single-injection behavior (correct in the common case,
-        // just without the dropped-paste safety net).
-        if (!file || baselineSize < 0) {
-            return;
-        }
-
+    /**
+     * Arm a reinject watchdog that re-sends the prompt if claude never accepts it.
+     * Shared by the resume path (fresh PTY + existing sid) and subsequent turns
+     * (live PTY). Acceptance is detected via _promptAcceptedThisTurn -- a real
+     * user/assistant transcript line. file-history-snapshot lines do NOT count, so
+     * a turn that only produced snapshots (the dropped-paste symptom) correctly
+     * triggers a re-inject. Stops the instant acceptance is observed so an accepted
+     * prompt is never injected twice (idempotent).
+     */
+    private _armReinjectWatchdog(options: ProcessOptions): void {
         let attempts = 0;
         const tick = (): void => {
             this._reinjectTimer = undefined;
@@ -828,18 +868,17 @@ export class ClaudeProcessService {
             if (!this._pty || !this._turnInProgress) {
                 return;
             }
-            let size = -1;
-            try { size = fs.statSync(file).size; } catch { size = -1; }
-            // Transcript grew => prompt accepted; stop (re-injecting would dup it).
-            if (size > baselineSize) {
+            // Prompt accepted (real transcript line appeared) -> stop; re-injecting
+            // would duplicate it.
+            if (this._promptAcceptedThisTurn) {
                 return;
             }
             if (attempts >= ClaudeProcessService.REINJECT_MAX_RETRIES) {
-                debugError('ClaudeProcessService', 'Subsequent-turn prompt still not accepted after max re-injects', { attempts });
+                debugError('ClaudeProcessService', 'Prompt still not accepted after max re-injects', { attempts });
                 return;
             }
             attempts++;
-            debugLog('ClaudeProcessService', 'Subsequent-turn transcript not growing; re-injecting prompt', { attempts });
+            debugLog('ClaudeProcessService', 'Prompt not accepted (no real transcript line); re-injecting', { attempts });
             this._beginTurn(options);
             this._reinjectTimer = setTimeout(tick, ClaudeProcessService.REINJECT_INTERVAL_MS);
         };
@@ -951,6 +990,9 @@ export class ClaudeProcessService {
             this._readyTimer = undefined;
         }
         this._clearReinjectWatchdog();
+        this._clearIdleTimer();
+        this._assistantSeenThisTurn = false;
+        this._promptAcceptedThisTurn = false;
         this._readyResolve = undefined;
         if (this._tail) {
             this._tail.stop();
@@ -993,6 +1035,11 @@ export class ClaudeProcessService {
         // Accumulate output for image-chip detection (post-ready: chips paint
         // only while a turn is being composed, long after the session is ready).
         this._chipScanBuffer = (this._chipScanBuffer + data).slice(-ClaudeProcessService.STARTUP_BUFFER_CAP);
+
+        // B3: any PTY output means the spinner is still animating (turn ongoing),
+        // so push the idle-completion deadline out. Gated to a turn that has
+        // already produced assistant content (see _armIdleCompletion).
+        this._armIdleCompletion();
 
         if (this._sessionReady) {
             return;
@@ -1092,7 +1139,10 @@ export class ClaudeProcessService {
         this._currentTranscriptFile = file;
         if (!this._tail) {
             this._tail = new TranscriptTailService({
-                onLine: (json) => this._callbacks?.onData(json),
+                onLine: (json) => {
+                    this._onTranscriptLine(json);
+                    this._callbacks?.onData(json);
+                },
                 // B1: transcript end_turn. Routed through the shared dedup entry.
                 onTurnComplete: (meta) => this._completeTurn(meta.stopReason, this._currentSessionId()),
                 onError: (err) => this._callbacks?.onError(String(err))
@@ -1124,7 +1174,74 @@ export class ClaudeProcessService {
         this._turnInProgress = false;
         // Turn finished -> cancel any pending reinject so it cannot fire late.
         this._clearReinjectWatchdog();
+        // B3: stop the idle watchdog so it cannot re-complete the next turn.
+        this._clearIdleTimer();
+        this._assistantSeenThisTurn = false;
+        this._promptAcceptedThisTurn = false;
         this._callbacks?.onTurnComplete?.({ stopReason, sessionId });
+    }
+
+    /**
+     * B3: a transcript line arrived. The first assistant line of a turn proves
+     * generation has actually started, which arms PTY-silence completion (the
+     * spinner is now running, so a later quiet window means the turn ended). The
+     * gate guards against completing on the pre-generation quiet gap (MCP startup
+     * / reinject wait) before claude has produced anything.
+     */
+    private _onTranscriptLine(json: any): void {
+        if (!this._turnInProgress) {
+            return;
+        }
+        const lineType = json?.type;
+        // A real user/assistant line proves claude accepted the prompt -> stop the
+        // reinject watchdog. Snapshot lines (file-history-snapshot) are excluded.
+        if (lineType === 'user' || lineType === 'assistant') {
+            this._promptAcceptedThisTurn = true;
+        }
+        if (!this._assistantSeenThisTurn && lineType === 'assistant') {
+            this._assistantSeenThisTurn = true;
+            this._armIdleCompletion();
+        }
+    }
+
+    /**
+     * B3: (re)arm the idle-completion timer. No-op unless a turn is in flight and
+     * its generation has started (an assistant line was seen). Every PTY chunk
+     * and the first assistant line push the deadline out; when the spinner stops
+     * the PTY falls silent and the timer fires _onIdleSilence after IDLE_SILENCE_MS.
+     */
+    private _armIdleCompletion(): void {
+        if (!this._turnInProgress || !this._assistantSeenThisTurn) {
+            return;
+        }
+        if (this._idleTimer) {
+            clearTimeout(this._idleTimer);
+        }
+        this._idleTimer = setTimeout(() => this._onIdleSilence(), ClaudeProcessService.IDLE_SILENCE_MS);
+    }
+
+    /** B3: cancel the idle-completion timer if armed. */
+    private _clearIdleTimer(): void {
+        if (this._idleTimer) {
+            clearTimeout(this._idleTimer);
+            this._idleTimer = undefined;
+        }
+    }
+
+    /**
+     * B3: the PTY went quiet for IDLE_SILENCE_MS after generation started -> the
+     * spinner stopped, so the turn ended. Completes the turn for the cases B1
+     * misses (final assistant line written with stop_reason=null, e.g. responses
+     * with a thinking block). Routed through the shared _completeTurn so B1/B2
+     * still dedup (whichever fires first wins; the rest are ignored).
+     */
+    private _onIdleSilence(): void {
+        this._idleTimer = undefined;
+        if (!this._turnInProgress) {
+            return;
+        }
+        debugLog('ClaudeProcessService', 'PTY idle after generation; completing turn (B3)');
+        this._completeTurn('pty_idle', this._currentSessionId());
     }
 
     /**

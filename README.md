@@ -40,6 +40,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **v5.0.5** | 2026-06-15 | Fixes messages being silently swallowed after a `/compact` or a session switch (the provider-wide compact-mode flag now resets on every session switch, and a send during compaction is visibly rejected instead of lost). Also shrinks the oversized QUESTION option-card title (`.ask-question-header` 14px→13px) so it no longer towers over the conversation badges |
 | **v5.0.4** | 2026-06-15 | Packaging fix — the v5.0.3 VSIX shipped with zero `node_modules` (`--no-dependencies` dropped the native `node-pty` runtime), so it installed but the chat panel wouldn't open. node-pty's win32-x64 binaries are now bundled correctly |
 | **v5.0.3** | 2026-06-15 | Interactive option cards — Claude emits a fenced ` ```ask ` block (native `AskUserQuestion` disabled) that renders as clickable single/multi-select cards; clicking injects the chosen label as the next turn. Fixes the "still processing" lock when an ask block follows a tool call (`stop_reason: null`), plus card layout/typography polish |
 | **v5.0.2** | 2026-06-14 | First-turn image vision via staged PTY injection — pasted/selected images arrive as a native `[Image #N]` multimodal attachment (0 `Read`, no "I don't see an image"); idempotent under the reinject watchdog; graceful degrade to `Read` if no chip; CJK/space paths + multi-image verified |

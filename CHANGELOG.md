@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [5.0.5] - 2026-06-15
+
+### Fixed
+- **Messages silently swallowed after a `/compact` or a session switch** — `_isCompactMode` is a provider-wide flag for an in-flight native `/compact`. Two paths lost messages: (1) sending while compaction was running injected the text to the PTY but the legacy compact-mode gate hid the user bubble, so the message vanished; (2) the flag was never reset when leaving the conversation (new session / load another conversation), so it stayed `true` and swallowed every subsequent send. Now `_resetCompactionState()` runs on every session switch (clears the flag, timeout, and boundary metadata), and a send attempted during an in-flight compaction is **visibly rejected** with the same "Claude is still processing your previous request. Please wait…" notice used for an in-flight turn — the message is never silently lost.
+- **QUESTION option-card title towered over the conversation badges** — the `.ask-question-header` (the card's bold pink title, e.g. the question text) was `14px` while the YOU/CLAUDE/RESULT/QUESTION badges and body text are `13px`/`11px`, making it look a size too big. Reduced to `13px` to match the conversation body; the `font-weight: 600` alone now carries the emphasis.
+
 ## [5.0.4] - 2026-06-15
 
 ### Fixed

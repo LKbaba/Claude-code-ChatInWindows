@@ -230,8 +230,10 @@ export const uiScript = `
 			const headerDiv = document.createElement('div');
 			headerDiv.className = 'message-header';
 			const iconDiv = document.createElement('div');
-			iconDiv.className = 'message-icon';
-			iconDiv.textContent = '❓';
+			// 'ask' modifier gives the icon the magenta rounded-square background,
+			// matching the user/claude icons (which use .message-icon.user/.claude).
+			iconDiv.className = 'message-icon ask';
+			iconDiv.textContent = '🤔';  // Thinking face — the original ask-block icon
 			const labelDiv = document.createElement('div');
 			labelDiv.className = 'message-label';
 			labelDiv.textContent = 'Question';
@@ -3373,6 +3375,16 @@ export const uiScript = `
 						startRequestTimer();
 						showStopButton();
 						disableButtons();
+					} else {
+						// Switching to a normal session: guarantee a usable input even if
+						// we are leaving a compacting/processing session (whose disabled
+						// state would otherwise persist). Backend mirrors this by aborting
+						// the compaction state on session switch.
+						isProcessing = false;
+						stopRequestTimer();
+						hideStopButton();
+						enableButtons();
+						hideCompactingMessage();
 					}
 
 					// Clear all messages from UI

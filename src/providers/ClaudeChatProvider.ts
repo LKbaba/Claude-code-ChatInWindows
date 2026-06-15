@@ -486,6 +486,23 @@ export class ClaudeChatProvider {
 	 * - Both modes only affect the current message, not the entire conversation
 	 */
 	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean, languageMode?: boolean, selectedLanguage?: string, onlyCommunicate?: boolean) {
+		// A /compact is in flight. Injecting now would collide with the slash
+		// command (breaking compaction) AND the message would be swallowed (the
+		// legacy compact-mode gate hid the user bubble while still injecting it).
+		// Reject visibly with the same "please wait" notice used for an in-flight
+		// turn, so the message is never silently lost.
+		if (this._isCompactMode) {
+			this._panel?.webview.postMessage({
+				type: 'info',
+				message: '⏳ A request is already in progress. Please wait for it to complete.'
+			});
+			this._sendAndSaveMessage({
+				type: 'error',
+				data: '⚠️ Claude is still processing your previous request. Please wait for it to complete before sending another message.'
+			});
+			return;
+		}
+
 		// v5.0.1: the PTY session is long-lived, so isProcessRunning() is true between
 		// turns. Guard against overlapping sends using turn-in-progress instead.
 		if (this._processService.isTurnInProgress()) {
@@ -619,32 +636,28 @@ export class ClaudeChatProvider {
 			}
 		}
 
-		// Don't display user input in compact mode
-		if (!this._isCompactMode) {
-			this._sendAndSaveMessage({ type: 'userInput', data: message });
-		}
+		// Display + persist the user's message. (Compact-mode sends are rejected
+		// above and never reach here.)
+		this._sendAndSaveMessage({ type: 'userInput', data: message });
 		this._panel?.webview.postMessage({ type: 'setProcessing', data: true });
 		// Stamp turn start so onTurnComplete can report wall-clock duration in the 💰 bubble.
 		this._turnStartTime = Date.now();
 		this._turnFinalized = false;
 
-		// Don't create backup commit in compact mode
-		if (!this._isCompactMode) {
-			// Create backup commit
-			debugLog('ClaudeChatProvider', `Creating backup commit for message: ${message.substring(0, 50)}`);
-			const commitInfo = await this._backupManager.createBackupCommit(message);
-			debugLog('ClaudeChatProvider', 'Backup commit result', commitInfo);
+		// Create backup commit.
+		debugLog('ClaudeChatProvider', `Creating backup commit for message: ${message.substring(0, 50)}`);
+		const commitInfo = await this._backupManager.createBackupCommit(message);
+		debugLog('ClaudeChatProvider', 'Backup commit result', commitInfo);
 
-			if (commitInfo) {
-				// Show restore option in UI and save to conversation
-				debugLog('ClaudeChatProvider', 'Sending showRestoreOption message to UI');
-				this._sendAndSaveMessage({
-					type: 'showRestoreOption',
-					data: commitInfo
-				});
-			} else {
-				debugLog('ClaudeChatProvider', 'No backup commit created (no changes or error)');
-			}
+		if (commitInfo) {
+			// Show restore option in UI and save to conversation
+			debugLog('ClaudeChatProvider', 'Sending showRestoreOption message to UI');
+			this._sendAndSaveMessage({
+				type: 'showRestoreOption',
+				data: commitInfo
+			});
+		} else {
+			debugLog('ClaudeChatProvider', 'No backup commit created (no changes or error)');
 		}
 
 		// Reset message processor state for new conversation
@@ -986,6 +999,10 @@ export class ClaudeChatProvider {
 
 		// v5.0.1: end the long-lived PTY session so the next send starts a fresh one.
 		this._processService.endSession();
+
+		// Abort any in-flight compaction so its provider-wide flag/queue can't leak
+		// into the new session and swallow messages.
+		this._resetCompactionState();
 
 		// v14: a new session orphans any open ask cards.
 		this._cancelPendingAskRequests('expired');
@@ -2008,6 +2025,10 @@ export class ClaudeChatProvider {
 		// v5.0.1: end any live PTY session (it belongs to the previous conversation);
 		// the next send will spawn a fresh session and --resume the loaded one.
 		this._processService.endSession();
+
+		// Abort any in-flight compaction from the conversation we are leaving so its
+		// provider-wide flag/queue can't leak into this one and swallow messages.
+		this._resetCompactionState();
 
 		// Track the loaded session so a subsequent send resumes it AND so /compact
 		// can resume it even before any new message is sent. Guard against the
@@ -3690,6 +3711,21 @@ export class ClaudeChatProvider {
 	}
 
 	/**
+	 * Abort any in-flight compaction state when leaving the current conversation
+	 * (new session / load another conversation). _isCompactMode is a provider-wide
+	 * flag: if it stayed true across a session switch it would silently swallow
+	 * every subsequent send (injected to the PTY but hidden from the chat).
+	 */
+	private _resetCompactionState(): void {
+		if (this._compactTimeout) { clearTimeout(this._compactTimeout); this._compactTimeout = undefined; }
+		if (this._isCompactMode) {
+			debugLog('ClaudeChatProvider', 'Resetting compaction state on session switch');
+		}
+		this._isCompactMode = false;
+		this._compactBoundaryMeta = undefined;
+	}
+
+	/**
 	 * Finalize the current turn exactly once: unlock the UI, bump the request
 	 * count, snapshot per-turn cost/tokens and emit the 💰 bubble + status totals.
 	 *
@@ -3750,7 +3786,10 @@ export class ClaudeChatProvider {
 			id: request.id, questions: request.questions.length
 		});
 		this._pendingAskRequests.set(request.id, request);
-		this._panel?.webview.postMessage({
+		// Persist (not just postMessage) so the card survives a conversation
+		// reload / history switch. _loadConversationHistory replays only saved
+		// messages; a plain postMessage card would vanish on switch-back.
+		this._sendAndSaveMessage({
 			type: 'askOptions',
 			data: request
 		});
@@ -3769,12 +3808,16 @@ export class ClaudeChatProvider {
 	 * and inject it as the next turn, then mark the card as answered.
 	 */
 	private _handleAskOptionsResponse(id: string, answers: Array<{ question: string; labels: string[] }>): void {
-		const request = this._pendingAskRequests.get(id);
-		if (!request) {
-			debugLog('ClaudeChatProvider', 'Ask response for unknown/expired request', { id });
-			return;
+		// The pending request is only bookkeeping — the `answers` payload is
+		// self-contained (question headers + chosen labels). A card replayed from
+		// a reloaded conversation has no live pending entry, but the user still
+		// expects their click to continue the (resumable) conversation. So do NOT
+		// bail when the entry is absent; just clean it up if present. The card is
+		// locked client-side on submit, so this cannot double-fire from one card.
+		const hadPending = this._pendingAskRequests.delete(id);
+		if (!hadPending) {
+			debugLog('ClaudeChatProvider', 'Ask response for replayed/expired card — proceeding anyway', { id });
 		}
-		this._pendingAskRequests.delete(id);
 
 		// Compose a natural-language answer. For a single question, send the
 		// label(s) plainly; for multiple questions, prefix with the header/question
@@ -3793,8 +3836,10 @@ export class ClaudeChatProvider {
 
 		debugLog('ClaudeChatProvider', 'Ask options response', { id, answerText });
 
-		// Mark the card answered in the UI before injecting the reply.
-		this._panel?.webview.postMessage({
+		// Mark the card answered in the UI before injecting the reply. Persist it
+		// too so a reload replays the locked/answered state (the saved askOptions
+		// card renders first, then this status replay locks it).
+		this._sendAndSaveMessage({
 			type: 'updateAskOptionsStatus',
 			data: { id, status: 'answered', answerText }
 		});
@@ -3877,6 +3922,7 @@ export class ClaudeChatProvider {
 			this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
 		}
 
+		if (this._compactTimeout) { clearTimeout(this._compactTimeout); this._compactTimeout = undefined; }
 		this._isCompactMode = false;
 		this._compactBoundaryMeta = undefined;
 	}

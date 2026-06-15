@@ -50,6 +50,17 @@ function getStylesWithEnhancements(): string {
       --grad-tool: linear-gradient(135deg, #5b21b6 0%, #4c1d95 100%);
       --grad-tool-result: linear-gradient(135deg, #115e59 0%, #134e4a 100%);
 
+      /* Ask block (interactive question). Follows the same design language as
+         the other message types: a DEEP, saturated badge/bar (like the dark
+         green CLAUDE / dark blue YOU labels) paired with a BRIGHT icon square
+         (like the vivid green claude / blue user icons). The interactive option
+         accents stay vivid magenta for clear affordance. */
+      --grad-ask: linear-gradient(135deg, #be185d 0%, #9d174d 100%);
+      --grad-ask-icon: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+      --grad-ask-accent: #ec4899;
+      --color-ask-soft: rgba(236, 72, 153, 0.25);
+      --color-ask-medium: rgba(236, 72, 153, 0.45);
+
       /* Focus colors (for input fields etc.) */
       --color-focus-soft: rgba(99, 102, 241, 0.25);
       --color-focus-medium: rgba(99, 102, 241, 0.4);
@@ -259,7 +270,7 @@ function getStylesWithEnhancements(): string {
       background-color: transparent !important;
       position: relative;
       overflow: hidden;
-      border: 1px solid rgba(99, 102, 241, 0.18);
+      border: 1px solid rgba(236, 72, 153, 0.18);
       border-radius: 8px;
       /* Match the CLAUDE card exactly: same UI font + editor foreground, so the
          option text never diverges from the surrounding conversation. */
@@ -273,14 +284,20 @@ function getStylesWithEnhancements(): string {
       top: 0;
       bottom: 0;
       width: 4px;
-      background: var(--grad-primary, linear-gradient(135deg, #4338ca 0%, #4c1d95 100%));
+      background: var(--grad-ask);
     }
+    /* Badge matches the CLAUDE/YOU labels exactly: NO font-size override, so it
+       inherits the same base .message-label size they do (pinning a size here made
+       QUESTION render larger than the others). Only the color differs. */
     .message.ask .message-label {
-      background: var(--grad-primary, linear-gradient(135deg, #4338ca 0%, #4c1d95 100%));
+      background: var(--grad-ask);
       color: white;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-      /* Slightly smaller badge text — the default felt a touch oversized. */
-      font-size: 11px;
+    }
+    /* Icon gets the same BRIGHT rounded-square treatment as the user/claude
+       icons (which carry .message-icon.user / .message-icon.claude). */
+    .message-icon.ask {
+      background: var(--grad-ask-icon);
     }
     .ask-card {
       margin-top: 6px;
@@ -292,11 +309,13 @@ function getStylesWithEnhancements(): string {
     .ask-question { display: flex; flex-direction: column; gap: 8px; }
     /* Header + question share a left indent so the question block reads as one
        unit, set in slightly from the option list below it. */
+    /* Match the conversation body size (13px) so the card's title never towers
+       over the YOU/CLAUDE/RESULT badges — bold weight alone carries the emphasis. */
     .ask-question-header {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.3px;
-      color: #a5b4fc;
+      color: #f9a8d4;
       opacity: 0.95;
       padding-left: 12px;
     }
@@ -327,16 +346,16 @@ function getStylesWithEnhancements(): string {
       transition: border-color 0.15s ease, background-color 0.15s ease;
     }
     .ask-option:hover:not(:disabled) {
-      border-color: var(--color-focus-medium, rgba(99,102,241,0.4));
+      border-color: var(--color-ask-medium, rgba(236,72,153,0.45));
       background-color: var(--vscode-list-hoverBackground, rgba(255,255,255,0.04));
     }
     /* Restrained selected state: faint tint + accent border + the radio/checkbox
        marker already carry the meaning — no extra inner bar. */
     .ask-option.selected {
-      border-color: #6366f1;
-      background-color: rgba(99, 102, 241, 0.1);
+      border-color: var(--grad-ask-accent, #ec4899);
+      background-color: rgba(236, 72, 153, 0.1);
     }
-    .ask-option.selected .ask-option-label { color: #a5b4fc; }
+    .ask-option.selected .ask-option-label { color: #f9a8d4; }
     .ask-option:disabled { cursor: default; }
     /* Right-aligned, vertically centered selection marker. */
     .ask-option::after {
@@ -354,21 +373,21 @@ function getStylesWithEnhancements(): string {
       transition: border-color 0.15s ease, background-color 0.15s ease, border-width 0.15s ease;
     }
     .ask-option:hover:not(:disabled)::after {
-      border-color: var(--color-focus-medium, rgba(99,102,241,0.4));
+      border-color: var(--color-ask-medium, rgba(236,72,153,0.45));
     }
     /* Multi-select -> rounded-square checkbox with a CSS check glyph. */
     .ask-options--multi .ask-option::after { border-radius: 4px; }
     .ask-options--multi .ask-option.selected::after {
-      border-color: #6366f1;
-      background-color: #6366f1;
+      border-color: var(--grad-ask-accent, #ec4899);
+      background-color: var(--grad-ask-accent, #ec4899);
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M4 8.5l2.5 2.5 5.5-5.5'/%3E%3C/svg%3E");
     }
     /* Single-select -> circular radio with a center dot (thick border trick). */
     .ask-options--single .ask-option::after { border-radius: 50%; }
     .ask-options--single .ask-option.selected::after {
-      border-color: #6366f1;
+      border-color: var(--grad-ask-accent, #ec4899);
       border-width: 5px;
-      background-color: #c7d2fe;
+      background-color: #fbcfe8;
     }
     .ask-option-label { font-size: 13px; font-weight: 400; }
     .ask-option-desc { font-size: 12px; opacity: 0.7; white-space: pre-wrap; line-height: 1.45; }
@@ -385,7 +404,7 @@ function getStylesWithEnhancements(): string {
       flex: 1;
       min-width: 0;
       padding: 8px 10px;
-      border: 1px solid var(--color-focus-medium, rgba(99,102,241,0.4));
+      border: 1px solid var(--color-ask-medium, rgba(236,72,153,0.45));
       border-radius: 6px;
       background-color: var(--vscode-input-background, rgba(255,255,255,0.04));
       color: var(--vscode-input-foreground, inherit);
@@ -394,14 +413,14 @@ function getStylesWithEnhancements(): string {
     }
     .ask-other-input:focus {
       outline: none;
-      box-shadow: 0 0 0 2px var(--color-focus-soft, rgba(99,102,241,0.25));
+      box-shadow: 0 0 0 2px var(--color-ask-soft, rgba(236,72,153,0.25));
     }
     .ask-other-input:disabled { opacity: 0.5; }
     .ask-other-send {
       padding: 7px 16px;
       border: none;
       border-radius: 6px;
-      background: var(--grad-primary, linear-gradient(135deg, #4338ca 0%, #4c1d95 100%));
+      background: var(--grad-ask);
       color: #fff;
       cursor: pointer;
       font-family: inherit;
@@ -423,7 +442,7 @@ function getStylesWithEnhancements(): string {
       padding: 6px 18px;
       border: none;
       border-radius: 6px;
-      background: var(--grad-primary, linear-gradient(135deg, #4338ca 0%, #4c1d95 100%));
+      background: var(--grad-ask);
       color: #fff;
       cursor: pointer;
       font-family: inherit;
