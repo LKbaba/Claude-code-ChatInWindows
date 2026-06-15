@@ -2,6 +2,14 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [5.0.4] - 2026-06-15
+
+### Fixed
+- **VSIX installs but the chat panel won't open** — the v5.0.3 release VSIX shipped with **zero `node_modules`** because it was packaged with `vsce package --no-dependencies`. That flag makes vsce skip the entire production-dependency tree, which also nullifies the `!node_modules/node-pty/...` re-include rules in `.vscodeignore`, so the native `node-pty` runtime (introduced in v5.0.1) was never bundled. At runtime `require('node-pty')` threw and clicking the icon did nothing. The Extension Development Host (F5) was unaffected because it loads the on-disk `node_modules`. Packaging now omits `--no-dependencies`, so node-pty's `win32-x64` prebuilt binaries are bundled (`.pdb` symbols and non-win32 prebuilds stay excluded). See CLAUDE.md gotcha #11.
+
+### Changed
+- `.vscodeignore` now also excludes the dev-only `.agents/` and `.codex/` directories from the VSIX.
+
 ## [5.0.3] - 2026-06-15
 
 ### Added

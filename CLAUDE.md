@@ -14,9 +14,14 @@ npm run compile
 
 Package VSIX (must use `cmd` wrapper, Git Bash swallows vsce output):
 ```bash
-cmd //c "npx @vscode/vsce package --no-dependencies"
+cmd //c "npx @vscode/vsce package"
 ```
-- `--no-dependencies`: skips `npm install` during packaging — dependencies are already in `node_modules` from development; without this flag, vsce may fail or produce a bloated package
+- Do NOT pass `--no-dependencies`: as of v5 the extension has a real runtime
+  native dependency (`node-pty`). `--no-dependencies` makes vsce skip the entire
+  production-dependency tree, which ALSO nullifies the `!node_modules/node-pty/...`
+  re-include rules in `.vscodeignore` — the resulting VSIX ships ZERO node_modules
+  and node-pty fails to load at runtime (extension installs but the panel won't
+  open; F5 still works because it uses the on-disk node_modules). See gotcha #11.
 - Do NOT use `npx @vscode/vsce package` directly in Git Bash — it silently fails (exit 0 but no .vsix generated)
 - Output file: `claude-code-chatui-{version}.vsix`
 
@@ -219,6 +224,25 @@ prompt level. The legacy `AskUserQuestion` handling in `MessageProcessor.ts` /
 `-p` auto-error behavior) — revive/replace it deliberately if building an
 interactive options UI.
 
+### 11. `--no-dependencies` Drops node-pty From the VSIX (REGRESSION TRAP)
+
+`vsce package --no-dependencies` makes vsce **skip the entire production-dependency
+tree**. This ALSO defeats the `!node_modules/node-pty/...` re-include negations in
+`.vscodeignore` (those negations only matter while vsce is walking node_modules at
+all). Net effect: the VSIX ships **zero `node_modules`**, so at runtime
+`require('node-pty')` throws → the extension activates but **the chat panel won't
+open** (clicking the icon does nothing). The Extension Development Host (F5) is
+unaffected because it loads the on-disk `node_modules` directly.
+
+This was latent from v5.0.1 (when node-pty was introduced) and shipped broken in
+the v5.0.3 GitHub release. v4.x was unaffected — it had no native runtime dep.
+
+**Rule**: package with plain `cmd //c "npx @vscode/vsce package"` (NO
+`--no-dependencies`). vsce then bundles prod deps (node-pty + glob) and
+`.vscodeignore` still trims `.pdb` (~40MB) and non-win32 prebuilds. Always verify:
+`unzip -l <vsix> | grep node-pty` must show the `prebuilds/win32-x64/*.node`
+binaries; `unzip -l <vsix> | grep '\.pdb'` must be empty.
+
 ## Version Release Checklist
 
 When bumping the version, update **all five locations**:
@@ -232,10 +256,12 @@ When bumping the version, update **all five locations**:
 Then:
 ```bash
 npm run compile
-cmd //c "npx @vscode/vsce package --no-dependencies"
+cmd //c "npx @vscode/vsce package"
 ```
 
-Verify the output file name matches the new version: `claude-code-chatui-{version}.vsix`
+Verify the output file name matches the new version: `claude-code-chatui-{version}.vsix`.
+Also confirm node-pty is bundled: `unzip -l <vsix> | grep node-pty` must list the
+`prebuilds/win32-x64/*.node` binaries (see gotcha #11).
 
 After packaging, publish the release on GitHub:
 - Create a new Release tag `vX.Y.Z` pointing to the latest commit on `main`
