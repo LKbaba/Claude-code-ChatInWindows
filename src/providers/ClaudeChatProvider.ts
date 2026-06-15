@@ -12,7 +12,7 @@ import { BackupManager } from '../managers/BackupManager';
 import { ConversationManager } from '../managers/ConversationManager';
 import { WindowsCompatibility } from '../managers/WindowsCompatibility';
 import { ClaudeProcessService } from '../services/ClaudeProcessService';
-import { MessageProcessor, CompactBoundaryMeta } from '../services/MessageProcessor';
+import { MessageProcessor, CompactBoundaryMeta, AskOptionsRequest } from '../services/MessageProcessor';
 import { computeUsageCost } from '../services/ModelPricing';
 import { OperationTracker } from '../managers/OperationTracker';
 import { UndoRedoManager } from '../managers/UndoRedoManager';
@@ -63,6 +63,14 @@ export class ClaudeChatProvider {
 	// Max wait for a /compact to produce a compact_boundary: allows for TUI queue + ~40s server compaction.
 	private static readonly COMPACT_TIMEOUT_MS = 120000;
 	private _turnStartTime: number = 0; // Wall-clock start of the current turn (for 💰 bubble duration)
+	// Guards against finalizing the same turn twice. A turn can be finalized by
+	// EITHER B1 (transcript end_turn → onTurnComplete) OR an ask block (which may
+	// arrive with stop_reason=null when it follows a tool call in the same turn).
+	// Reset at each turn start.
+	private _turnFinalized: boolean = false;
+	// v14: in-flight ```ask requests awaiting a user choice, keyed by request id.
+	// Used to mark cards cancelled/expired when the process ends or the session switches.
+	private _pendingAskRequests: Map<string, AskOptionsRequest> = new Map();
 
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
@@ -229,6 +237,11 @@ export class ClaudeChatProvider {
 						return;
 					case 'stopRequest':
 						this._stopClaudeProcess();
+						return;
+					case 'askOptionsResponse':
+						// v14: user clicked option(s) on an ```ask card → inject the
+						// chosen label(s) as the next turn's message.
+						this._handleAskOptionsResponse(message.id, message.answers);
 						return;
 					case 'getSettings':
 						this._sendCurrentSettings();
@@ -613,6 +626,7 @@ export class ClaudeChatProvider {
 		this._panel?.webview.postMessage({ type: 'setProcessing', data: true });
 		// Stamp turn start so onTurnComplete can report wall-clock duration in the 💰 bubble.
 		this._turnStartTime = Date.now();
+		this._turnFinalized = false;
 
 		// Don't create backup commit in compact mode
 		if (!this._isCompactMode) {
@@ -900,7 +914,14 @@ export class ClaudeChatProvider {
 					// then the summary text. Handlers cover both the user-initiated
 					// /compact and auto-compaction (context filled).
 					onCompactBoundary: (meta: CompactBoundaryMeta) => this._handleCompactBoundary(meta),
-					onCompactSummary: (summaryText: string) => this._handleCompactSummary(summaryText)
+					onCompactSummary: (summaryText: string) => this._handleCompactSummary(summaryText),
+					// v14 Architecture A+: Claude emitted a fenced ```ask block (the
+					// native AskUserQuestion tool is disabled). Render clickable cards
+					// and track the request so the user's choice can be injected as the
+					// next message. The ask turn ends with end_turn (B1), so the UI is
+					// unlocked by onTurnComplete as usual; this defensive setProcessing
+					// only guards against an ask block arriving mid-stream.
+					onAskOptions: (request: AskOptionsRequest) => this._handleAskOptions(request)
 				});
 			},
 			onError: (error: string) => {
@@ -933,38 +954,10 @@ export class ClaudeChatProvider {
 					});
 				}
 
-				// Finalize this turn: bump request count and snapshot per-turn
-				// cost/tokens (subscription/PTY mode has no `result` event).
-				const turn = this._messageProcessor.completeTurn();
-
-				// Update totals from message processor (now includes the bumped count).
-				const totals = this._messageProcessor.getTotals();
-				this._totalCost = totals.totalCost;
-				this._totalTokensInput = totals.totalTokensInput;
-				this._totalTokensOutput = totals.totalTokensOutput;
-				this._requestCount = totals.requestCount;
-
-				// Unlock the UI for this turn.
-				this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
-
-				// Emit the 💰 bubble + status-bar totals for this turn. Cost is
-				// computed from token usage × model pricing (consistent with the
-				// original version, which read total_cost_usd from the result event).
-				const currentDuration = this._turnStartTime > 0 ? Date.now() - this._turnStartTime : 0;
-				this._panel?.webview.postMessage({
-					type: 'updateTotals',
-					data: {
-						totalCost: totals.totalCost,
-						totalTokensInput: totals.totalTokensInput,
-						totalTokensOutput: totals.totalTokensOutput,
-						requestCount: totals.requestCount,
-						currentCost: turn.cost,
-						currentDuration: currentDuration,
-						currentTokensInput: turn.tokensInput,
-						currentTokensOutput: turn.tokensOutput
-					}
-				});
-				lastUpdateTotalsData = null;
+				// Finalize this turn (idempotent): unlock UI, bump request count,
+				// emit the 💰 bubble. An ask block in the same turn may have already
+				// done this (out-of-band), in which case this is a no-op.
+				this._finalizeTurn();
 			},
 			onClose: (code: number | null) => {
 				// v5.0.1: this now fires only when the whole PTY session exits
@@ -993,6 +986,9 @@ export class ClaudeChatProvider {
 
 		// v5.0.1: end the long-lived PTY session so the next send starts a fresh one.
 		this._processService.endSession();
+
+		// v14: a new session orphans any open ask cards.
+		this._cancelPendingAskRequests('expired');
 
 		// Clear current session and conversation ID
 		this._currentSessionId = undefined;
@@ -1225,6 +1221,9 @@ export class ClaudeChatProvider {
 	public async loadConversation(filename: string): Promise<void> {
 		// Show the webview first
 		await this.show();
+
+		// v14: switching conversations orphans any open ask cards.
+		this._cancelPendingAskRequests('expired');
 
 		// Load the conversation history
 		await this._loadConversationHistory(filename);
@@ -1972,7 +1971,10 @@ export class ClaudeChatProvider {
 			
 			try {
 				await this._processService.stopProcess();
-				
+
+				// v14: stop = ESC-interrupt → any open ask cards are no longer actionable.
+				this._cancelPendingAskRequests('cancelled');
+
 				// Update UI state
 				this._panel?.webview.postMessage({
 					type: 'setProcessing',
@@ -3685,6 +3687,137 @@ export class ClaudeChatProvider {
 				data: `Failed to compact conversation: ${error.message}`
 			});
 		}
+	}
+
+	/**
+	 * Finalize the current turn exactly once: unlock the UI, bump the request
+	 * count, snapshot per-turn cost/tokens and emit the 💰 bubble + status totals.
+	 *
+	 * Idempotent via _turnFinalized (reset at each turn start). Called from BOTH:
+	 *   - onTurnComplete (B1: transcript stop_reason === end_turn), and
+	 *   - _handleAskOptions (an ask block ends the turn, but when it follows a
+	 *     tool call in the same turn its transcript line carries stop_reason=null,
+	 *     so B1 never fires — without this the 💰 bubble and request count were
+	 *     silently dropped for the 2nd+ ask in a turn).
+	 */
+	private _finalizeTurn(): void {
+		if (this._turnFinalized) { return; }
+		this._turnFinalized = true;
+
+		// Finalize this turn: bump request count and snapshot per-turn
+		// cost/tokens (subscription/PTY mode has no `result` event).
+		const turn = this._messageProcessor.completeTurn();
+
+		// Update totals from message processor (now includes the bumped count).
+		const totals = this._messageProcessor.getTotals();
+		this._totalCost = totals.totalCost;
+		this._totalTokensInput = totals.totalTokensInput;
+		this._totalTokensOutput = totals.totalTokensOutput;
+		this._requestCount = totals.requestCount;
+
+		// Unlock the UI for this turn.
+		this._panel?.webview.postMessage({ type: 'setProcessing', data: false });
+
+		// Emit the 💰 bubble + status-bar totals for this turn. Cost is
+		// computed from token usage × model pricing (consistent with the
+		// original version, which read total_cost_usd from the result event).
+		const currentDuration = this._turnStartTime > 0 ? Date.now() - this._turnStartTime : 0;
+		this._panel?.webview.postMessage({
+			type: 'updateTotals',
+			data: {
+				totalCost: totals.totalCost,
+				totalTokensInput: totals.totalTokensInput,
+				totalTokensOutput: totals.totalTokensOutput,
+				requestCount: totals.requestCount,
+				currentCost: turn.cost,
+				currentDuration: currentDuration,
+				currentTokensInput: turn.tokensInput,
+				currentTokensOutput: turn.tokensOutput
+			}
+		});
+	}
+
+	/**
+	 * v14 Architecture A+: Claude emitted a fenced ```ask block. Render it as
+	 * clickable option cards in the webview and remember the request so the
+	 * subsequent choice can be matched. The ask block IS a turn boundary, so we
+	 * finalize the turn here (emit 💰 + unlock). This is required because an ask
+	 * block following a tool call carries stop_reason=null (no B1); _finalizeTurn
+	 * is idempotent, so the end_turn case does not double-count.
+	 */
+	private _handleAskOptions(request: AskOptionsRequest): void {
+		debugLog('ClaudeChatProvider', 'Ask options request', {
+			id: request.id, questions: request.questions.length
+		});
+		this._pendingAskRequests.set(request.id, request);
+		this._panel?.webview.postMessage({
+			type: 'askOptions',
+			data: request
+		});
+		// The ask block ends the turn. Reset the ProcessService turn guard first
+		// (an ask block after a tool call has stop_reason=null, so B1/B2 never
+		// fire and isTurnInProgress() would otherwise stay stuck true, rejecting
+		// the user's answer as "still processing"). Then finalize provider-side
+		// (unlock + 💰). Both are idempotent / deduped.
+		this._processService.completeTurnFromAsk();
+		this._finalizeTurn();
+	}
+
+	/**
+	 * v14: user clicked option(s) on an ```ask card. `answers` maps each
+	 * question index to the chosen label(s). Compose a natural-language reply
+	 * and inject it as the next turn, then mark the card as answered.
+	 */
+	private _handleAskOptionsResponse(id: string, answers: Array<{ question: string; labels: string[] }>): void {
+		const request = this._pendingAskRequests.get(id);
+		if (!request) {
+			debugLog('ClaudeChatProvider', 'Ask response for unknown/expired request', { id });
+			return;
+		}
+		this._pendingAskRequests.delete(id);
+
+		// Compose a natural-language answer. For a single question, send the
+		// label(s) plainly; for multiple questions, prefix with the header/question
+		// so Claude can disambiguate which choice maps to which question.
+		const parts: string[] = [];
+		for (const ans of answers) {
+			const labels = ans.labels.filter(l => l && l.trim().length > 0);
+			if (labels.length === 0) { continue; }
+			if (answers.length === 1) {
+				parts.push(labels.join(', '));
+			} else {
+				parts.push(`${ans.question}: ${labels.join(', ')}`);
+			}
+		}
+		const answerText = parts.join('\n');
+
+		debugLog('ClaudeChatProvider', 'Ask options response', { id, answerText });
+
+		// Mark the card answered in the UI before injecting the reply.
+		this._panel?.webview.postMessage({
+			type: 'updateAskOptionsStatus',
+			data: { id, status: 'answered', answerText }
+		});
+
+		if (answerText.trim().length > 0) {
+			this._sendMessageToClaude(answerText);
+		}
+	}
+
+	/**
+	 * v14: mark any in-flight ```ask cards as no longer actionable (process
+	 * ended or session switched). Prevents dangling cards the user could still
+	 * click after the conversation moved on.
+	 */
+	private _cancelPendingAskRequests(status: 'cancelled' | 'expired'): void {
+		if (this._pendingAskRequests.size === 0) { return; }
+		for (const id of this._pendingAskRequests.keys()) {
+			this._panel?.webview.postMessage({
+				type: 'updateAskOptionsStatus',
+				data: { id, status }
+			});
+		}
+		this._pendingAskRequests.clear();
 	}
 
 	/**

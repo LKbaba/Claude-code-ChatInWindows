@@ -198,6 +198,305 @@ export const uiScript = `
 			scrollToBottom();  // Use smart scroll function
 		}
 
+		// v14 Interactive Options (ask block): live card state keyed by request id.
+		// Each entry: { questions, selections: Array<Set<optionIndex>>,
+		//   otherActive: bool[], otherText: string[], autoSubmit: bool, resolved: bool }.
+		// "autoSubmit" is true for a single single-select question: clicking a
+		// concrete option submits immediately (no Submit button). Otherwise an
+		// explicit Submit button gates on every question being answered. Every
+		// question also exposes an "Other" free-text option, mirroring the native
+		// AskUserQuestion tool; the typed text is sent as a literal label.
+		// Built with createElement + textContent (no innerHTML) so all text is XSS-safe.
+		const askCards = {};
+		const ASK_OTHER_LABEL = 'Other…';
+
+		// A question counts as answered when it has a concrete selection OR an
+		// active "Other" choice with non-empty typed text.
+		function askQuestionAnswered(state, qi) {
+			if (state.selections[qi] && state.selections[qi].size > 0) { return true; }
+			if (state.otherActive[qi] && state.otherText[qi].trim().length > 0) { return true; }
+			return false;
+		}
+
+		function renderAskOptions(request) {
+			if (!request || !Array.isArray(request.questions) || request.questions.length === 0) { return; }
+			const id = request.id;
+
+			const messageDiv = document.createElement('div');
+			messageDiv.className = 'message ask';
+			messageDiv.dataset.askId = id;
+
+			// Header (icon + label badge) to match the other message types.
+			const headerDiv = document.createElement('div');
+			headerDiv.className = 'message-header';
+			const iconDiv = document.createElement('div');
+			iconDiv.className = 'message-icon';
+			iconDiv.textContent = '❓';
+			const labelDiv = document.createElement('div');
+			labelDiv.className = 'message-label';
+			labelDiv.textContent = 'Question';
+			headerDiv.appendChild(iconDiv);
+			headerDiv.appendChild(labelDiv);
+			messageDiv.appendChild(headerDiv);
+
+			const card = document.createElement('div');
+			card.className = 'ask-card';
+
+			// Single single-select question -> click an option to submit instantly.
+			const autoSubmit = request.questions.length === 1 && request.questions[0].multiSelect !== true;
+			const state = {
+				questions: request.questions,
+				selections: [],
+				otherActive: [],
+				otherText: [],
+				autoSubmit: autoSubmit,
+				resolved: false
+			};
+
+			request.questions.forEach((q, qi) => {
+				state.selections.push(new Set());
+				state.otherActive.push(false);
+				state.otherText.push('');
+
+				const multiSelect = q.multiSelect === true;
+
+				const qDiv = document.createElement('div');
+				qDiv.className = 'ask-question';
+
+				if (q.header) {
+					const h = document.createElement('div');
+					h.className = 'ask-question-header';
+					h.textContent = q.header;
+					qDiv.appendChild(h);
+				}
+				if (q.question) {
+					const t = document.createElement('div');
+					t.className = 'ask-question-text';
+					t.textContent = q.question;
+					qDiv.appendChild(t);
+				}
+
+				const optsDiv = document.createElement('div');
+				// Modifier class drives the per-question marker shape: round radio
+				// for single-select, square checkbox for multi-select.
+				optsDiv.className = 'ask-options ' + (multiSelect ? 'ask-options--multi' : 'ask-options--single');
+				const options = Array.isArray(q.options) ? q.options : [];
+				options.forEach((opt, oi) => {
+					const btn = document.createElement('button');
+					btn.className = 'ask-option';
+					btn.type = 'button';
+
+					const olabel = document.createElement('div');
+					olabel.className = 'ask-option-label';
+					olabel.textContent = opt.label || '';
+					btn.appendChild(olabel);
+
+					if (opt.description) {
+						const descDiv = document.createElement('div');
+						descDiv.className = 'ask-option-desc';
+						descDiv.textContent = opt.description;
+						btn.appendChild(descDiv);
+					}
+
+					btn.onclick = () => selectAskOption(id, qi, oi, multiSelect);
+					optsDiv.appendChild(btn);
+				});
+
+				// Synthetic "Other" free-text option (mirrors native AskUserQuestion).
+				const otherBtn = document.createElement('button');
+				otherBtn.className = 'ask-option ask-option-other';
+				otherBtn.type = 'button';
+				const otherBtnLabel = document.createElement('div');
+				otherBtnLabel.className = 'ask-option-label';
+				otherBtnLabel.textContent = ASK_OTHER_LABEL;
+				otherBtn.appendChild(otherBtnLabel);
+				otherBtn.onclick = () => toggleAskOther(id, qi, multiSelect);
+				optsDiv.appendChild(otherBtn);
+
+				qDiv.appendChild(optsDiv);
+
+				// Hidden free-text row, revealed when "Other" is active.
+				const otherRow = document.createElement('div');
+				otherRow.className = 'ask-other-row';
+				otherRow.style.display = 'none';
+				const otherInput = document.createElement('input');
+				otherInput.className = 'ask-other-input';
+				otherInput.type = 'text';
+				otherInput.placeholder = 'Type your answer…';
+				otherInput.oninput = () => {
+					const st = askCards[id];
+					if (st && !st.resolved) { st.otherText[qi] = otherInput.value; refreshAskCardUi(id); }
+				};
+				otherRow.appendChild(otherInput);
+				if (autoSubmit) {
+					// Auto-submit mode: "Other" gets an inline Send button + Enter key.
+					const sendBtn = document.createElement('button');
+					sendBtn.className = 'ask-other-send';
+					sendBtn.type = 'button';
+					sendBtn.textContent = 'Send';
+					sendBtn.disabled = true;
+					sendBtn.onclick = () => submitAskOptions(id);
+					otherRow.appendChild(sendBtn);
+					otherInput.onkeydown = (e) => {
+						if (e.key === 'Enter') { e.preventDefault(); submitAskOptions(id); }
+					};
+				}
+				qDiv.appendChild(otherRow);
+
+				card.appendChild(qDiv);
+			});
+
+			// Submit button only in explicit mode (multi-question or any multiSelect).
+			const actions = document.createElement('div');
+			actions.className = 'ask-card-actions';
+			if (!autoSubmit) {
+				const submitBtn = document.createElement('button');
+				submitBtn.className = 'ask-submit-btn';
+				submitBtn.type = 'button';
+				submitBtn.textContent = 'Submit';
+				submitBtn.disabled = true;
+				submitBtn.onclick = () => submitAskOptions(id);
+				actions.appendChild(submitBtn);
+			}
+			const statusSpan = document.createElement('span');
+			statusSpan.className = 'ask-card-status';
+			actions.appendChild(statusSpan);
+			card.appendChild(actions);
+
+			messageDiv.appendChild(card);
+			messagesDiv.appendChild(messageDiv);
+
+			askCards[id] = state;
+			scrollToBottom();
+		}
+
+		// Click a concrete (non-Other) option.
+		function selectAskOption(id, qi, oi, multiSelect) {
+			const state = askCards[id];
+			if (!state || state.resolved) { return; }
+			const sel = state.selections[qi];
+			if (multiSelect) {
+				if (sel.has(oi)) { sel.delete(oi); } else { sel.add(oi); }
+			} else {
+				const wasSelected = sel.has(oi);
+				sel.clear();
+				if (!wasSelected) { sel.add(oi); }
+				// Single-select radio: a concrete choice clears the "Other" choice.
+				state.otherActive[qi] = false;
+			}
+			refreshAskCardUi(id);
+			// Auto-submit: a single single-select question is answered the moment a
+			// concrete option is clicked.
+			if (state.autoSubmit && !multiSelect && state.selections[qi].size > 0) {
+				submitAskOptions(id);
+			}
+		}
+
+		// Toggle the synthetic "Other" free-text choice for a question.
+		function toggleAskOther(id, qi, multiSelect) {
+			const state = askCards[id];
+			if (!state || state.resolved) { return; }
+			if (multiSelect) {
+				state.otherActive[qi] = !state.otherActive[qi];
+			} else {
+				// Single-select radio: "Other" replaces any concrete selection.
+				const wasActive = state.otherActive[qi];
+				state.selections[qi].clear();
+				state.otherActive[qi] = !wasActive;
+			}
+			refreshAskCardUi(id);
+			// Focus the free-text input when "Other" becomes active.
+			if (state.otherActive[qi]) {
+				const messageDiv = messagesDiv.querySelector('[data-ask-id="' + id + '"]');
+				const rows = messageDiv ? messageDiv.querySelectorAll('.ask-other-row') : [];
+				const row = rows[qi];
+				if (row) { const inp = row.querySelector('.ask-other-input'); if (inp) { inp.focus(); } }
+			}
+		}
+
+		function refreshAskCardUi(id) {
+			const state = askCards[id];
+			const messageDiv = messagesDiv.querySelector('[data-ask-id="' + id + '"]');
+			if (!state || !messageDiv) { return; }
+			const questionDivs = messageDiv.querySelectorAll('.ask-question');
+			questionDivs.forEach((qDiv, qi) => {
+				const optBtns = qDiv.querySelectorAll('.ask-options .ask-option:not(.ask-option-other)');
+				optBtns.forEach((btn, oi) => {
+					if (state.selections[qi] && state.selections[qi].has(oi)) {
+						btn.classList.add('selected');
+					} else {
+						btn.classList.remove('selected');
+					}
+				});
+				const otherBtn = qDiv.querySelector('.ask-option-other');
+				if (otherBtn) {
+					if (state.otherActive[qi]) { otherBtn.classList.add('selected'); }
+					else { otherBtn.classList.remove('selected'); }
+				}
+				const otherRow = qDiv.querySelector('.ask-other-row');
+				if (otherRow) {
+					otherRow.style.display = state.otherActive[qi] ? 'flex' : 'none';
+					const sendBtn = otherRow.querySelector('.ask-other-send');
+					if (sendBtn) { sendBtn.disabled = state.otherText[qi].trim().length === 0; }
+				}
+			});
+			// Enable Submit only when every question is answered.
+			const allAnswered = state.questions.every((q, qi) => askQuestionAnswered(state, qi));
+			const submitBtn = messageDiv.querySelector('.ask-submit-btn');
+			if (submitBtn) { submitBtn.disabled = !allAnswered; }
+		}
+
+		function submitAskOptions(id) {
+			const state = askCards[id];
+			if (!state || state.resolved) { return; }
+			const allAnswered = state.questions.every((q, qi) => askQuestionAnswered(state, qi));
+			if (!allAnswered) { return; }
+
+			const answers = state.questions.map((q, qi) => {
+				const options = Array.isArray(q.options) ? q.options : [];
+				const labels = Array.from(state.selections[qi])
+					.sort((a, b) => a - b)
+					.map(oi => (options[oi] && options[oi].label) || '')
+					.filter(l => l.length > 0);
+				// "Other" free text is sent as a literal label; the provider joins
+				// labels into a natural-language reply, so no backend change is needed.
+				if (state.otherActive[qi]) {
+					const txt = state.otherText[qi].trim();
+					if (txt.length > 0) { labels.push(txt); }
+				}
+				return { question: q.header || q.question || '', labels };
+			});
+
+			// Lock the card locally; backend confirms via updateAskOptionsStatus.
+			state.resolved = true;
+			lockAskCard(id);
+
+			vscode.postMessage({ type: 'askOptionsResponse', id, answers });
+		}
+
+		function lockAskCard(id) {
+			const messageDiv = messagesDiv.querySelector('[data-ask-id="' + id + '"]');
+			if (!messageDiv) { return; }
+			messageDiv.querySelectorAll('.ask-option, .ask-submit-btn, .ask-other-input, .ask-other-send').forEach(el => { el.disabled = true; });
+		}
+
+		function updateAskCardStatus(data) {
+			const id = data && data.id;
+			const state = askCards[id];
+			if (state) { state.resolved = true; }
+			const messageDiv = messagesDiv.querySelector('[data-ask-id="' + id + '"]');
+			if (!messageDiv) { return; }
+			lockAskCard(id);
+			const card = messageDiv.querySelector('.ask-card');
+			if (card) { card.classList.add('is-resolved'); }
+			const statusSpan = messageDiv.querySelector('.ask-card-status');
+			if (statusSpan) {
+				if (data.status === 'answered') { statusSpan.textContent = '✓ Answered'; }
+				else if (data.status === 'cancelled') { statusSpan.textContent = '✕ Cancelled'; }
+				else if (data.status === 'expired') { statusSpan.textContent = '⌛ Expired'; }
+			}
+		}
+
 
 		function addToolUseMessage(data) {
 			const messageDiv = document.createElement('div');
@@ -301,15 +600,17 @@ export const uiScript = `
 			// Clear tool status when result is received
 			clearToolStatus();
 
-			// Hide marked tool results
-			// AskUserQuestion: CLI auto-returns error and re-displays in plain text, no need to show error
-			// Read, Edit, etc.: Success results don't need to be displayed
+			// Hide marked tool results.
+			// v5 PTY: the native AskUserQuestion tool is disallowed (see
+			// ASK_OPTIONS_PROTOCOL); questions now render as ask-block cards, so
+			// there is no AskUserQuestion result to hide here anymore.
+			// Read, Edit, etc.: successful results don't need to be displayed.
 			if (data.hidden) {
 				// Don't hide MCP thinking results - we want to show them
 				if (data.toolName && data.toolName.startsWith('mcp__') && data.toolName.includes('thinking')) {
 					// Continue to show the result
 				} else {
-					// Hide AskUserQuestion errors and other hidden tools
+					// Hide results marked hidden by the backend.
 					return;
 				}
 			}
@@ -2754,6 +3055,16 @@ export const uiScript = `
 						const escapedUserInput = escapeHtml(message.data);
 						addMessage(parseSimpleMarkdown(escapedUserInput, imagePathMap), 'user');
 					}
+					break;
+
+				case 'askOptions':
+					// v14: render Claude's ask block as clickable option cards.
+					renderAskOptions(message.data);
+					break;
+
+				case 'updateAskOptionsStatus':
+					// v14: mark a card answered/cancelled/expired.
+					updateAskCardStatus(message.data);
 					break;
 					
 				case 'loading':

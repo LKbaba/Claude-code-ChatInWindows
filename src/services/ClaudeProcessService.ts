@@ -66,6 +66,62 @@ export interface ProcessCallbacks {
 /** Valid Claude interactive permission modes (decision C). */
 const PERMISSION_MODES = ['bypassPermissions', 'auto', 'acceptEdits', 'plan', 'default'];
 
+// v14 Interactive Options (Architecture A+).
+//
+// The native AskUserQuestion tool is unusable from the webview: under the v5 PTY
+// driver it renders a BLOCKING arrow-key menu inside the claude TUI that the
+// webview (which only tails the transcript JSONL) can neither display nor drive,
+// so the user is stuck on "processing" until they hit Stop. Instead we remove the
+// tool with --disallowedTools and instruct the model (via --append-system-prompt)
+// to emit the SAME schema as a fenced ```ask JSON block, then stop. The webview
+// parses that block and renders clickable cards; the chosen label is injected
+// back as the next user message.
+//
+// Probe-validated (scripts/verify-askq-options*.js, 2026-06-14, claude 2.1.85):
+//   - the model reliably emits a parseable ```ask block (single/multi-select,
+//     multi-question) and does NOT barrel ahead;
+//   - that turn ends cleanly with stop_reason === "end_turn" (7/7 runs), so the
+//     existing B1 completion detection already unlocks the UI -- NO out-of-band
+//     turn boundary is required;
+//   - --disallowedTools AskUserQuestion truly removes the tool (no native
+//     tool_use, no "Answer questions?" error).
+const ASK_OPTIONS_DISALLOWED_TOOL = 'AskUserQuestion';
+// Mirrors the schema of the native AskUserQuestion tool so the model (which knows
+// it intimately) emits well-formed JSON. Wording is intentionally NEUTRAL: it
+// frames the ```ask block as THE way to ask questions in this environment and
+// never mentions that any tool was disabled, so the model does not narrate the
+// mechanism to the user or go meta about "missing tools" (see F5 UX finding).
+// Kept as a single appended system-prompt fragment.
+// Protocol wording is aligned with the native AskUserQuestion tool contract
+// (reverse-engineered from leaked Claude Code prompts + the Agent SDK user-input
+// docs; see specs/updatePRDv14.md section 7). Matching the native contract means
+// (a) the model -- trained on that contract -- emits well-formed blocks more
+// reliably, and (b) a future switch back to the native tool stays schema-
+// compatible. A+ keeps the SAME schema; only the carrier differs (a fenced
+// `ask` text block instead of a tool_use call).
+const ASK_OPTIONS_PROTOCOL = [
+    'ASKING THE USER QUESTIONS: In this environment, the way to ask the user a',
+    'question or offer a choice is to output a fenced code block tagged `ask`.',
+    'Use this ONLY when you are blocked on a decision that is genuinely the',
+    "user's to make -- one you cannot resolve from the request, the code, or",
+    'sensible defaults. Do NOT use it for chit-chat or for decisions you should',
+    'make yourself. When blocked this way, do NOT guess and do NOT proceed.',
+    'Output a fenced code block tagged `ask` whose body is ONLY minified JSON:',
+    '{"questions":[{"question":"...","header":"short","options":[{"label":"...","description":"..."}],"multiSelect":false}]}',
+    'Constraints: 1-4 questions; each question has 2-4 options; "header" is a very',
+    'short chip label (<=12 chars); each "label" is concise (1-5 words) and its',
+    '"description" explains the trade-off. Every question must include "multiSelect".',
+    'The client renders this block as clickable option cards, so present your',
+    'choices ONLY through the block -- do not also restate them as a plain list.',
+    'Set multiSelect:true when several options may be chosen together. You may include',
+    'multiple entries in "questions" when you need to ask about more than one thing.',
+    'If you recommend a specific option, make it the FIRST option and append',
+    '" (Recommended)" to its label. Then STOP and end your turn, waiting for the',
+    'user reply; do not write code or call any tool until the user has answered.',
+    'Never describe this mechanism to the user or discuss which tools are available;',
+    'just ask naturally using the block.',
+].join(' ');
+
 export class ClaudeProcessService {
     // The long-lived interactive PTY session (undefined => no session alive).
     private _pty: pty.IPty | undefined;
@@ -219,6 +275,19 @@ export class ClaudeProcessService {
     /** True while a generation is in flight (between injection and end_turn). */
     public isTurnInProgress(): boolean {
         return this._turnInProgress;
+    }
+
+    /**
+     * Complete the current turn in response to an ```ask block. An ask block is
+     * a turn boundary (the model emits it and stops for input), but when it
+     * follows a tool call in the same turn its transcript line carries
+     * stop_reason=null — so neither B1 (end_turn) nor B2 (stop hook) fires.
+     * Without this the turn guard stays stuck true and the user's answer is
+     * rejected as "still processing". Routed through the shared _completeTurn so
+     * the B1/B2 dedup guard still applies (no double completion).
+     */
+    public completeTurnFromAsk(): void {
+        this._completeTurn('ask_block', this._currentSessionId());
     }
 
     /**
@@ -1233,7 +1302,17 @@ export class ClaudeProcessService {
             args.push(options.customInstructions);
         }
 
-        // Add MCP system prompts if MCP is enabled
+        // v14 Interactive Options: remove the native AskUserQuestion tool so the
+        // model emits a ```ask block instead of opening a webview-undriveable TUI
+        // menu (see ASK_OPTIONS_PROTOCOL above).
+        args.push('--disallowedTools', ASK_OPTIONS_DISALLOWED_TOOL);
+
+        // Assemble the appended system prompt from all fragments. The ```ask
+        // protocol is ALWAYS appended; MCP prompts are added when MCP is enabled.
+        // Both are concatenated into a single --append-system-prompt value so
+        // neither clobbers the other.
+        const systemPromptFragments: string[] = [ASK_OPTIONS_PROTOCOL];
+
         const mcpStatus = this._configurationManager.getMcpStatus();
         debugLog('ClaudeProcessService', 'MCP Status', {
             status: mcpStatus.status,
@@ -1244,9 +1323,14 @@ export class ClaudeProcessService {
         if (mcpStatus.status === 'configured' && mcpStatus.servers && mcpStatus.servers.length > 0) {
             const mcpPrompts = getMcpSystemPrompts(mcpStatus.servers);
             if (mcpPrompts && mcpPrompts.trim()) {
-                args.push('--append-system-prompt');
-                args.push(mcpPrompts.trim());
+                systemPromptFragments.push(mcpPrompts.trim());
             }
+        }
+
+        const appendedSystemPrompt = systemPromptFragments.join('\n\n');
+        if (appendedSystemPrompt) {
+            args.push('--append-system-prompt');
+            args.push(appendedSystemPrompt);
         }
 
         return args;

@@ -2,6 +2,17 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [5.0.3] - 2026-06-15
+
+### Added
+- **Interactive option cards (Architecture A+)** — revived the `AskUserQuestion` experience without the native tool, which renders only inside the PTY TUI and is invisible/undrivable from the webview. The extension now launches `claude` with `--disallowedTools AskUserQuestion` plus an appended protocol prompt, so when Claude needs a decision it emits a fenced ` ```ask ` JSON block (same `{questions:[{question,header,options:[{label,description}],multiSelect}]}` schema as the native tool). The block is parsed and rendered as clickable option cards in the chat; selecting an option injects the chosen label(s) as the next message.
+  - Single- and multi-select supported (radio / checkbox markers), multi-question blocks, and a graceful degrade to plain text when no protocol-formatted block is present.
+  - Cards are built with `createElement` + `textContent` (no `innerHTML`, no inline handlers) to stay within the existing CSP.
+
+### Fixed
+- **"Claude is still processing" after answering a card** — an ` ```ask ` block that follows a tool call carries `stop_reason: null`, so neither the `end_turn` (B1) nor the Stop-hook (B2) turn-completion path fired. This left `ClaudeProcessService._turnInProgress` stuck true, rejecting the user's answer. A new `completeTurnFromAsk()` (routed through the shared, deduped `_completeTurn`) resets the turn guard when an ask block is handled; the provider-side request count + cost bubble are finalized in lockstep via the idempotent `_finalizeTurn()`.
+- **Option card layout** — the gradient bar / content no longer overflow the message container (`position: relative; overflow: hidden` added), and typography now matches the surrounding conversation cards.
+
 ## [5.0.2] - 2026-06-14
 
 ### Added

@@ -30,6 +30,39 @@ export interface MessageCallbacks {
     onCompactBoundary?: (meta: CompactBoundaryMeta) => void;
     // Native compaction summary text (the `isCompactSummary` user line).
     onCompactSummary?: (summaryText: string) => void;
+    // v14 Interactive Options (Architecture A+): fired when an assistant text block
+    // contains a valid fenced ```ask JSON block. The webview renders clickable
+    // cards; the chosen label(s) are injected back as the next user message.
+    // NOTE: the ask block IS the turn boundary, and the provider finalizes the
+    // turn (unlock + 💰) from this callback. A bare single-turn ask ends with
+    // stop_reason === "end_turn" (B1 also fires), but an ask that follows a tool
+    // call in the same turn ends with stop_reason === null and the turn closes via
+    // the Stop hook -- so B1 never fires and this callback is the ONLY finalize
+    // path. Provider._finalizeTurn is idempotent so the end_turn case is safe.
+    // We still do NOT add null/tool_use to TranscriptTailService's terminal set
+    // (those mid-stream states must stay non-terminal for non-ask turns).
+    onAskOptions?: (request: AskOptionsRequest) => void;
+}
+
+// ---------------------------------------------------------------------------
+// v14 Interactive Options: ```ask block schema (mirrors the native
+// AskUserQuestion tool input, which the model is disallowed from calling).
+// ---------------------------------------------------------------------------
+export interface AskOption {
+    label: string;
+    description?: string;
+}
+
+export interface AskQuestion {
+    question: string;
+    header?: string;
+    options: AskOption[];
+    multiSelect?: boolean;
+}
+
+export interface AskOptionsRequest {
+    id: string;
+    questions: AskQuestion[];
 }
 
 export interface CompactBoundaryMeta {
@@ -53,6 +86,60 @@ export interface FinalResult {
     totalCost?: number;
     duration?: number;
     turns?: number;
+}
+
+// Matches the FIRST fenced ```ask block in an assistant text blob (tolerant of
+// casing / surrounding whitespace). Body is expected to be minified JSON per the
+// ASK_OPTIONS_PROTOCOL in ClaudeProcessService. Not global -> no lastIndex state.
+const ASK_BLOCK_RE = /```\s*ask\s*\n([\s\S]*?)```/i;
+
+interface ParsedAskBlock {
+    questions: AskQuestion[];
+    // The assistant text with the ```ask fence removed (may be empty).
+    strippedText: string;
+}
+
+// Parse + validate a ```ask block out of an assistant text blob. Returns null
+// when no block is present OR the block is malformed (bad JSON / missing
+// required fields); the caller then renders the original text verbatim so a
+// non-compliant model response degrades to a plain question instead of hanging.
+function parseAskBlock(text: string): ParsedAskBlock | null {
+    const m = text.match(ASK_BLOCK_RE);
+    if (!m) return null;
+
+    let json: any;
+    try {
+        json = JSON.parse(m[1].trim());
+    } catch {
+        return null;
+    }
+
+    const rawQuestions = json?.questions;
+    if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) return null;
+
+    const questions: AskQuestion[] = [];
+    for (const q of rawQuestions) {
+        const options = q?.options;
+        if (!q || typeof q.question !== 'string' || !q.question || !Array.isArray(options) || options.length === 0) {
+            return null;
+        }
+        const normOptions: AskOption[] = [];
+        for (const o of options) {
+            if (!o || typeof o.label !== 'string' || !o.label) return null;
+            normOptions.push({
+                label: o.label,
+                description: typeof o.description === 'string' ? o.description : undefined,
+            });
+        }
+        questions.push({
+            question: q.question,
+            header: typeof q.header === 'string' ? q.header : undefined,
+            options: normOptions,
+            multiSelect: q.multiSelect === true,
+        });
+    }
+
+    return { questions, strippedText: text.replace(ASK_BLOCK_RE, '').trim() };
 }
 
 export class MessageProcessor {
@@ -307,7 +394,14 @@ export class MessageProcessor {
         // would multiply-count tokens, so only accumulate on the terminal block.
         // Legacy stream-json assistant messages always carry a stop_reason, so
         // this gate is a no-op for the old `-p` path.
-        if (message.usage && message.stop_reason != null) {
+        //
+        // v14 EXCEPTION: an ask block that follows a tool call in the same turn
+        // carries stop_reason=null (the turn ends via the Stop hook, not end_turn),
+        // yet that line IS terminal and holds the turn's cumulative usage. Treat a
+        // message bearing a valid ask block as terminal too, or its tokens (incl.
+        // the bulk cache-read/creation) get dropped and the 💰 bubble under-counts.
+        const isAskTerminal = this._messageHasAskBlock(message, callbacks);
+        if (message.usage && (message.stop_reason != null || isAskTerminal)) {
             this._updateTokens(message.usage, message.model, callbacks);
         }
 
@@ -348,6 +442,21 @@ export class MessageProcessor {
     }
 
     /**
+     * v14: true when an assistant message carries a parseable fenced ```ask
+     * block (and the ask flow is wired). Such a message is a turn boundary even
+     * when its transcript stop_reason is null, so callers treat it as terminal
+     * for token accumulation. Uses the same parseAskBlock as the dispatch path,
+     * so the gate and the actual onAskOptions dispatch always agree.
+     */
+    private _messageHasAskBlock(message: any, callbacks: MessageCallbacks): boolean {
+        if (!callbacks.onAskOptions) { return false; }
+        if (message.role !== 'assistant' || !Array.isArray(message.content)) { return false; }
+        return message.content.some((c: any) =>
+            c && c.type === 'text' && typeof c.text === 'string' && parseAskBlock(c.text) !== null
+        );
+    }
+
+    /**
      * Process assistant messages
      */
     private _processAssistantMessage(message: any, callbacks: MessageCallbacks): void {
@@ -360,8 +469,29 @@ export class MessageProcessor {
         message.content.forEach((content: any) => {
             if (content.type === 'text' && content.text) {
                 debugLog('MessageProcessor', 'Assistant text', content.text);
-                // Regular text response - handled by onAssistantMessage callback
-                callbacks.onAssistantMessage(content.text);
+                // v14 Interactive Options: intercept a fenced ```ask block and
+                // dispatch it as clickable cards instead of leaking raw JSON into
+                // the chat bubble. A malformed block (or no callback wired) falls
+                // through to normal text rendering -> graceful degrade, never hang.
+                const ask = callbacks.onAskOptions ? parseAskBlock(content.text) : null;
+                if (ask) {
+                    const askId = `${this._currentMessageId}_ask`;
+                    debugLog('MessageProcessor', 'Parsed ask block', {
+                        id: askId,
+                        questions: ask.questions.length,
+                    });
+                    // Show any prose that surrounded the ask block, never the JSON.
+                    if (ask.strippedText) {
+                        callbacks.onAssistantMessage(ask.strippedText);
+                    }
+                    callbacks.onAskOptions!({ id: askId, questions: ask.questions });
+                } else {
+                    if (callbacks.onAskOptions && ASK_BLOCK_RE.test(content.text)) {
+                        debugLog('MessageProcessor', 'Ask block present but malformed -> rendering as plain text');
+                    }
+                    // Regular text response - handled by onAssistantMessage callback
+                    callbacks.onAssistantMessage(content.text);
+                }
             } else if (content.type === 'thinking') {
                 // Thinking process. Transcript JSONL stores the reasoning text in
                 // `content.thinking`; the legacy stream-json path used `content.text`.
@@ -710,11 +840,8 @@ export class MessageProcessor {
             case 'EnterWorktree':
                 details = ' • creating isolated worktree';
                 break;
-            case 'AskUserQuestion':
-                if (content.input?.questions?.length) {
-                    details = ` • ${content.input.questions.length} question(s)`;
-                }
-                break;
+            // (AskUserQuestion case removed: v14 disallows the native tool; see
+            // ASK_OPTIONS_PROTOCOL / onAskOptions for the ```ask replacement.)
             case 'Skill':
                 if (content.input?.skill) {
                     details = ` • /${content.input.skill}`;
@@ -845,11 +972,12 @@ export class MessageProcessor {
      * Determine if a tool result should be hidden
      */
     private _shouldHideToolResult(toolName: string | undefined, isError: boolean): boolean {
-        // Always hide AskUserQuestion and ExitPlanMode results (regardless of error status)
-        // CLI's -p mode auto-returns error messages, then Claude will reprocess with plain text
-        // - AskUserQuestion: "Error: Answer questions?" → Claude redisplays question as text
-        // - ExitPlanMode: "Exit plan mode?" → Claude confirms exit and continues
-        if (toolName === 'AskUserQuestion' || toolName === 'ExitPlanMode') {
+        // Always hide ExitPlanMode results (regardless of error status): its
+        // result is the "Exit plan mode?" confirmation prompt, not useful output.
+        // (AskUserQuestion is no longer handled here -- v14 disallows the native
+        // tool entirely and routes interactive options through the ```ask block /
+        // onAskOptions path instead.)
+        if (toolName === 'ExitPlanMode') {
             return true;
         }
 

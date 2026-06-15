@@ -30,23 +30,48 @@ Debug (Extension Development Host):
 
 ## Architecture Overview
 
-### Data Flow
+### Data Flow (v5.0.1+ — PTY interactive driver)
+
+As of v5.0.1 the extension drives a **real interactive `claude` CLI through a
+node-pty pseudo-terminal** (NOT `claude -p` / stream-json). This keeps usage on
+the user's subscription pool (Pro/Max) instead of the Agent SDK billing pool.
 
 ```
+INPUT  side:
 User input → Webview postMessage → ClaudeChatProvider
-  → ClaudeProcessService (stdin JSON) → Claude CLI
-  → stdout JSON stream → MessageProcessor → postMessage → Webview
+  → ClaudeProcessService (node-pty: bracketed-paste + Enter into a long-lived
+    interactive `claude` TUI) → Claude CLI (subscription-billed)
+
+OUTPUT side:
+Claude CLI → ~/.claude/projects/{slug}/{sessionId}.jsonl (transcript JSONL)
+  → TranscriptTailService (real-time tail) → MessageProcessor (JSONL-line parse)
+  → postMessage → Webview
 ```
+
+Key contrasts with the old `-p` architecture:
+- **Output is read from the transcript JSONL, NOT parsed from PTY stdout.** PTY
+  stdout is used only for *interaction-state detection* (input-box readiness via
+  footer marker, image-chip detection, startup gate dialogs).
+- **Turn completion** is detected from `stop_reason === "end_turn"` in the
+  transcript (B1), with an optional Stop-hook sentinel fallback (B2).
+- A **single long-lived PTY session** is reused across turns; messages are
+  injected via bracketed paste + a delayed Enter.
+- On Windows, `claude` runs inside Git Bash (ConPTY cannot exec a `.cmd`
+  directly); `useConpty: false` (winpty backend).
 
 ### Key Components
 
 | Component | File | Role |
 |-----------|------|------|
 | Entry point | `src/extension.ts` | Registers commands, subscriptions, status bar |
-| Webview orchestrator | `src/providers/ClaudeChatProvider.ts` | Owns all managers/services, handles all webview messages |
-| CLI lifecycle | `src/services/ClaudeProcessService.ts` | Spawn, kill, temp-file cleanup |
-| Stream parser | `src/services/MessageProcessor.ts` | JSON-line parsing, tool-use extraction, token/cost dispatch |
-| Process mgmt | `src/managers/WindowsCompatibility.ts` | Executable discovery, `taskkill` tree kill, shell env |
+| Webview orchestrator | `src/providers/ClaudeChatProvider.ts` | Owns all managers/services, handles all webview messages; splits image mentions, expands file mentions |
+| PTY driver / CLI lifecycle | `src/services/ClaudeProcessService.ts` | Spawn interactive `claude` via node-pty; bracketed-paste injection, slash-command injection, ESC interrupt, staged image-chip injection, startup-gate handling, readiness detection |
+| Transcript locator | `src/services/TranscriptLocator.ts` | Encodes cwd → project slug, finds the session JSONL under `~/.claude/projects` |
+| Transcript tail | `src/services/TranscriptTailService.ts` | Real-time tail of the session JSONL; emits new lines |
+| Transcript parser | `src/services/MessageProcessor.ts` | JSONL-line parsing, tool-use extraction, `end_turn` detection, token/cost dispatch |
+| Cost estimation | `src/services/ModelPricing.ts` | Local token×unit-price cost estimate (subscription mode shows estimated, not billed, amounts) |
+| Stop-hook fallback | `src/services/StopHookFallbackService.ts` | Optional idempotent one-shot Stop hook writing an end-of-turn sentinel (B2) |
+| Process mgmt | `src/managers/WindowsCompatibility.ts` | Executable discovery (`findCliExecutable` priority order), `taskkill` tree kill (Win) / SIGTERM (Unix), shell env |
 | Config facade | `src/managers/config/ConfigurationManagerFacade.ts` | Combines VsCode + MCP + API config managers |
 | Undo/redo | `src/managers/UndoRedoManager.ts` | Strategy pattern — one strategy class per operation type |
 | UI HTML | `src/ui-v2/index.ts` | Assembles full HTML: CSP header + styles + body + script |
@@ -61,7 +86,10 @@ User input → Webview postMessage → ClaudeChatProvider
 - **Strategy pattern**: Undo/redo operations — each `OperationType` has a strategy in `src/managers/operations/strategies/`
 - **Facade pattern**: `ConfigurationManagerFacade` unifies 3 config sub-managers
 - **Singleton pattern**: `DebugLogger`, `PluginManager`, `SkillManager`, `SecretService`
-- **Stream protocol**: CLI communication via `--input-format stream-json --output-format stream-json`
+- **PTY interactive driver** (v5.0.1+): input injected via node-pty bracketed
+  paste; output read by tailing the transcript JSONL. The old stream-json
+  (`--input-format stream-json --output-format stream-json`) protocol has been
+  removed.
 
 ## Critical Gotchas
 
@@ -140,6 +168,56 @@ When building Stop-hook completion notifications on Windows, use the WinRT Toast
 **Anti-loop guard** — parse stdin JSON for `stop_hook_active`; if true, `exit 0` without firing the notification. Otherwise the hook triggers itself recursively when Claude responds to the hook's output.
 
 **Embedding in TypeScript** — for the plugin template, write the PowerShell as a clean multi-line TS template literal, then at runtime: `Buffer.from(script, 'utf16le').toString('base64')` and invoke as `powershell -NoProfile -EncodedCommand ${b64}`. This avoids the nested-quote/backslash escaping nightmare of a single-line inline command.
+
+### 8. PTY Driver Depends on Undocumented TUI Strings (FRAGILE)
+
+The v5 driver detects interaction state by scanning the `claude` TUI's own
+output for **hard-coded English marker strings**. These are undocumented CLI
+internals that can change across `claude` versions and silently break the driver:
+
+- **Input-box readiness**: footer markers `shift+tab to cycle` / `? for shortcuts`
+  (`_scanInputBoxReady` in `ClaudeProcessService.ts`). If absent, injection
+  either never fires or fires too early and gets swallowed.
+- **Image attachment chip**: regex `/\[\s*image\s*#?\s*(\d+)\s*\]/gi` matching
+  `[Image #N]` (`_detectImageChip`). If the chip text changes, staged image
+  injection times out and degrades to a `Read` round-trip (§ image flow below).
+- **Startup gate dialogs**: ANSI-stripped substring match on `yesiaccept` /
+  `yesitrustthisfolder` to auto-navigate the trust / bypass-permissions prompts
+  with a Down-arrow + Enter (`_handleStartupGate`).
+- **Turn completion**: transcript `stop_reason === "end_turn"` — a JSONL schema
+  contract, also version-dependent.
+
+Verified on `claude` 2.1.85 (the npm build the extension launches) and 2.1.119.
+There is **no runtime version guard**: a future CLI that renames any of these
+markers fails silently (hang / lost image / stuck "processing"), not loudly.
+When debugging "UI hangs after sending" or "image not seen", first check the
+installed `claude --version` and whether these marker strings still appear in
+the raw PTY output (DebugLogger logs `PTY raw output`).
+
+### 9. PTY Injection Timing & Idempotency
+
+- **Bracketed paste needs a delayed Enter**: pasting `\x1b[200~text\x1b[201~`
+  then immediately writing `\r` gets the Enter swallowed by the TUI. A
+  `PASTE_SUBMIT_DELAY_MS` (~250ms) gap is required.
+- **Slash commands inject char-by-char** (`injectSlashCommand`, ~60ms/char) so
+  the TUI's slash menu can filter; concurrent slash injection is guarded by
+  `_slashInjecting` (two at once → garbled `//mmooddeell`).
+- **Staged image injection is idempotent** under the reinject watchdog
+  (`_stagedInjectInProgress` / `_stagedArmed`); a re-call must never stack
+  duplicate chips or re-submit. ESC interrupt (`stopProcess`) sends bare `\x1b`
+  and resets staged state without killing the PTY session.
+
+### 10. No Generic TUI Menu Navigation Yet
+
+The only arrow-key navigation is the hard-coded one-shot startup gate (#8). There
+is currently **no generic capability** to detect a runtime TUI option menu
+(permission approval, `ExitPlanMode` Yes/No, `AskUserQuestion` options) and
+inject an arrow-key + Enter selection. Permission menus are bypassed wholesale by
+the default `bypassPermissions` mode; plan-mode confirmation is handled at the
+prompt level. The legacy `AskUserQuestion` handling in `MessageProcessor.ts` /
+`ui-script.ts` is **dead code from the `-p` era** (its comments still describe
+`-p` auto-error behavior) — revive/replace it deliberately if building an
+interactive options UI.
 
 ## Version Release Checklist
 

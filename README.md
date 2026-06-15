@@ -40,6 +40,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **v5.0.3** | 2026-06-15 | Interactive option cards — Claude emits a fenced ` ```ask ` block (native `AskUserQuestion` disabled) that renders as clickable single/multi-select cards; clicking injects the chosen label as the next turn. Fixes the "still processing" lock when an ask block follows a tool call (`stop_reason: null`), plus card layout/typography polish |
 | **v5.0.2** | 2026-06-14 | First-turn image vision via staged PTY injection — pasted/selected images arrive as a native `[Image #N]` multimodal attachment (0 `Read`, no "I don't see an image"); idempotent under the reinject watchdog; graceful degrade to `Read` if no chip; CJK/space paths + multi-image verified |
 | **v5.0.1** | 2026-06-13 | PTY interactive driver replaces `claude -p` (usage bills against your subscription); output read from transcript JSONL; permission mode setting; optional Stop hook completion fallback; win32-x64 only |
 | **v4.1.3** | 2026-06-02 | Claude Opus 4.8 model support; Opus 4.7 demoted to Previous; Opus 4.5 hidden from UI (kept for history & pricing) |

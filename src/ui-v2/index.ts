@@ -253,6 +253,189 @@ function getStylesWithEnhancements(): string {
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     }
 
+    /* v14 Interactive Options (ask block) — styled as a first-class message type,
+       matching the gradient-bar + badge-label design language of tool/claude. */
+    .message.ask {
+      background-color: transparent !important;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(99, 102, 241, 0.18);
+      border-radius: 8px;
+      /* Match the CLAUDE card exactly: same UI font + editor foreground, so the
+         option text never diverges from the surrounding conversation. */
+      color: var(--vscode-editor-foreground);
+      font-family: var(--vscode-font-family);
+    }
+    .message.ask::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--grad-primary, linear-gradient(135deg, #4338ca 0%, #4c1d95 100%));
+    }
+    .message.ask .message-label {
+      background: var(--grad-primary, linear-gradient(135deg, #4338ca 0%, #4c1d95 100%));
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      /* Slightly smaller badge text — the default felt a touch oversized. */
+      font-size: 11px;
+    }
+    .ask-card {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .ask-card.is-resolved { opacity: 0.55; }
+    .ask-question { display: flex; flex-direction: column; gap: 8px; }
+    /* Header + question share a left indent so the question block reads as one
+       unit, set in slightly from the option list below it. */
+    .ask-question-header {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      color: #a5b4fc;
+      opacity: 0.95;
+      padding-left: 12px;
+    }
+    .ask-question-text {
+      font-size: 13px;
+      font-weight: 400;
+      opacity: 0.85;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      padding-left: 12px;
+    }
+    .ask-options { display: flex; flex-direction: column; gap: 6px; }
+    /* Lightweight "ghost list item" — transparent fill keeps options from
+       reading as heavy form inputs inside the conversation flow. */
+    .ask-option {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      text-align: left;
+      padding: 9px 36px 9px 12px;
+      border: 1px solid var(--vscode-panel-border, rgba(255,255,255,0.12));
+      border-radius: 4px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .ask-option:hover:not(:disabled) {
+      border-color: var(--color-focus-medium, rgba(99,102,241,0.4));
+      background-color: var(--vscode-list-hoverBackground, rgba(255,255,255,0.04));
+    }
+    /* Restrained selected state: faint tint + accent border + the radio/checkbox
+       marker already carry the meaning — no extra inner bar. */
+    .ask-option.selected {
+      border-color: #6366f1;
+      background-color: rgba(99, 102, 241, 0.1);
+    }
+    .ask-option.selected .ask-option-label { color: #a5b4fc; }
+    .ask-option:disabled { cursor: default; }
+    /* Right-aligned, vertically centered selection marker. */
+    .ask-option::after {
+      content: '';
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      box-sizing: border-box;
+      border: 1.5px solid var(--vscode-panel-border, rgba(255,255,255,0.25));
+      background-repeat: no-repeat;
+      background-position: center;
+      transition: border-color 0.15s ease, background-color 0.15s ease, border-width 0.15s ease;
+    }
+    .ask-option:hover:not(:disabled)::after {
+      border-color: var(--color-focus-medium, rgba(99,102,241,0.4));
+    }
+    /* Multi-select -> rounded-square checkbox with a CSS check glyph. */
+    .ask-options--multi .ask-option::after { border-radius: 4px; }
+    .ask-options--multi .ask-option.selected::after {
+      border-color: #6366f1;
+      background-color: #6366f1;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M4 8.5l2.5 2.5 5.5-5.5'/%3E%3C/svg%3E");
+    }
+    /* Single-select -> circular radio with a center dot (thick border trick). */
+    .ask-options--single .ask-option::after { border-radius: 50%; }
+    .ask-options--single .ask-option.selected::after {
+      border-color: #6366f1;
+      border-width: 5px;
+      background-color: #c7d2fe;
+    }
+    .ask-option-label { font-size: 13px; font-weight: 400; }
+    .ask-option-desc { font-size: 12px; opacity: 0.7; white-space: pre-wrap; line-height: 1.45; }
+    /* "Other" free-text option: dashed border signals a custom-input affordance. */
+    .ask-option-other { border-style: dashed; opacity: 0.92; }
+    .ask-option-other .ask-option-label { opacity: 0.9; }
+    .ask-other-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 7px;
+    }
+    .ask-other-input {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid var(--color-focus-medium, rgba(99,102,241,0.4));
+      border-radius: 6px;
+      background-color: var(--vscode-input-background, rgba(255,255,255,0.04));
+      color: var(--vscode-input-foreground, inherit);
+      font-family: inherit;
+      font-size: 12.5px;
+    }
+    .ask-other-input:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--color-focus-soft, rgba(99,102,241,0.25));
+    }
+    .ask-other-input:disabled { opacity: 0.5; }
+    .ask-other-send {
+      padding: 7px 16px;
+      border: none;
+      border-radius: 6px;
+      background: var(--grad-primary, linear-gradient(135deg, #4338ca 0%, #4c1d95 100%));
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      transition: opacity 0.12s ease;
+    }
+    .ask-other-send:hover:not(:disabled) { opacity: 0.88; }
+    .ask-other-send:disabled { opacity: 0.4; cursor: default; }
+    .ask-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 2px;
+    }
+    .ask-submit-btn {
+      padding: 6px 18px;
+      border: none;
+      border-radius: 6px;
+      background: var(--grad-primary, linear-gradient(135deg, #4338ca 0%, #4c1d95 100%));
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      transition: opacity 0.12s ease;
+    }
+    .ask-submit-btn:hover:not(:disabled) { opacity: 0.88; }
+    .ask-submit-btn:disabled { opacity: 0.4; cursor: default; }
+    .ask-card-status { font-size: 11px; opacity: 0.85; font-weight: 600; }
+
     /* Tool name label styles */
     .tool-name {
       display: inline-block;
