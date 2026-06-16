@@ -185,11 +185,18 @@ export class ClaudeProcessService {
     // (e.g. the workspace-trust / bypass-permissions confirmation). Capped to the
     // most recent bytes.
     private _startupBuffer = '';
-    // Event-driven startup-gate guard: a launch shows at most one blocking dialog
-    // and we must answer it exactly once, the instant it paints (it appears ~650ms
-    // in, well before the input box settles), so the prompt's own Enter never
-    // lands on it. Set true after we answer so repaints don't re-trigger.
-    private _startupGateHandled = false;
+    // Event-driven startup-gate guard. A fresh launch can show TWO blocking
+    // dialogs in sequence (workspace-trust, THEN bypass-permissions), and the
+    // second one can paint AFTER silence-readiness fires. They are tracked
+    // independently so each is answered exactly once, the instant it paints, so
+    // the prompt's own Enter never lands on an unanswered dialog (which on a
+    // fresh machine makes claude exit code 1 — the first prompt is silently lost
+    // and the session keeps re-spawning). Set true per type after we answer so
+    // repaints don't re-trigger. Scanning continues for STARTUP_GATE_WINDOW_MS
+    // post-spawn (see _startupGateDeadline) to catch a late-painting 2nd gate.
+    private _trustGateHandled = false;
+    private _bypassGateHandled = false;
+    private _startupGateDeadline = 0;
 
     // Input-box readiness: a POSITIVE signal that the TUI input box can actually
     // accept keystrokes, detected from its footer marker ("shift+tab to cycle" /
@@ -263,6 +270,7 @@ export class ClaudeProcessService {
     private static readonly PTY_LOG_PREVIEW_CHARS = 160; // truncate raw-stream preview
     private static readonly STARTUP_BUFFER_CAP = 16000; // retained pre-ready bytes for gate detection
     private static readonly STARTUP_GATE_NAV_DELAY_MS = 200; // pause between Down and Enter when accepting the gate
+    private static readonly STARTUP_GATE_WINDOW_MS = 25000; // keep scanning for startup gates this long after spawn (a 2nd gate can paint post-readiness)
     private static readonly SELF_EDIT_GATE_DEBOUNCE_MS = 2500; // ignore self-edit-menu repaints after answering, until it dismisses
     // Delay between writing a bracketed-paste block and the submitting Enter.
     // claude's TUI shows a transient "Pasting" state; an Enter sent in the same
@@ -602,7 +610,9 @@ export class ClaudeProcessService {
 
         this._sessionReady = false;
         this._startupBuffer = '';
-        this._startupGateHandled = false;
+        this._trustGateHandled = false;
+        this._bypassGateHandled = false;
+        this._startupGateDeadline = Date.now() + ClaudeProcessService.STARTUP_GATE_WINDOW_MS;
         this._inputBoxReady = false;
         this._markerBuffer = '';
         this._chipScanBuffer = '';
@@ -919,9 +929,11 @@ export class ClaudeProcessService {
     }
 
     /**
-     * Answers a blocking startup dialog the instant it is detected in the
-     * pre-ready PTY stream. Fires at most once per session (`_startupGateHandled`).
-     * Two distinct dialogs can gate the first launch, and they need OPPOSITE keys:
+     * Answers a blocking startup dialog the instant it is detected. Each of the
+     * two gate types fires at most once per session (`_trustGateHandled` /
+     * `_bypassGateHandled`), so a fresh machine that shows BOTH in sequence gets
+     * each answered (the 2nd may paint after silence-readiness — see _onPtyData).
+     * The two dialogs need OPPOSITE keys:
      *  - Workspace trust ("Do you trust the files in this folder?" / "Yes, I trust
      *    this folder" / "No, exit"): selection already defaults to "Yes", so a
      *    bare Enter confirms it.
@@ -932,24 +944,35 @@ export class ClaudeProcessService {
      * exits / denies and the user's message is silently lost (no turn, no reply).
      */
     private _handleStartupGate(): void {
-        if (this._startupGateHandled || !this._pty) {
+        if (!this._pty) {
             return;
         }
         const kind = this._detectStartupGate(this._startupBuffer);
         if (!kind) {
             return;
         }
-        this._startupGateHandled = true;
         if (kind === 'bypass') {
+            if (this._bypassGateHandled) {
+                return;
+            }
+            this._bypassGateHandled = true;
             debugLog('ClaudeProcessService', 'Bypass-permissions dialog detected; selecting "Yes, I accept"');
             this._pty.write('\x1b[B'); // Down -> "Yes, I accept" (default is "No, exit")
             setTimeout(() => {
                 try { this._pty?.write('\r'); } catch { /* session gone */ }
             }, ClaudeProcessService.STARTUP_GATE_NAV_DELAY_MS);
         } else {
+            if (this._trustGateHandled) {
+                return;
+            }
+            this._trustGateHandled = true;
             debugLog('ClaudeProcessService', 'Workspace-trust dialog detected; confirming "Yes, I trust this folder"');
             this._pty.write('\r'); // default selection is already "Yes, I trust this folder"
         }
+        // Drop the matched dialog from the buffer so this gate cannot re-trigger
+        // on repaints AND so the OTHER gate (which paints next, on a fresh
+        // machine) is detected cleanly without stale text confusing the match.
+        this._startupBuffer = '';
     }
 
     /**
@@ -1085,7 +1108,9 @@ export class ClaudeProcessService {
         this._turnInProgress = false;
         this._sessionReady = false;
         this._startupBuffer = '';
-        this._startupGateHandled = false;
+        this._trustGateHandled = false;
+        this._bypassGateHandled = false;
+        this._startupGateDeadline = 0;
         this._inputBoxReady = false;
         this._markerBuffer = '';
         this._chipScanBuffer = '';
@@ -1132,17 +1157,23 @@ export class ClaudeProcessService {
         // already produced assistant content (see _armIdleCompletion).
         this._armIdleCompletion();
 
+        // Answer blocking startup dialogs the instant they paint (event-driven).
+        // A fresh machine shows TWO in sequence (workspace-trust, then bypass-
+        // permissions) and the SECOND can appear AFTER silence-readiness fires —
+        // so keep scanning for a bounded window post-spawn, even once ready, until
+        // both gate types are answered. Waiting until "ready" alone is too late:
+        // the dialog itself produces the quiet window, so readiness can fire while
+        // it is still up, and the prompt's Enter would then dismiss it the wrong
+        // way (default "No, exit" => claude exits code 1, first prompt lost). The
+        // gate signatures are highly specific, so scanning post-ready is safe.
+        if (Date.now() < this._startupGateDeadline && (!this._trustGateHandled || !this._bypassGateHandled)) {
+            this._startupBuffer = (this._startupBuffer + data).slice(-ClaudeProcessService.STARTUP_BUFFER_CAP);
+            this._handleStartupGate();
+        }
+
         if (this._sessionReady) {
             return;
         }
-        // Accumulate pre-ready output (capped) so the startup gate detector can
-        // scan it once the TUI settles.
-        this._startupBuffer = (this._startupBuffer + data).slice(-ClaudeProcessService.STARTUP_BUFFER_CAP);
-        // Answer any blocking startup dialog the instant it paints (event-driven),
-        // before the input box settles. Waiting until "ready" is too late: the
-        // dialog itself produces the quiet window, so readiness can fire while it
-        // is still up, and the prompt's Enter would then dismiss it the wrong way.
-        this._handleStartupGate();
         // Reset the quiet-window timer on every chunk; when output goes quiet for
         // READY_SILENCE_MS we treat the TUI as ready to accept input (subject to
         // the READY_MIN_MS floor that skips claude's startup load gap).

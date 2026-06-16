@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [5.0.7] - 2026-06-16
+
+### Fixed
+- **Extension would not run on a freshly-installed machine (first prompt lost, session loops re-spawning)** — a brand-new machine shows TWO blocking startup dialogs in sequence (workspace-trust, then the bypass-permissions warning), and the second one can paint *after* the input box reports ready. The driver only answered ONE gate (a single one-shot flag) and stopped scanning once "ready", so the second dialog stayed up; the user's prompt Enter then landed on its default "No, exit" → `claude` exited with code 1, the first message was silently lost, and the session kept re-spawning. The driver now tracks the two gate types independently (`_trustGateHandled` / `_bypassGateHandled`) and keeps scanning for ~25s post-spawn (even after readiness) so both gates are always answered. Already-trusted machines (only one gate) are unaffected.
+
 ## [5.0.6] - 2026-06-15
 
 ### New Features

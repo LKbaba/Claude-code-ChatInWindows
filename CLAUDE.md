@@ -223,8 +223,14 @@ option menu (`ExitPlanMode` Yes/No, `AskUserQuestion` options) and inject an
 arrow-key + Enter selection. Only two specific menus are auto-navigated, each by
 a hard-coded distinctive marker string (both fragile per #8):
 
-1. **Startup gate** (#8, pre-ready, one-shot per session): workspace-trust /
-   bypass-permissions warning (`_handleStartupGate`).
+1. **Startup gate** (#8): workspace-trust AND/OR bypass-permissions warning
+   (`_handleStartupGate`). A fresh machine shows BOTH in sequence; each gate type
+   is answered once (`_trustGateHandled` / `_bypassGateHandled`), and the bypass
+   gate can paint AFTER silence-readiness, so scanning continues for
+   `STARTUP_GATE_WINDOW_MS` (~25s) post-spawn even once "ready". If only the first
+   gate is answered, the prompt's Enter lands on the second's default "No, exit"
+   → claude exits code 1 and the first message is silently lost (the session then
+   loops re-spawning — symptom: "won't run on a freshly-installed machine").
 2. **Self-edit permission gate** (post-ready, mid-turn): editing a file under a
    `.claude/` dir (skills / hooks / settings) makes claude paint a confirmation
    menu that `bypassPermissions` does NOT auto-answer (self-modification is
