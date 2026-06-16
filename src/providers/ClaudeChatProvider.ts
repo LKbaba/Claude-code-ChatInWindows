@@ -19,7 +19,7 @@ import { UndoRedoManager } from '../managers/UndoRedoManager';
 import { OperationPreviewService } from '../services/OperationPreview';
 import { expandVariables } from '../utils/configUtils';
 import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
-import { VALID_MODELS, ValidModel, MODEL_DISPLAY_NAMES } from '../utils/constants';
+import { VALID_MODELS, ValidModel, MODEL_DISPLAY_NAMES, MODELS_SUPPORTING_1M } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
 import { SkillManager } from '../services/SkillManager';
 import { HooksConfigManager } from '../services/HooksConfigManager';
@@ -3340,8 +3340,17 @@ export class ClaudeChatProvider {
 			// started over. injectSlashCommand waits internally for input-box
 			// readiness, so this is safe to fire even right after a resume.
 			if (this._processService.isProcessRunning()) {
-				debugLog('ClaudeChatProvider', 'Live session: injecting /model to switch mid-session', { model });
-				void this._processService.injectSlashCommand(`/model ${model}`);
+				// Mirror the launch-arg behavior: append [1m] for 1M-capable models
+				// when 1M context is enabled, so a mid-session switch keeps the 1M
+				// window instead of dropping back to 200K.
+				const enable1M = vscode.workspace
+					.getConfiguration('claudeCodeChatUI')
+					.get<boolean>('enable1MContext', true);
+				const modelArg = enable1M && MODELS_SUPPORTING_1M.has(model)
+					? `${model}[1m]`
+					: model;
+				debugLog('ClaudeChatProvider', 'Live session: injecting /model to switch mid-session', { model: modelArg });
+				void this._processService.injectSlashCommand(`/model ${modelArg}`);
 			}
 		} else {
 			debugError('ClaudeChatProvider', 'Invalid model selected', model);

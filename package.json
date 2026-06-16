@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude Code GUI / ChatUI",
   "description": "Full-featured GUI for Claude Code CLI — Windows (no WSL) & macOS. Third-party API support, MCP plugins, Skills & Hooks system, Undo/Redo, real-time token tracking. Actively maintained.",
-  "version": "5.0.7",
+  "version": "5.0.8",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -202,6 +202,12 @@
           "default": true,
           "scope": "resource",
           "markdownDescription": "禁用 Claude Code 框架在上下文接近窗口上限时的**自动压缩**(auto-compact)。本扩展按设计复用单个长生命周期的交互式 `claude` 会话，上下文会跨回合持续累积，涨到阈值后 CLI 会自行 `/compact`——这是有损压缩，且会造成「界面显示完整历史、模型其实只记得 summary」的割裂(`-p` 时代不会发生)。开启此项后，spawn 时注入进程级环境变量 `DISABLE_AUTO_COMPACT=1`，**只禁自动压缩，手动 `/compact` 仍可用**。因走进程级 env、不写任何 `settings.json`，别人直接用 CLI **不受影响**。**代价**：长会话上下文涨满会撞硬上限，需配合主动 New Chat 或手动 `/compact`。"
+        },
+        "claudeCodeChatUI.enable1MContext": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "启用 **1M token 上下文窗口**。开启后，spawn `claude` 时给支持 1M 的模型(`opus` / `sonnet` 别名，以及 Opus 4.6/4.7/4.8、Sonnet 4.6)的 `--model` 参数追加 `[1m]` 后缀(如 `claude-opus-4-8[1m]`)，真实窗口从 200K 提升到 1M。4.5 及更早模型、Haiku 不支持 1M，不会被加后缀。1M 现已 GA，**无需 beta header**。\n\n**配合 `contextWindowTokens`**：进度条分母应同步设为 `1000000`，否则显示仍按旧分母。\n\n**⚠️ 计费提醒**：1M 上下文仅在 **Max/Team/Enterprise 计划 + Opus 模型**下含在订阅内；**Pro 计划、或任意计划用 Sonnet 1M，都会额外消耗 usage credits**(超出订阅池计费)。若你只想走订阅池、不额外花钱，请关闭此项或仅在 Max+Opus 下使用。\n\n**默认开启**。关闭后恢复 200K 窗口。"
         },
         "claudeCodeChatUI.autoAcceptEditGate": {
           "type": "boolean",

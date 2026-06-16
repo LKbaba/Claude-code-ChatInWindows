@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [5.0.8] - 2026-06-15
+
+### New Features
+- **1M-token context window is now enabled by default** — long sessions were silently crashing into a `Prompt is too long` wall at ~165K tokens because the launched model never actually carried the 1M window: the CLI was spawned with a bare `--model claude-opus-4-8` (200K), while the UI progress-bar denominator could be raised to 1M, masking the real ceiling — and with framework auto-compaction disabled (5.0.6) there was no safety net to rescue the overflow. The driver now appends the `[1m]` model-name suffix (e.g. `claude-opus-4-8[1m]`) for 1M-capable models (`opus` / `sonnet` aliases + Opus 4.6/4.7/4.8, Sonnet 4.6) at spawn **and** on a mid-session `/model` switch, lifting the true window from 200K to 1M (native GA — no beta header). 4.5-era models and Haiku stay at 200K and are never suffixed. Toggle via `claudeCodeChatUI.enable1MContext` (default `true`). **⚠️ Billing**: the 1M window is included in-subscription only on **Max/Team/Enterprise + Opus**; Pro, or any plan using Sonnet 1M, burns usage credits — disable this (or pair `contextWindowTokens` with `1000000` only) when on Max+Opus.
+
 ## [5.0.7] - 2026-06-16
 
 ### Fixed

@@ -21,6 +21,22 @@ export const VALID_MODELS = [
 export type ValidModel = typeof VALID_MODELS[number];
 
 /**
+ * Models that support the 1M-token context window (native GA on the Claude
+ * API — no beta header needed). Launching the CLI with the `[1m]` model-name
+ * suffix (e.g. `claude-opus-4-8[1m]`) selects the 1M window. 4.5-era models and
+ * Haiku stay at 200K and must NOT get the suffix. The bare `opus` / `sonnet`
+ * aliases resolve to the latest (1M-capable) versions.
+ */
+export const MODELS_SUPPORTING_1M: ReadonlySet<string> = new Set<string>([
+    'opus',
+    'sonnet',
+    'claude-opus-4-8',
+    'claude-opus-4-7',
+    'claude-opus-4-6',
+    'claude-sonnet-4-6',
+]);
+
+/**
  * Model ID to display name mapping (single source of truth)
  */
 export const MODEL_DISPLAY_NAMES: Record<string, string> = {

@@ -30,7 +30,7 @@ import * as pty from 'node-pty';
 import { WindowsCompatibility, ExecutionEnvironment } from '../managers/WindowsCompatibility';
 import { ConfigurationManagerFacade } from '../managers/config/ConfigurationManagerFacade';
 import { ConversationManager } from '../managers/ConversationManager';
-import { VALID_MODELS, ValidModel } from '../utils/constants';
+import { VALID_MODELS, ValidModel, MODELS_SUPPORTING_1M } from '../utils/constants';
 import { getMcpSystemPrompts } from '../utils/mcpPrompts';
 import { debugLog, debugError } from './DebugLogger';
 import { SecretService } from './SecretService';
@@ -1447,6 +1447,17 @@ export class ClaudeProcessService {
         }
     }
 
+    /** Whether to launch 1M-capable models with the [1m] suffix (default true). */
+    private _is1MContextEnabled(): boolean {
+        try {
+            return vscode.workspace
+                .getConfiguration('claudeCodeChatUI')
+                .get<boolean>('enable1MContext', true);
+        } catch {
+            return true;
+        }
+    }
+
     /** Read the configured interactive permission mode (decision C; default bypass). */
     private _getPermissionMode(): string {
         try {
@@ -1541,9 +1552,16 @@ export class ClaudeProcessService {
             args.push('--resume', options.sessionId);
         }
 
-        // Add model if not default
+        // Add model if not default. When 1M context is enabled and the selected
+        // model supports it, append the `[1m]` suffix so the CLI launches with
+        // the 1M-token window (native GA; no beta header). Validation still uses
+        // the bare model id (the suffix is not part of VALID_MODELS).
         if (options.model && options.model !== 'default' && VALID_MODELS.includes(options.model as ValidModel)) {
-            args.push('--model', options.model);
+            const modelArg =
+                this._is1MContextEnabled() && MODELS_SUPPORTING_1M.has(options.model)
+                    ? `${options.model}[1m]`
+                    : options.model;
+            args.push('--model', modelArg);
         }
 
         // Add custom instructions
