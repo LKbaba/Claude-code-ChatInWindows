@@ -1192,8 +1192,9 @@ export const uiScript = `
 		let maxContextTokensInSession = 0; // Track maximum context usage in current session
 		// Context Window total capacity (progress-bar denominator). Pushed from the
 		// extension via settingsData (claudeCodeChatUI.contextWindowTokens); falls
-		// back to Claude's standard 200K window when no value has arrived yet.
-		let contextWindowTotalTokens = 200000;
+		// back to 400K (recommended compaction point under the GA 1M window) when no
+		// value has arrived yet.
+		let contextWindowTotalTokens = 400000;
 		
 		// Tool execution tracking
 		let currentToolExecution = null;
@@ -3583,7 +3584,7 @@ export const uiScript = `
 
 			if (message.type === 'settingsData') {
 				// Pick up the configurable Context Window capacity (progress-bar
-				// denominator). Falls back to 200000 when unset/invalid.
+				// denominator). Falls back to 400000 when unset/invalid.
 				const cfgContextTokens = Number(message.data['contextWindowTokens']);
 				if (Number.isFinite(cfgContextTokens) && cfgContextTokens > 0) {
 					contextWindowTotalTokens = cfgContextTokens;

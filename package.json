@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude Code GUI / ChatUI",
   "description": "Full-featured GUI for Claude Code CLI — Windows (no WSL) & macOS. Third-party API support, MCP plugins, Skills & Hooks system, Undo/Redo, real-time token tracking. Actively maintained.",
-  "version": "5.0.5",
+  "version": "5.0.6",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -191,11 +191,23 @@
         },
         "claudeCodeChatUI.contextWindowTokens": {
           "type": "number",
-          "default": 200000,
+          "default": 400000,
           "minimum": 1000,
           "maximum": 1000000,
           "scope": "resource",
-          "markdownDescription": "Context Window 进度条的总容量（分母），单位 tokens。默认 `200000`（当前 Claude 模型的标准上下文窗口）。如启用了 1M beta 上下文，可放宽到 `400000`。**不建议超过模型实际上限**，否则进度条会显著低估真实占用。"
+          "markdownDescription": "Context Window 进度条的总容量（分母），单位 tokens。默认 `400000`。Claude Opus 4.6+ / Sonnet 4.6 的 1M 上下文已正式 GA（不再需要 beta header），实际窗口可达 `1000000`；但建议在 ~400K 处主动压缩对话，模型召回率与成本更划算，因此默认按 `400000` 作为分母。可按需调高到 `1000000`，或调低以更早提示压缩。"
+        },
+        "claudeCodeChatUI.disableAutoCompact": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "禁用 Claude Code 框架在上下文接近窗口上限时的**自动压缩**(auto-compact)。本扩展按设计复用单个长生命周期的交互式 `claude` 会话，上下文会跨回合持续累积，涨到阈值后 CLI 会自行 `/compact`——这是有损压缩，且会造成「界面显示完整历史、模型其实只记得 summary」的割裂(`-p` 时代不会发生)。开启此项后，spawn 时注入进程级环境变量 `DISABLE_AUTO_COMPACT=1`，**只禁自动压缩，手动 `/compact` 仍可用**。因走进程级 env、不写任何 `settings.json`，别人直接用 CLI **不受影响**。**代价**：长会话上下文涨满会撞硬上限，需配合主动 New Chat 或手动 `/compact`。"
+        },
+        "claudeCodeChatUI.autoAcceptEditGate": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "自动应答「编辑自身配置确认门」。当 Claude 编辑 `.claude/` 目录下的文件(skills / hooks / settings)时，CLI 会弹出一个**即使 `bypassPermissions` 也不自动通过**的确认菜单(`Do you want to make this edit to X? / 1. Yes / 2. Yes, and allow Claude to edit its own settings for this session / 3. No`)——因为改 `.claude` 等于能注入可执行代码。PTY 驱动答不了该菜单，导致**修改技能/钩子时回合卡死**(约 69 秒，直到下一条消息的 Enter 误确认)。开启此项后，检测到该菜单即自动选**选项 2(本会话授权)**，后续 `.claude` 编辑不再弹门。**关闭**则恢复卡死行为(需你手动在别处确认)。仅在已 `bypassPermissions` 的前提下有意义。"
         },
         "claudeCodeChatUI.thinking.enabled": {
           "type": "boolean",

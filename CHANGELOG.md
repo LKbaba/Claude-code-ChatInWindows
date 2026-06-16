@@ -2,6 +2,18 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [5.0.6] - 2026-06-15
+
+### New Features
+- **Subagent (Agent/Task) tool steps render inline again** — newer Claude Code (2.1.x) writes a subagent's internal steps into a sibling `{slug}/{sessionId}/subagents/agent-*.jsonl` instead of the main transcript, so those steps vanished from the UI under v5. The transcript tail now also follows every `agent-*.jsonl` and forwards its lines through the same render path (restoring the v4 `-p` flattened visibility). Subagent lines are flagged `isSidechain` so their separately-billed `usage` is **not** counted toward the main turn's token/context/💰 totals, and a subagent's own `end_turn` never ends the parent turn.
+
+### Changed
+- **Framework auto-compaction is now disabled by default** — the PTY architecture reuses one long-lived interactive `claude` session, so context accumulates across turns and the CLI would eventually self-run a lossy `/compact` (which also splits "UI shows full history" from "model only remembers the summary"). The extension now injects the process-level env var `DISABLE_AUTO_COMPACT=1` at spawn, suppressing **only** automatic compaction — manual `/compact` (route B) still works. Going through env (not `settings.json`) keeps direct CLI users unaffected. Toggle via `claudeCodeChatUI.disableAutoCompact` (default `true`). Trade-off: very long sessions can hit the hard context limit, so pair with a manual `/compact` or a fresh chat.
+- **Context Window progress-bar default raised 200K → 400K** — Opus 4.6+ / Sonnet 4.6 ship a 1M context as GA (no beta header); 400K is the recommended compaction point for better recall/cost, so it is the new default denominator. Configurable via `claudeCodeChatUI.contextWindowTokens` (up to `1000000`).
+
+### Fixed
+- **Editing a skill / hook / any `.claude/` file froze the turn (~69s) until the next message** — even under `bypassPermissions`, editing a file under a `.claude/` directory makes the CLI paint a confirmation menu (`Do you want to make this edit to X? / 1. Yes / 2. Yes, and allow Claude to edit its own settings for this session / 3. No`) because self-modification is treated as code injection. The PTY driver could not answer it, so the turn hung and the tool only executed when the next user message's Enter accidentally accepted it. The driver now detects this menu (by the distinctive option-2 wording) and auto-selects option 2 — a **session-wide** grant, so subsequent `.claude` edits don't re-gate. Toggle via `claudeCodeChatUI.autoAcceptEditGate` (default `true`). Root cause confirmed and verified on claude 2.1.85 via `scripts/verify-claude-dotclaude-gate.js`.
+
 ## [5.0.5] - 2026-06-15
 
 ### Fixed

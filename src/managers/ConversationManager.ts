@@ -218,11 +218,13 @@ export class ConversationManager {
         inputTokens: number;
         outputTokens: number;
     } {
-        // Context window capacity is configurable (defaults to Claude's 200K window;
-        // can be raised, e.g. to 400000, when the 1M beta context is enabled).
+        // Context window capacity is configurable. Default 400000: Opus 4.6+ /
+        // Sonnet 4.6 now ship 1M context as GA (no beta header), but we recommend
+        // compacting around ~400K for better recall/cost, so 400000 is the default
+        // denominator. Can be raised up to 1000000 or lowered as desired.
         const TOTAL_TOKENS = vscode.workspace
             .getConfiguration('claudeCodeChatUI')
-            .get<number>('contextWindowTokens', 200000);
+            .get<number>('contextWindowTokens', 400000);
 
         // Use actual cumulative values (similar to usage statistics)
         // These values are passed from MessageProcessor representing actual usage

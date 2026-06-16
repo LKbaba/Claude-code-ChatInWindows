@@ -79,7 +79,7 @@ export class VsCodeConfigManager {
         };
 
         // Get specific configuration values
-        settings['contextWindowTokens'] = config.get<number>('contextWindowTokens', 200000);
+        settings['contextWindowTokens'] = config.get<number>('contextWindowTokens', 400000);
         settings['mcp.enabled'] = config.get<boolean>('mcp.enabled', false);
         settings['mcp.servers'] = config.get<any[]>('mcp.servers', []);
         settings['api.useCustomAPI'] = config.get<boolean>('api.useCustomAPI', false);

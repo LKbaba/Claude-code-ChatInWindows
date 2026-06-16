@@ -221,6 +221,19 @@ export class ClaudeProcessService {
     private _stagedInjectInProgress = false;
     private _stagedArmed = false;
 
+    // Runtime self-edit permission gate (post-ready). Editing a file UNDER a
+    // `.claude/` dir (skills/hooks/settings) makes claude paint a blocking
+    // confirmation menu ("Do you want to make this edit to X? / 1. Yes / 2. Yes,
+    // and allow Claude to edit its own settings for this session / 3. No") that
+    // `bypassPermissions` does NOT auto-answer (self-modification is treated as
+    // code injection). The PTY driver cannot answer it, so the turn hangs (~69s,
+    // until the next user message's Enter accidentally accepts it). We detect the
+    // menu and auto-select option 2 (session-wide grant) so subsequent `.claude`
+    // edits in the same session never re-gate. _permGateAnswering debounces the
+    // many repaints of one menu (cleared after the menu has had time to dismiss).
+    private _permGateBuffer = '';
+    private _permGateAnswering = false;
+
     private static readonly READY_SILENCE_MS = 400;   // quiet window => TUI ready
     // Floor before a silence window may resolve "ready". claude prints a short
     // preamble (cmd.exe title + node warnings) then pauses >400ms loading its
@@ -250,6 +263,7 @@ export class ClaudeProcessService {
     private static readonly PTY_LOG_PREVIEW_CHARS = 160; // truncate raw-stream preview
     private static readonly STARTUP_BUFFER_CAP = 16000; // retained pre-ready bytes for gate detection
     private static readonly STARTUP_GATE_NAV_DELAY_MS = 200; // pause between Down and Enter when accepting the gate
+    private static readonly SELF_EDIT_GATE_DEBOUNCE_MS = 2500; // ignore self-edit-menu repaints after answering, until it dismisses
     // Delay between writing a bracketed-paste block and the submitting Enter.
     // claude's TUI shows a transient "Pasting" state; an Enter sent in the same
     // tick is swallowed and the prompt never submits (no turn, no response). A
@@ -545,6 +559,17 @@ export class ClaudeProcessService {
     private _spawnSession(execEnvironment: ExecutionEnvironment, args: string[], cwd: string): void {
         const claudePath = execEnvironment.claudeExecutablePath!;
         const env = this._sanitizeEnv(execEnvironment.spawnOptions.env);
+        // Disable the CLI's framework auto-compaction for THIS spawned session
+        // only. The PTY architecture reuses one long-lived interactive session,
+        // so context accumulates across turns and the CLI eventually self-runs
+        // `/compact` (lossy; also splits UI-vs-model context). DISABLE_AUTO_COMPACT
+        // is a process-level gate (cli.js honors 1/true/yes/on) that suppresses
+        // ONLY auto-compaction — manual `/compact` (route B) still works. Going
+        // through env (not settings.json) keeps direct CLI users unaffected.
+        // NOT DISABLE_COMPACT: that would also kill manual /compact.
+        if (this._isAutoCompactDisabled()) {
+            env.DISABLE_AUTO_COMPACT = '1';
+        }
         const ptyOptions: pty.IWindowsPtyForkOptions = {
             name: 'xterm-256color',
             cols: 120,
@@ -947,6 +972,64 @@ export class ClaudeProcessService {
     }
 
     /**
+     * Auto-answer the runtime self-edit confirmation gate that blocks edits to
+     * files under a `.claude/` dir (skills / hooks / settings) even in
+     * bypassPermissions. We select option 2 ("Yes, and allow Claude to edit its
+     * own settings for this session") so the grant lasts the whole session and
+     * subsequent `.claude` edits never re-gate. Default highlight is option 1
+     * ("Yes"), so one Down then Enter lands on option 2.
+     *
+     * Accumulates into its own rolling buffer (the menu spans several lines and
+     * may arrive split across chunks). _permGateAnswering debounces the menu's
+     * repaints; it is cleared after the menu has had time to dismiss, so a later
+     * distinct gate can still be answered.
+     */
+    private _handleSelfEditGate(data: string): void {
+        if (!this._pty || !this._isAutoAcceptEditGate()) {
+            return;
+        }
+        this._permGateBuffer = (this._permGateBuffer + data).slice(-ClaudeProcessService.STARTUP_BUFFER_CAP);
+        if (this._permGateAnswering || !this._detectSelfEditGate(this._permGateBuffer)) {
+            return;
+        }
+        this._permGateAnswering = true;
+        this._permGateBuffer = ''; // drop the matched menu so it can't re-trigger
+        debugLog('ClaudeProcessService', 'Self-edit gate detected; selecting option 2 (allow for session)');
+        try { this._pty.write('\x1b[B'); } catch { /* session gone */ }
+        setTimeout(() => {
+            try { this._pty?.write('\r'); } catch { /* session gone */ }
+        }, ClaudeProcessService.STARTUP_GATE_NAV_DELAY_MS);
+        // Release the debounce once the menu has dismissed and the edit proceeds.
+        setTimeout(() => { this._permGateAnswering = false; }, ClaudeProcessService.SELF_EDIT_GATE_DEBOUNCE_MS);
+    }
+
+    /**
+     * True when raw PTY output holds the self-edit confirmation menu. Keyed off
+     * the distinctive option-2 wording ("Yes, and allow Claude to edit its own
+     * settings for this session"), which appears ONLY for `.claude` self-edits
+     * and is far more stable than the per-tool question line. ANSI-stripped and
+     * reduced to lowercase alphanumerics so winpty's out-of-place repaints match.
+     */
+    private _detectSelfEditGate(buffer: string): boolean {
+        const compact = buffer
+            .replace(ClaudeProcessService.ANSI_PATTERN, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+        return compact.includes('allowclaudetoedititsownsettingsforthissession');
+    }
+
+    /** Whether to auto-accept the runtime self-edit permission gate (default true). */
+    private _isAutoAcceptEditGate(): boolean {
+        try {
+            return vscode.workspace
+                .getConfiguration('claudeCodeChatUI')
+                .get<boolean>('autoAcceptEditGate', true);
+        } catch {
+            return true;
+        }
+    }
+
+    /**
      * Accumulates PTY output and flips _inputBoxReady the first time the TUI's
      * footer marker paints, waking any waitForInputBoxReady() callers. No-op once
      * already ready. The buffer is capped and independent of _startupBuffer
@@ -1006,6 +1089,8 @@ export class ClaudeProcessService {
         this._inputBoxReady = false;
         this._markerBuffer = '';
         this._chipScanBuffer = '';
+        this._permGateBuffer = '';
+        this._permGateAnswering = false;
         this._stagedInjectInProgress = false;
         this._stagedArmed = false;
         this._currentTranscriptFile = undefined;
@@ -1035,6 +1120,12 @@ export class ClaudeProcessService {
         // Accumulate output for image-chip detection (post-ready: chips paint
         // only while a turn is being composed, long after the session is ready).
         this._chipScanBuffer = (this._chipScanBuffer + data).slice(-ClaudeProcessService.STARTUP_BUFFER_CAP);
+
+        // Auto-answer the runtime self-edit confirmation gate (post-ready). This
+        // is what makes editing `.claude/` skills/hooks hang under bypassPermissions
+        // until the next user message. Scanned on every chunk so it fires the
+        // instant the menu paints, mid-turn.
+        this._handleSelfEditGate(data);
 
         // B3: any PTY output means the spinner is still animating (turn ongoing),
         // so push the idle-completion deadline out. Gated to a turn that has
@@ -1312,6 +1403,17 @@ export class ClaudeProcessService {
             }
         }
         return out;
+    }
+
+    /** Whether to suppress the CLI's framework auto-compaction (default true). */
+    private _isAutoCompactDisabled(): boolean {
+        try {
+            return vscode.workspace
+                .getConfiguration('claudeCodeChatUI')
+                .get<boolean>('disableAutoCompact', true);
+        } catch {
+            return true;
+        }
     }
 
     /** Read the configured interactive permission mode (decision C; default bypass). */

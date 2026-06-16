@@ -279,7 +279,13 @@ export class MessageProcessor {
 
         // Handle known message types
         if ((type === 'assistant' || type === 'user' || type === 'system') && jsonData.message) {
-            this._processMessage(jsonData.message, callbacks);
+            // Subagent (Agent/Task) sidechain lines are tailed from
+            // `{sessionId}/subagents/agent-*.jsonl` and forwarded so their tool
+            // steps render inline (v4-style). They carry their own `message.usage`
+            // which is billed separately, so render the content but DO NOT count
+            // those tokens/cost toward the main turn's context/💰 totals.
+            const isSidechain = jsonData.isSidechain === true;
+            this._processMessage(jsonData.message, callbacks, isSidechain);
         } else if (type === 'system' && jsonData.subtype === 'init') {
             // CLI init message: contains session_id, tools, model, etc.
             this._processSystemInit(jsonData, callbacks);
@@ -376,7 +382,7 @@ export class MessageProcessor {
             text.startsWith('<local-command-caveat>');
     }
 
-    private _processMessage(message: any, callbacks: MessageCallbacks): void {
+    private _processMessage(message: any, callbacks: MessageCallbacks, isSidechain: boolean = false): void {
         // Transcript JSONL has no `system/init` line, so emit the one-time
         // `connected` signal on the first message of any role. Idempotent via
         // _isFirstSystemMessage (the legacy init/system paths share the flag).
@@ -400,8 +406,10 @@ export class MessageProcessor {
         // yet that line IS terminal and holds the turn's cumulative usage. Treat a
         // message bearing a valid ask block as terminal too, or its tokens (incl.
         // the bulk cache-read/creation) get dropped and the 💰 bubble under-counts.
+        // Sidechain (subagent) usage is billed on a separate pool and must not
+        // inflate the main turn's token/context/cost accounting — skip it.
         const isAskTerminal = this._messageHasAskBlock(message, callbacks);
-        if (message.usage && (message.stop_reason != null || isAskTerminal)) {
+        if (!isSidechain && message.usage && (message.stop_reason != null || isAskTerminal)) {
             this._updateTokens(message.usage, message.model, callbacks);
         }
 

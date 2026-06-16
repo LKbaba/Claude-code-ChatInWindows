@@ -189,6 +189,10 @@ internals that can change across `claude` versions and silently break the driver
 - **Startup gate dialogs**: ANSI-stripped substring match on `yesiaccept` /
   `yesitrustthisfolder` to auto-navigate the trust / bypass-permissions prompts
   with a Down-arrow + Enter (`_handleStartupGate`).
+- **Self-edit permission gate**: ANSI-stripped substring match on
+  `allowclaudetoedititsownsettingsforthissession` to auto-navigate the `.claude/`
+  edit confirmation menu with Down+Enter (`_handleSelfEditGate`; see #10). If the
+  option wording changes, editing skills/hooks hangs ~69s again.
 - **Turn completion**: transcript `stop_reason === "end_turn"` — a JSONL schema
   contract, also version-dependent.
 
@@ -212,17 +216,32 @@ the raw PTY output (DebugLogger logs `PTY raw output`).
   duplicate chips or re-submit. ESC interrupt (`stopProcess`) sends bare `\x1b`
   and resets staged state without killing the PTY session.
 
-### 10. No Generic TUI Menu Navigation Yet
+### 10. TUI Menu Navigation Is Limited to Two Hard-Coded Gates
 
-The only arrow-key navigation is the hard-coded one-shot startup gate (#8). There
-is currently **no generic capability** to detect a runtime TUI option menu
-(permission approval, `ExitPlanMode` Yes/No, `AskUserQuestion` options) and
-inject an arrow-key + Enter selection. Permission menus are bypassed wholesale by
-the default `bypassPermissions` mode; plan-mode confirmation is handled at the
-prompt level. The legacy `AskUserQuestion` handling in `MessageProcessor.ts` /
-`ui-script.ts` is **dead code from the `-p` era** (its comments still describe
-`-p` auto-error behavior) — revive/replace it deliberately if building an
-interactive options UI.
+There is still **no generic capability** to detect an arbitrary runtime TUI
+option menu (`ExitPlanMode` Yes/No, `AskUserQuestion` options) and inject an
+arrow-key + Enter selection. Only two specific menus are auto-navigated, each by
+a hard-coded distinctive marker string (both fragile per #8):
+
+1. **Startup gate** (#8, pre-ready, one-shot per session): workspace-trust /
+   bypass-permissions warning (`_handleStartupGate`).
+2. **Self-edit permission gate** (post-ready, mid-turn): editing a file under a
+   `.claude/` dir (skills / hooks / settings) makes claude paint a confirmation
+   menu that `bypassPermissions` does NOT auto-answer (self-modification is
+   treated as code injection). Without it the turn hangs ~69s until the next user
+   message's Enter accidentally accepts it. `_handleSelfEditGate` detects the menu
+   by the distinctive option-2 wording `allowclaudetoedititsownsettingsforthissession`
+   (ANSI-stripped) and sends Down+Enter to pick option 2 ("Yes, and allow Claude
+   to edit its own settings for this session"), a **session-wide** grant so later
+   `.claude` edits don't re-gate. Gated by `claudeCodeChatUI.autoAcceptEditGate`
+   (default true); debounced via `_permGateAnswering` so menu repaints don't
+   double-fire. Verified on claude 2.1.85 via `scripts/verify-claude-dotclaude-gate.js`.
+
+Other permission menus are bypassed wholesale by the default `bypassPermissions`
+mode; plan-mode confirmation is handled at the prompt level. The legacy
+`AskUserQuestion` handling in `MessageProcessor.ts` / `ui-script.ts` is **dead
+code from the `-p` era** (its comments still describe `-p` auto-error behavior) —
+revive/replace it deliberately if building an interactive options UI.
 
 ### 11. `--no-dependencies` Drops node-pty From the VSIX (REGRESSION TRAP)
 
