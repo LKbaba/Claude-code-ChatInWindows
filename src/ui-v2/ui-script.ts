@@ -885,8 +885,8 @@ export const uiScript = `
 		let requestTimer = null;
 		let spinnerFrame = 0;
 		const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-		let lastContextTokens = 0; // Track latest context window usage
-		let maxContextTokensInSession = 0; // Track maximum context usage in current session
+		let lastContextTokens = 0; // Latest real context occupancy from backend (0 = unknown)
+		let contextLimit = 0; // Indicator denominator from backend = min(configured window, model window); 0 = unknown
 		
 		// Tool execution tracking
 		let currentToolExecution = null;
@@ -939,8 +939,12 @@ export const uiScript = `
 			}
 		}
 
-		// Update token usage indicator
-		function updateTokenUsageIndicator(usage) {
+		// Update context window indicator from globals (lastContextTokens / contextLimit).
+		// Shows the latest real value — no only-grow guard: a drop after compaction
+		// is correct information (PRD updatePRDv18 F1.4). Before the backend sends
+		// any data (contextLimit === 0) it shows a full bar (100% remaining) —
+		// the tooltip still marks the value as unknown until real usage arrives.
+		function updateContextIndicator() {
 			// Find or create token indicator container
 			let indicatorContainer = document.getElementById('tokenUsageIndicator');
 			if (!indicatorContainer) {
@@ -956,14 +960,27 @@ export const uiScript = `
 					return; // If input modes area not found, exit
 				}
 			}
+
+			const hasData = contextLimit > 0 && lastContextTokens > 0;
+			const usedPercentage = hasData ? Math.min(100, (lastContextTokens / contextLimit) * 100) : 0;
+			const remainingPercentage = hasData ? Math.max(0, Math.round(100 - usedPercentage)) : null;
+
 			// Determine color based on remaining percentage
 			let barColor = '#66BB6A'; // Green
-			if (usage.percentage < 20) {
-				barColor = '#EF5350'; // Red
-			} else if (usage.percentage < 60) {
-				barColor = '#FFCA28'; // Yellow
+			if (remainingPercentage !== null) {
+				if (remainingPercentage < 20) {
+					barColor = '#EF5350'; // Red
+				} else if (remainingPercentage < 60) {
+					barColor = '#FFCA28'; // Yellow
+				}
 			}
-			
+
+			// Unknown state (no usage data yet) renders as a full bar (100%):
+			// a fresh/restored session has its whole window available, and a full
+			// green bar reads better than an empty "--" placeholder.
+			const percentLabel = remainingPercentage !== null ? remainingPercentage + '%' : '100%';
+			const barWidth = remainingPercentage !== null ? remainingPercentage : 100;
+
 			// Update indicator content
 			indicatorContainer.innerHTML = \`
 				<div class="usage-display" style="display: inline-flex; align-items: center; gap: 12px;">
@@ -974,7 +991,7 @@ export const uiScript = `
 					<div style="display: inline-flex; flex-direction: column; align-items: flex-start;">
 						<div style="display: flex; align-items: center; gap: 6px;">
 							<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">Context Window</span>
-							<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">\${usage.percentage}%</span>
+							<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">\${percentLabel}</span>
 						</div>
 						<div style="
 							width: 100px;
@@ -986,7 +1003,7 @@ export const uiScript = `
 							position: relative;
 						">
 							<div style="
-								width: \${usage.percentage}%;
+								width: \${barWidth}%;
 								height: 100%;
 								background-color: \${barColor};
 								transition: width 0.3s ease, background-color 0.3s ease;
@@ -996,13 +1013,17 @@ export const uiScript = `
 					</div>
 				</div>
 			\`;
-			
+
 			// Add tooltip
 			const usageDisplay = indicatorContainer.querySelector('.usage-display');
 			if (usageDisplay) {
-				const usedK = Math.round(usage.used / 1000);
-				const totalK = Math.round(usage.total / 1000);
-				usageDisplay.title = \`Used: \${usedK}K / \${totalK}K tokens\nRemaining: \${usage.percentage}%\`;
+				if (hasData) {
+					const usedK = Math.round(lastContextTokens / 1000);
+					const totalK = Math.round(contextLimit / 1000);
+					usageDisplay.title = \`Used: \${usedK}K / \${totalK}K tokens\nRemaining: \${percentLabel}\`;
+				} else {
+					usageDisplay.title = 'Context usage unknown — waiting for first message';
+				}
 			}
 		}
 
@@ -2200,21 +2221,61 @@ export const uiScript = `
 			hideModeModal();
 		}
 
+		// Read the currently selected subagent model (fallback to Sonnet 4.6)
+		function getSelectedSubagentModel() {
+			const radio5 = document.getElementById('subagent-model-5');
+			if (radio5 && radio5.checked) {
+				return 'claude-sonnet-5';
+			}
+			return 'claude-sonnet-4-6';
+		}
+
+		// Show/hide the subagent model picker based on checkbox state
+		function updateSubagentModelOptionsVisibility(isChecked) {
+			const options = document.getElementById('subagent-model-options');
+			if (options) {
+				options.style.display = isChecked ? 'block' : 'none';
+			}
+		}
+
 		// Handle subagent enhancement toggle (independent logic)
 		function toggleEnhanceSubagents() {
 			const checkbox = document.getElementById('enhance-subagents');
 			if (!checkbox) return;
 
 			const isChecked = checkbox.checked;
+			const model = getSelectedSubagentModel();
 
 			// Save to localStorage
 			localStorage.setItem('enhanceSubagents', isChecked.toString());
+			localStorage.setItem('subagentModel', model);
+
+			// Toggle the model picker visibility
+			updateSubagentModelOptionsVisibility(isChecked);
 
 			// Notify backend (independent message)
 			vscode.postMessage({
 				type: 'updateSubagentMode',
-				enabled: isChecked
+				enabled: isChecked,
+				model: model
 			});
+		}
+
+		// Handle subagent model radio change (only meaningful while enhancement is enabled)
+		function selectSubagentModel(model) {
+			localStorage.setItem('subagentModel', model);
+
+			const checkbox = document.getElementById('enhance-subagents');
+			const isChecked = checkbox ? checkbox.checked : false;
+
+			// Only push to backend when enhancement is currently enabled
+			if (isChecked) {
+				vscode.postMessage({
+					type: 'updateSubagentMode',
+					enabled: true,
+					model: model
+				});
+			}
 		}
 
 		// Slash commands modal functions
@@ -2592,12 +2653,14 @@ export const uiScript = `
 		// Model display names (single definition for the entire UI)
 		const modelDisplayNames = {
 			'opus': 'Opus',
+			'claude-fable-5': 'Fable 5',
 			'claude-opus-4-8': 'Opus 4.8',
 			'claude-opus-4-7': 'Opus 4.7',
 			'claude-opus-4-6': 'Opus 4.6',
 			'claude-opus-4-5-20251101': 'Opus 4.5',           // Kept for historical sessions
 			'opusplan': 'Opus Plan',
 			'sonnet': 'Sonnet',
+			'claude-sonnet-5': 'Sonnet 5',
 			'claude-sonnet-4-6': 'Sonnet 4.6',
 			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
 			'claude-haiku-4-5-20251001': 'Haiku 4.5',
@@ -2624,7 +2687,9 @@ export const uiScript = `
 			// If modal is open, update radio button state
 			// Handle long model names with special processing
 			let radioId = 'model-' + model;
-			if (model === 'claude-opus-4-8') {
+			if (model === 'claude-fable-5') {
+				radioId = 'model-fable-5';
+			} else if (model === 'claude-opus-4-8') {
 				radioId = 'model-opus-4-8';
 			} else if (model === 'claude-opus-4-7') {
 				radioId = 'model-opus-4-7';
@@ -2633,7 +2698,9 @@ export const uiScript = `
 			}
 			// Note: claude-opus-4-5 branch removed — UI radio no longer exists,
 			// but modelDisplayNames map above still resolves the title text for history sessions.
-			else if (model === 'claude-sonnet-4-6') {
+			else if (model === 'claude-sonnet-5') {
+				radioId = 'model-sonnet-5';
+			} else if (model === 'claude-sonnet-4-6') {
 				radioId = 'model-sonnet-4-6';
 			} else if (model === 'claude-sonnet-4-5-20250929') {
 				radioId = 'model-sonnet-4-5';
@@ -2809,17 +2876,10 @@ export const uiScript = `
 					totalTokensOutput = 0;
 					requestCount = 0;
 					lastContextTokens = 0;
-					maxContextTokensInSession = 0;
 					updateStatusWithTotals();
 
-					// Reset Context Window indicator to 100% (important!)
-					updateTokenUsageIndicator({
-						used: 0,
-						total: 200000,
-						percentage: 100,
-						inputTokens: 0,
-						outputTokens: 0
-					});
+					// Reset context indicator (unknown until next real usage arrives)
+					updateContextIndicator();
 					break;
 
 				case 'setProcessing':
@@ -2935,53 +2995,31 @@ export const uiScript = `
 					totalTokensInput = message.data.totalTokensInput || 0;
 					totalTokensOutput = message.data.totalTokensOutput || 0;
 
-					// Calculate actual context window usage
-					// Context Window = input + cache_creation + cache_read (excluding output)
-					// Note: This is token count for current request, not cumulative!
-					// When cache expires or rebuilds, this value may decrease
-					lastContextTokens = (message.data.currentInputTokens || 0) +
-					                   (message.data.cacheCreationTokens || 0) +
-					                   (message.data.cacheReadTokens || 0);
+					// Context occupancy from backend (single source of truth):
+					// latest message's input + cache_creation + cache_read (excludes output).
+					// Fallback computation covers messages saved by older plugin versions.
+					lastContextTokens = (typeof message.data.contextTokens === 'number')
+						? message.data.contextTokens
+						: (message.data.currentInputTokens || 0) +
+						  (message.data.cacheCreationTokens || 0) +
+						  (message.data.cacheReadTokens || 0);
 
-					// Debug log: helps observe token changes
-					console.log('[Context Window] Current request:', {
-						input: message.data.currentInputTokens || 0,
-						cache_creation: message.data.cacheCreationTokens || 0,
-						cache_read: message.data.cacheReadTokens || 0,
-						total: lastContextTokens,
-						max: maxContextTokensInSession
+					// Denominator from backend = min(configured window, model real window)
+					if (typeof message.data.contextLimit === 'number' && message.data.contextLimit > 0) {
+						contextLimit = message.data.contextLimit;
+					}
+
+					console.log('[Context Window] Latest:', {
+						contextTokens: lastContextTokens,
+						contextLimit: contextLimit
 					});
 
-					// Only update UI when current value exceeds historical max
-					// Design rationale: context window should only grow (unless cache rebuilds)
-					// Using max value prevents UI jumping due to cache rebuilding
-					if (lastContextTokens > maxContextTokensInSession) {
-						maxContextTokensInSession = lastContextTokens;
+					// Always render the latest value — dropping after a compact is
+					// correct information, so there is no only-grow guard here
+					updateContextIndicator();
 
-						// Update Context Window display
-						const TOTAL_CONTEXT = 200000;
-						const usedPercentage = (maxContextTokensInSession / TOTAL_CONTEXT) * 100;
-						const remainingPercentage = Math.max(0, 100 - usedPercentage);
-
-						console.log('[Context Window] Updating UI:', {
-							used: maxContextTokensInSession,
-							remaining: remainingPercentage.toFixed(1) + '%'
-						});
-
-						updateTokenUsageIndicator({
-							used: maxContextTokensInSession,
-							total: TOTAL_CONTEXT,
-							percentage: Math.round(remainingPercentage),
-							inputTokens: message.data.currentInputTokens || 0,
-							outputTokens: 0 // context window excludes output
-						});
-					}
-					
 					// Update status bar immediately with real-time token info
 					updateStatusWithTotals();
-					
-					// Create or update a real-time token display
-					// updateRealTimeTokenDisplay(message.data); // Disabled per user request
 					break;
 					
 				case 'updateTotals':
@@ -3066,7 +3104,8 @@ export const uiScript = `
 					totalTokensOutput = 0;
 					requestCount = 0;
 					lastContextTokens = 0; // Reset context window tracking
-					maxContextTokensInSession = 0; // Reset max context tracking
+					// Redraw the context indicator (aligned with compactComplete/newSession behavior)
+					updateContextIndicator();
 					console.log('[Compact] Calling updateStatusWithTotals, isProcessing:', isProcessing);
 					updateStatusWithTotals();
 					console.log('[Compact] sessionCleared handling complete');
@@ -3230,13 +3269,35 @@ export const uiScript = `
 					displayOperationPreview(message.data);
 					break;
 					
-				case 'tokenUsage':
-					// Skip updating if we have lastContextTokens from updateTokens
-					// The tokenUsage message uses incorrect calculation (input + output)
-					// We only update if we haven't received proper context data yet
-					if (lastContextTokens === 0) {
-						updateTokenUsageIndicator(message.data);
-					}
+				case 'compactBoundary': {
+					// CLI compacted the conversation — insert a divider into the
+					// message stream; the indicator falls back on the next updateTokens
+					const boundaryData = message.data || {};
+					const isManualCompact = boundaryData.trigger === 'manual';
+					const preTokens = typeof boundaryData.preTokens === 'number' ? boundaryData.preTokens : 0;
+					const preTokensStr = preTokens > 0 ? Math.round(preTokens / 1000) + 'K' : '?';
+					const compactLabel = (isManualCompact ? '已手动压缩' : '已自动压缩') +
+						'（压缩前 ' + preTokensStr + ' tokens）';
+
+					const divider = document.createElement('div');
+					divider.className = 'compact-boundary-divider';
+					divider.style.cssText = 'display:flex;align-items:center;gap:8px;margin:12px 0;' +
+						'color:var(--vscode-descriptionForeground);font-size:11px;opacity:0.8;';
+					divider.innerHTML =
+						'<div style="flex:1;height:1px;background:var(--vscode-panel-border);"></div>' +
+						'<span>🗜️ ' + escapeHtml(compactLabel) + '</span>' +
+						'<div style="flex:1;height:1px;background:var(--vscode-panel-border);"></div>';
+					messagesDiv.appendChild(divider);
+					scrollToBottom();
+					break;
+				}
+
+				case 'contextReset':
+					// Restored history must not show stale context values —
+					// indicator goes to "unknown" until the first new message's real usage
+					lastContextTokens = 0;
+					contextLimit = 0;
+					updateContextIndicator();
 					break;
 			}
 
@@ -3412,16 +3473,9 @@ export const uiScript = `
 
 		// Session management functions
 		function newSession() {
-			// Reset context window immediately
+			// Reset context indicator immediately (unknown until real usage arrives)
 			lastContextTokens = 0;
-			maxContextTokensInSession = 0;
-			updateTokenUsageIndicator({
-				used: 0,
-				total: 200000,
-				percentage: 100,
-				inputTokens: 0,
-				outputTokens: 0
-			});
+			updateContextIndicator();
 
 			// Reset Plan Mode state (clear previous state when starting new session)
 			isInPlanMode = false;
@@ -4013,6 +4067,10 @@ export const uiScript = `
 						// Display models on separate lines
 						if (row.models && row.models.length > 0) {
 							const modelDisplay = row.models.map(model => {
+								// Prefer the single source of truth for known model IDs (e.g. Fable 5, Sonnet 5)
+								if (modelDisplayNames[model]) {
+									return modelDisplayNames[model];
+								}
 								// Extract model name (remove version if present)
 								const modelParts = model.split('-');
 								if (modelParts[0] === 'claude' && modelParts.length > 2) {
@@ -4075,6 +4133,10 @@ export const uiScript = `
 						// Display models on separate lines (same logic as daily/monthly)
 						if (row.models && row.models.length > 0) {
 							const modelDisplay = row.models.map(model => {
+								// Prefer the single source of truth for known model IDs (e.g. Fable 5, Sonnet 5)
+								if (modelDisplayNames[model]) {
+									return modelDisplayNames[model];
+								}
 								// Extract model name (remove version if present)
 								const modelParts = model.split('-');
 								if (modelParts[0] === 'claude' && modelParts.length > 2) {
@@ -6226,7 +6288,19 @@ export const uiScript = `
 			enhanceCheckbox.checked = enhanceSubagents;
 		}
 
-		// If Max mode, notify backend to restore environment variable settings (uses Sonnet 4.6)
+		// Restore subagent model selection (fallback to Sonnet 4.6)
+		const savedSubagentModel = localStorage.getItem('subagentModel') || 'claude-sonnet-4-6';
+		const subagentRadio5 = document.getElementById('subagent-model-5');
+		const subagentRadio46 = document.getElementById('subagent-model-46');
+		if (savedSubagentModel === 'claude-sonnet-5' && subagentRadio5) {
+			subagentRadio5.checked = true;
+		} else if (subagentRadio46) {
+			subagentRadio46.checked = true;
+		}
+		// Reflect checkbox state on the model picker visibility
+		updateSubagentModelOptionsVisibility(enhanceSubagents);
+
+		// If Max mode, notify backend to restore environment variable settings (uses Sonnet 5)
 		if (savedMode === 'max') {
 			vscode.postMessage({
 				type: 'selectMode',
@@ -6238,7 +6312,8 @@ export const uiScript = `
 		if (enhanceSubagents) {
 			vscode.postMessage({
 				type: 'updateSubagentMode',
-				enabled: true
+				enabled: true,
+				model: savedSubagentModel
 			});
 		}
 

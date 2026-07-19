@@ -18,7 +18,9 @@ import { UndoRedoManager } from '../managers/UndoRedoManager';
 import { OperationPreviewService } from '../services/OperationPreview';
 import { expandVariables } from '../utils/configUtils';
 import { StatisticsCache, StatisticsEntry } from '../services/StatisticsCache';
-import { VALID_MODELS, ValidModel, MODEL_DISPLAY_NAMES } from '../utils/constants';
+import { StatsWorkerPool } from '../services/StatsWorkerPool';
+import { RawStatsEntry } from '../services/statsWorker';
+import { VALID_MODELS, ValidModel, MODEL_DISPLAY_NAMES, normalizeModelId } from '../utils/constants';
 import { PluginManager } from '../services/PluginManager';
 import { SkillManager } from '../services/SkillManager';
 import { HooksConfigManager } from '../services/HooksConfigManager';
@@ -30,7 +32,11 @@ import { debugLog, debugWarn, debugError } from '../services/DebugLogger';
 interface ComputeModeSettings {
 	mode: 'auto' | 'max';           // Compute mode selection
 	enhanceSubagents: boolean;       // Whether to enhance subagents (independent setting)
+	subagentModel?: string;          // Subagent model when enhancement is enabled (defaults to Sonnet 4.6)
 }
+
+// Default subagent model used when enhancement is enabled but no model is specified
+const SUBAGENT_DEFAULT_MODEL = 'claude-sonnet-4-6';
 
 export class ClaudeChatProvider {
 	private _panel: vscode.WebviewPanel | undefined;
@@ -56,11 +62,22 @@ export class ClaudeChatProvider {
 	private _undoRedoManager: UndoRedoManager;
 	private _operationPreviewService: OperationPreviewService;
 	private _statisticsCache: StatisticsCache;
+	private _statsWorkerPool: StatsWorkerPool;
+	private _statsDiskCacheReady: Promise<void>;
 	private _isCompactMode: boolean = false; // Compact mode flag
 	private _compactSummaryBuffer: string = ''; // Compact summary buffer
+	// Consecutive auto-retry counter for the Opus 4.8 "tool call leaked as
+	// plain text" regression (see MessageProcessor.consumeLeakedToolCall).
+	// Reset after any clean turn or new session; capped to avoid loops.
+	private _toolCallLeakRetryCount: number = 0;
+	private static readonly MAX_TOOL_CALL_LEAK_RETRIES = 2;
+	private static readonly TOOL_CALL_LEAK_RETRY_PROMPT =
+		'Your previous response emitted a tool call as raw text markup instead of a structured tool call, so it was NOT executed. Re-issue that tool call properly and continue the task.';
 
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
+		// Fable model series pricing (5th-gen flagship, Mythos-class)
+		['claude-fable-5', { input: 10.00, output: 50.00 }],              // Fable 5 flagship, 1M context (requires CLI >= 2.1.170)
 		// Opus model series pricing
 		['claude-opus-4-8', { input: 5.00, output: 25.00 }],               // Opus 4.8 latest flagship (May 2026)
 		['claude-opus-4-7', { input: 5.00, output: 25.00 }],               // Opus 4.7 previous flagship with self-verification
@@ -70,6 +87,9 @@ export class ClaudeChatProvider {
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
 		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],     // Claude 3 Opus
 		// Sonnet model series pricing
+		// Sonnet 5 standard price = $3/$15 (same as 4.6); promo until 8/31 is $2/$10.
+		// Note: new tokenizer produces ~30% more tokens for the same content, so effective cost is ~+30% at standard price.
+		['claude-sonnet-5', { input: 3.00, output: 15.00 }],             // Sonnet 5 most agentic Sonnet (requires CLI >= 2.1.197)
 		['claude-sonnet-4-6', { input: 3.00, output: 15.00 }],           // Sonnet 4.6 latest intelligent model
 		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 previous intelligent model
 		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }],    // Sonnet 4
@@ -113,8 +133,16 @@ export class ClaudeChatProvider {
 			workspaceFolder?.uri.fsPath
 		);
 		
-		// Initialize statistics cache
+		// Initialize statistics cache + disk persistence layer (globalStorage)
 		this._statisticsCache = new StatisticsCache();
+		this._statsDiskCacheReady = this._statisticsCache
+			.initDiskCache(this._context.globalStorageUri.fsPath)
+			.catch((e) => {
+				debugWarn('Statistics', 'Disk cache init failed, falling back to cold start', e);
+			});
+
+		// Initialize statistics worker pool (workers are spawned per run)
+		this._statsWorkerPool = new StatsWorkerPool((m) => debugLog('StatsWorkerPool', m));
 		
 		// Initialize conversations
 		this._conversationManager.initializeConversations();
@@ -329,7 +357,7 @@ export class ClaudeChatProvider {
 						this._handleModeSelection(message.mode);
 						return;
 					case 'updateSubagentMode':
-						this._handleSubagentEnhancement(message.enabled);
+						this._handleSubagentEnhancement(message.enabled, message.model);
 						return;
 					case 'openModelTerminal':
 						this._openModelTerminal();
@@ -450,9 +478,6 @@ export class ClaudeChatProvider {
 
 			// Send operation history after ready
 			this._sendOperationHistory();
-			
-			// Send initial token usage
-			this._sendTokenUsage();
 
 			// Send current model to webview
 			this._panel?.webview.postMessage({
@@ -489,7 +514,7 @@ export class ClaudeChatProvider {
 	 * - The prefixes trigger Claude's built-in behaviors without needing special CLI flags
 	 * - Both modes only affect the current message, not the entire conversation
 	 */
-	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean, languageMode?: boolean, selectedLanguage?: string, onlyCommunicate?: boolean) {
+	private async _sendMessageToClaude(message: string, planMode?: boolean, thinkingMode?: boolean, languageMode?: boolean, selectedLanguage?: string, onlyCommunicate?: boolean, internalRetry?: boolean) {
 		if (this._processService.isProcessRunning()) {
 			// DEBUG: console.log("A request is already in progress. Please wait.");
 			
@@ -621,14 +646,14 @@ export class ClaudeChatProvider {
 			}
 		}
 
-		// Don't display user input in compact mode
-		if (!this._isCompactMode) {
+		// Don't display user input in compact mode or for internal auto-retries
+		if (!this._isCompactMode && !internalRetry) {
 			this._sendAndSaveMessage({ type: 'userInput', data: message });
 		}
 		this._panel?.webview.postMessage({ type: 'setProcessing', data: true });
 
-		// Don't create backup commit in compact mode
-		if (!this._isCompactMode) {
+		// Don't create backup commit in compact mode or for internal auto-retries
+		if (!this._isCompactMode && !internalRetry) {
 			// Create backup commit
 			debugLog('ClaudeChatProvider', `Creating backup commit for message: ${message.substring(0, 50)}`);
 			const commitInfo = await this._backupManager.createBackupCommit(message);
@@ -706,8 +731,6 @@ export class ClaudeChatProvider {
 							type: 'updateTokens',
 							data: tokens
 						});
-						// Send token usage to UI
-						this._sendTokenUsage();
 					},
 					onFinalResult: (result: any) => {
 						if (result.sessionId) {
@@ -855,11 +878,47 @@ export class ClaudeChatProvider {
 					ClaudeProcessService.cleanupTempFiles(workspacePath);
 				}
 
+				// Auto-retry fallback for the Opus 4.8 "tool call leaked as plain
+				// text" regression: the model emitted its tool call as ordinary
+				// text, the API ended the turn and the tool never executed.
+				// Newer CLIs (2.1.158+) detect and retry this internally; CLI
+				// 2.1.85 does not, so we nudge the session ourselves (capped).
+				if (!wasCompactMode && code === 0) {
+					if (this._messageProcessor.consumeLeakedToolCall()
+						&& this._currentSessionId
+						&& this._toolCallLeakRetryCount < ClaudeChatProvider.MAX_TOOL_CALL_LEAK_RETRIES) {
+						this._toolCallLeakRetryCount++;
+						debugLog('ClaudeChatProvider', 'Leaked tool call detected at turn end — auto-retrying', {
+							attempt: this._toolCallLeakRetryCount,
+							max: ClaudeChatProvider.MAX_TOOL_CALL_LEAK_RETRIES
+						});
+						this._sendAndSaveMessage({
+							type: 'error',
+							data: `⚠️ Model emitted a tool call as plain text (serialization glitch) — auto-retrying (${this._toolCallLeakRetryCount}/${ClaudeChatProvider.MAX_TOOL_CALL_LEAK_RETRIES})...`
+						});
+						void this._sendMessageToClaude(
+							ClaudeChatProvider.TOOL_CALL_LEAK_RETRY_PROMPT,
+							undefined, undefined, undefined, undefined, undefined,
+							true // internalRetry: no user bubble, no backup commit
+						);
+					} else {
+						// Clean turn (or cap reached / no session): reset the cap
+						this._toolCallLeakRetryCount = 0;
+					}
+				}
+
 				if (code !== 0) {
 					// Error handling is done through onError callback
 				}
 			}
 		};
+
+		// Provide model + configured window for context-window computation
+		// (model is re-calibrated from the CLI init message later)
+		this._messageProcessor.setSessionContext(
+			this._selectedModel,
+			this._configurationManager.getContextWindowTokens()
+		);
 
 		try {
 			await this._processService.startProcess(processOptions, callbacks);
@@ -892,11 +951,11 @@ export class ClaudeChatProvider {
 		this._totalTokensOutput = 0;
 		this._requestCount = 0;
 
-		// Send token usage to UI
-		this._sendTokenUsage();
-
 		// Reset message processor
 		this._messageProcessor.reset();
+
+		// Reset leaked-tool-call auto-retry counter for the new session
+		this._toolCallLeakRetryCount = 0;
 
 		// Reset operation tracker session
 		this._operationTracker.setCurrentSession('');
@@ -1146,29 +1205,23 @@ export class ClaudeChatProvider {
 
 		const os = require('os');
 		const path = require('path');
-		const fs = require('fs').promises;
-		const readline = require('readline');
-		const { createReadStream } = require('fs');
 
 		// Determine Claude config directory
 		const homeDir = os.homedir();
 		const claudeDir = path.join(homeDir, '.claude', 'projects');
 
-		// First check if there's a cached aggregated result
+		// First check if there's a cached aggregated result — a full scan caches
+		// all four aggregate types at once, so tab switches hit this path (zero scan)
 		const cacheKey = `${claudeDir}_${type}`;
 		const cachedResult = this._statisticsCache.getAggregatedCache(cacheKey, type);
 		if (cachedResult) {
-			debugLog('Statistics', `Using cached aggregated results: ${type}`);
+			debugLog('Statistics', `Using cached aggregated results: ${type} (zero scan)`);
 			return cachedResult;
 		}
 
 		try {
 			// Periodically clean expired cache
 			this._statisticsCache.cleanExpiredCache();
-
-			// Clear deduplication set for current type, ensures different stat types don't interfere
-			// Each stat type has independent deduplication logic
-			this._statisticsCache.clearProcessedHashes();
 
 			// Use glob pattern to find all JSONL files
 			const globPattern = path.join(claudeDir, '**/*.jsonl').replace(/\\/g, '/');
@@ -1219,203 +1272,76 @@ export class ClaudeChatProvider {
 				};
 			}
 
-			// Accumulate all entries (cached + new)
-			const allEntries: StatisticsEntry[] = [];
+			// Disk cache must be loaded before the first dispatch decision
+			await this._statsDiskCacheReady;
 
-			// 10MB threshold (in bytes)
-			const FILE_SIZE_THRESHOLD = 10 * 1024 * 1024;
-
-			// Process files in parallel, but only process files that need updates
+			// ---- Phase 1 (parallel): produce "file → raw entries[]", no dedup ----
+			// Three-layer dispatch per file: memory cache → disk cache → worker parse
+			const fsp = require('fs').promises;
+			const fileResults: { file: string; entries: RawStatsEntry[] }[] = [];
+			const filesToParse: string[] = [];
+			let diskHits = 0;
 			await Promise.all(files.map(async (file) => {
+				let stat;
 				try {
-					const stats = await fs.stat(file);
-					const fileTimestamp = stats.mtimeMs;
-
-					// Check if this file needs to be updated
-					const needsUpdate = await this._statisticsCache.needsUpdate(file);
-
-					// If cached and no update needed, use cached data
-					if (!needsUpdate) {
-						const cachedEntries = this._statisticsCache.getCachedEntries(file);
-						if (cachedEntries) {
-							allEntries.push(...cachedEntries);
-							debugLog('Statistics', `Using cached data: ${file} (${cachedEntries.length} entries)`);
-							return;
-						}
-					}
-
-					debugLog('Statistics', `Reading file: ${file}`);
-					const fileEntries: StatisticsEntry[] = [];
-					const fileSize = stats.size;
-
-					if (fileSize < FILE_SIZE_THRESHOLD) {
-						// Small file: read entire file, use pre-indexing strategy to filter Warmup messages
-						const content = await fs.readFile(file, 'utf-8');
-						const lines = content.split('\n').filter((line: string) => line.trim());
-
-						// First pass: parse all entries and collect Warmup-related UUIDs (supports chain filtering)
-						const entries: any[] = [];
-						const warmupUuids = new Set<string>();
-
-						for (const line of lines) {
-							try {
-								const entry = JSON.parse(line);
-								entries.push(entry);
-
-								// Collect Warmup user message UUIDs
-								if (entry.type === 'user' && entry.message?.content === 'Warmup' && entry.uuid) {
-									warmupUuids.add(entry.uuid);
-								}
-							} catch {
-								// Skip invalid JSON lines
-							}
-						}
-
-						// Second pass: filter and process statistics, supports chain filtering (multi-round Warmup dialogs)
-						for (const entry of entries) {
-							// Skip Warmup user message itself
-							if (entry.type === 'user' && entry.message?.content === 'Warmup') {
-								continue;
-							}
-
-							// Skip Warmup response messages (parent is Warmup or its chain response)
-							if (entry.parentUuid && warmupUuids.has(entry.parentUuid)) {
-								// Chain filtering: add current response UUID to blacklist, handle multi-round dialogs
-								if (entry.uuid) {
-									warmupUuids.add(entry.uuid);
-								}
-								continue;
-							}
-
-							// Generate unique hash for deduplication
-							const messageHash = this._generateMessageHash(entry);
-							if (this._statisticsCache.isProcessed(messageHash)) {
-								continue; // Skip already processed messages
-							}
-							this._statisticsCache.markAsProcessed(messageHash);
-
-							if (entry.message?.usage) {
-								const statsEntry: StatisticsEntry = {
-									timestamp: entry.timestamp,
-									usage: entry.message.usage,
-									costUSD: entry.costUSD || 0,
-									model: entry.message.model,
-									cacheCreationTokens: entry.message.usage.cache_creation_input_tokens || 0,
-									cacheReadTokens: entry.message.usage.cache_read_input_tokens || 0,
-									file: file
-								};
-								fileEntries.push(statsEntry);
-							}
-						}
-					} else {
-						// Large file: use streaming read to reduce memory usage
-						// Two-pass scan: first pass collects Warmup message UUIDs, second pass filters
-
-						// First pass: collect Warmup message UUIDs
-						const warmupUuids = new Set<string>();
-						await new Promise<void>((resolve, reject) => {
-							const rl = readline.createInterface({
-								input: createReadStream(file),
-								crlfDelay: Infinity
-							});
-
-							rl.on('line', (line: string) => {
-								if (!line.trim()) return;
-								try {
-									const entry = JSON.parse(line);
-									// If Warmup user message, record its UUID
-									if (entry.type === 'user' && entry.message?.content === 'Warmup' && entry.uuid) {
-										warmupUuids.add(entry.uuid);
-									}
-								} catch {
-									// Skip invalid lines
-								}
-							});
-
-							rl.on('close', () => resolve());
-							rl.on('error', (err: Error) => reject(err));
-						});
-
-						// Second pass: process statistics, skip Warmup-related messages (supports chain filtering)
-						await new Promise<void>((resolve, reject) => {
-							const rl = readline.createInterface({
-								input: createReadStream(file),
-								crlfDelay: Infinity
-							});
-
-							rl.on('line', (line: string) => {
-								if (!line.trim()) return;
-
-								try {
-									const entry = JSON.parse(line);
-
-									// Skip Warmup user messages
-									if (entry.type === 'user' && entry.message?.content === 'Warmup') {
-										return;
-									}
-
-									// Skip Warmup response messages (parent is Warmup or its chain response)
-									if (entry.parentUuid && warmupUuids.has(entry.parentUuid)) {
-										// Chain filtering: add current response UUID to blacklist, handle multi-round dialogs
-										if (entry.uuid) {
-											warmupUuids.add(entry.uuid);
-										}
-										return;
-									}
-
-									// Generate unique hash for deduplication
-									const messageHash = this._generateMessageHash(entry);
-									if (this._statisticsCache.isProcessed(messageHash)) {
-										return; // Skip already processed messages
-									}
-									this._statisticsCache.markAsProcessed(messageHash);
-
-									if (entry.message?.usage) {
-										const statsEntry: StatisticsEntry = {
-											timestamp: entry.timestamp,
-											usage: entry.message.usage,
-											costUSD: entry.costUSD || 0,
-											model: entry.message.model,
-											cacheCreationTokens: entry.message.usage.cache_creation_input_tokens || 0,
-											cacheReadTokens: entry.message.usage.cache_read_input_tokens || 0,
-											file: file
-										};
-										fileEntries.push(statsEntry);
-									}
-								} catch (e) {
-									// Skip invalid JSON lines
-								}
-							});
-
-							rl.on('close', () => resolve());
-							rl.on('error', (err: Error) => reject(err));
-						});
-					}
-
-					// Update cache for this file
-					if (fileEntries.length > 0) {
-						this._statisticsCache.updateCache(file, fileEntries, fileTimestamp);
-						allEntries.push(...fileEntries);
-					}
-
-				} catch (e) {
-					debugWarn('Statistics', `Skipping unreadable file: ${file}`, e);
+					stat = await fsp.stat(file);
+				} catch {
+					return; // Unreadable file — skip entirely
 				}
+
+				// Memory layer (mtime match + TTL)
+				const memEntries = this._statisticsCache.getValidCachedEntries(file, stat.mtimeMs);
+				if (memEntries) {
+					fileResults.push({ file, entries: memEntries });
+					return;
+				}
+
+				// Disk layer (mtimeMs + size both match)
+				const diskEntries = this._statisticsCache.getDiskEntries(file, stat.mtimeMs, stat.size);
+				if (diskEntries) {
+					this._statisticsCache.updateCache(file, diskEntries, stat.mtimeMs);
+					fileResults.push({ file, entries: diskEntries });
+					diskHits++;
+					return;
+				}
+
+				filesToParse.push(file);
 			}));
 
-			// Output cache statistics
+			const parseStart = Date.now();
+			const parseResults = await this._statsWorkerPool.parseFiles(filesToParse);
+			debugLog('Statistics', `Worker pool parsed ${filesToParse.length} files in ${Date.now() - parseStart}ms (${fileResults.length} cached, ${diskHits} from disk)`);
+
+			for (const result of parseResults) {
+				// Cache raw entries (even empty ones — avoids re-parsing empty files)
+				this._statisticsCache.updateCache(result.file, result.entries, result.mtimeMs);
+				this._statisticsCache.updateDiskEntry(result.file, result.mtimeMs, result.size, result.entries);
+				fileResults.push({ file: result.file, entries: result.entries });
+			}
+
+			// One-shot async disk persistence (atomic tmp+rename); prunes deleted files.
+			// Not awaited — must not delay returning results to the UI.
+			void this._statisticsCache.flushDiskCache(new Set(files)).catch((e) => {
+				debugWarn('Statistics', 'Disk cache flush failed', e);
+			});
+
+			// ---- Phase 2 (single-threaded): deterministic dedup + one-pass aggregation ----
+			// Sort by file path so dedup order never depends on worker completion order
+			fileResults.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+			const dedupedEntries = this._dedupeEntries(fileResults);
+			debugLog('Statistics', `Deduplicated to ${dedupedEntries.length} entries, aggregating all types in one pass`);
+
+			const aggregates = this._aggregateAllStatistics(dedupedEntries);
+
+			// Cache all four aggregate types at once — tab switches become zero-scan
+			for (const t of ['daily', 'monthly', 'blocks', 'session']) {
+				this._statisticsCache.updateAggregatedCache(`${claudeDir}_${t}`, t, aggregates[t]);
+			}
+
 			const cacheStats = this._statisticsCache.getCacheStats();
-			debugLog('Statistics', `Cache stats - files: ${cacheStats.fileCacheSize}, hashes: ${cacheStats.processedHashesSize}`);
+			debugLog('Statistics', `Cache stats - files: ${cacheStats.fileCacheSize}, aggregates: ${cacheStats.aggregatedCacheSize}`);
 
-			// Aggregate data
-			debugLog('Statistics', `Aggregating ${allEntries.length} entries, type: ${type}`);
-			const result = this._aggregateStatistics(allEntries, type);
-			debugLog('Statistics', `Aggregation complete, result contains ${result.rows.length} rows`);
-			
-			// Cache aggregated result
-			this._statisticsCache.updateAggregatedCache(cacheKey, type, result);
-
-			return result;
+			return aggregates[type] ?? aggregates['daily'];
 
 		} catch (error) {
 			debugError('Statistics', 'Error loading statistics', error);
@@ -1423,20 +1349,71 @@ export class ClaudeChatProvider {
 		}
 	}
 
-	// Generate unique hash for message deduplication
-	private _generateMessageHash(entry: any): string {
-		// Use combination of message ID and request ID as unique identifier
-		const messageId = entry.message?.id || '';
-		const requestId = entry.requestId || '';
-		const timestamp = entry.timestamp || '';
+	/**
+	 * Phase-2 deduplication (deterministic, single-threaded).
+	 * Aligned with ccusage semantics:
+	 *  - dedup key = (message.id, requestId);
+	 *  - entries missing BOTH ids bypass dedup and are kept as-is;
+	 *  - on key collision (e.g. sidechain duplicates) keep the entry with the
+	 *    larger total token count (PRD updatePRDv18 §1.2 row 5).
+	 * Input must be pre-sorted by file path so results never depend on worker
+	 * completion order (kills the B5 race for good).
+	 */
+	private _dedupeEntries(fileResults: { file: string; entries: RawStatsEntry[] }[]): StatisticsEntry[] {
+		const byKey = new Map<string, { entry: StatisticsEntry; tokens: number }>();
+		const keyless: StatisticsEntry[] = [];
 
-		// If no unique ID, use combination of timestamp and content
-		if (!messageId && !requestId) {
-			const usage = entry.message?.usage || {};
-			return `${timestamp}_${usage.input_tokens}_${usage.output_tokens}`;
+		for (const fr of fileResults) {
+			for (const raw of fr.entries) {
+				const u = raw.usage;
+				const tokens = (u.input_tokens || 0) + (u.output_tokens || 0) +
+					(u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+				const entry: StatisticsEntry = {
+					timestamp: raw.timestamp,
+					usage: raw.usage,
+					costUSD: raw.costUSD,
+					model: raw.model,
+					cacheCreationTokens: u.cache_creation_input_tokens || 0,
+					cacheReadTokens: u.cache_read_input_tokens || 0,
+					file: fr.file
+				};
+
+				if (!raw.messageId && !raw.requestId) {
+					keyless.push(entry);
+					continue;
+				}
+
+				const key = `${raw.messageId}_${raw.requestId}`;
+				const existing = byKey.get(key);
+				// Map.set on an existing key keeps its original insertion
+				// position, so replacement does not perturb ordering
+				if (!existing || tokens > existing.tokens) {
+					byKey.set(key, { entry, tokens });
+				}
+			}
 		}
 
-		return `${messageId}_${requestId}`;
+		const result: StatisticsEntry[] = [];
+		for (const v of byKey.values()) {
+			result.push(v.entry);
+		}
+		result.push(...keyless);
+		return result;
+	}
+
+	/**
+	 * Produce all four aggregate structures from one deduplicated entry set.
+	 * One file scan feeds every statistics tab — switching tabs re-uses the
+	 * cached results instead of rescanning (~90ms per aggregation, negligible
+	 * next to file parsing).
+	 */
+	private _aggregateAllStatistics(entries: StatisticsEntry[]): Record<string, any> {
+		return {
+			daily: this._aggregateStatistics(entries, 'daily'),
+			monthly: this._aggregateStatistics(entries, 'monthly'),
+			blocks: this._aggregateStatistics(entries, 'blocks'),
+			session: this._aggregateStatistics(entries, 'session')
+		};
 	}
 
 	/**
@@ -1445,6 +1422,47 @@ export class ClaudeChatProvider {
 	 */
 	private _formatModelName(modelId: string): string {
 		return MODEL_DISPLAY_NAMES[modelId] || modelId;
+	}
+
+	// Memoized pricing lookups (null = known-unknown, priced at $0)
+	private _pricingCache = new Map<string, { input: number; output: number } | null>();
+
+	/**
+	 * Pricing lookup with prefix fallback (PRD updatePRDv18 F3, B8):
+	 * exact match → normalized (strip date suffix / [1m]) → prefix match in
+	 * either direction (table key prefixes the queried id, or the normalized
+	 * id prefixes a dated table key) → null ($0 + one debugLog per model id).
+	 * Never invents prices for non-Claude proxy models (<synthetic>, grok,
+	 * gemini, ...) — prefix matching only ever hits `claude-*` table keys.
+	 */
+	private _resolveModelPricing(modelId: string): { input: number; output: number } | null {
+		const cached = this._pricingCache.get(modelId);
+		if (cached !== undefined) {
+			return cached;
+		}
+
+		let pricing = ClaudeChatProvider.MODEL_PRICING.get(modelId) ?? null;
+
+		if (!pricing) {
+			const normalized = normalizeModelId(modelId);
+			pricing = ClaudeChatProvider.MODEL_PRICING.get(normalized) ?? null;
+
+			if (!pricing) {
+				for (const [key, value] of ClaudeChatProvider.MODEL_PRICING) {
+					if (modelId.startsWith(key) || key.startsWith(normalized)) {
+						pricing = value;
+						break;
+					}
+				}
+			}
+
+			if (!pricing) {
+				debugLog('Statistics', `Unknown model id for pricing (cost=0): ${modelId}`);
+			}
+		}
+
+		this._pricingCache.set(modelId, pricing);
+		return pricing;
 	}
 
 	private _aggregateStatistics(entries: any[], type: string): any {
@@ -1665,7 +1683,7 @@ export class ClaudeChatProvider {
 			// Use Map to calculate cost if 0 or missing
 			let cost = entry.costUSD || 0;
 			if (cost === 0 && entry.model) {
-				const pricing = ClaudeChatProvider.MODEL_PRICING.get(entry.model);
+				const pricing = this._resolveModelPricing(entry.model);
 				if (pricing) {
 					// Calculate normal input token cost (excluding cache read)
 					const normalInputCost = ((entry.usage.input_tokens || 0) * pricing.input) / 1000000;
@@ -1907,9 +1925,6 @@ export class ClaudeChatProvider {
 		this._totalCost = conversationData.totalCost || 0;
 		this._totalTokensInput = conversationData.totalTokens?.input || 0;
 		this._totalTokensOutput = conversationData.totalTokens?.output || 0;
-		
-		// Send token usage to UI
-		this._sendTokenUsage();
 
 		// Reset message processor and update its state
 		this._messageProcessor.reset();
@@ -1941,6 +1956,11 @@ export class ClaudeChatProvider {
 						requestCount: this._requestCount
 					}
 				});
+
+				// Reset the context indicator to "unknown" — restored history must
+				// not show stale context values; the first new message's real usage
+				// will refresh it (PRD updatePRDv18 F1.3)
+				this._panel?.webview.postMessage({ type: 'contextReset' });
 			}, 50);
 		}, 100); // Small delay to ensure webview is ready
 	}
@@ -3198,12 +3218,13 @@ export class ClaudeChatProvider {
 	 * @param mode - 'auto' or 'max'
 	 */
 	private _handleModeSelection(mode: 'auto' | 'max'): void {
-		const SONNET_4_6 = 'claude-sonnet-4-6';
+		// Max mode drives background tasks with Sonnet 5 (requires CLI >= 2.1.197)
+		const MAX_MODE_MODEL = 'claude-sonnet-5';
 
 		if (mode === 'max') {
 			// Max mode: set ANTHROPIC_DEFAULT_HAIKU_MODEL
-			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_6;
-			debugLog('ComputeMode', 'Max mode enabled - Using Sonnet 4.6 for background tasks');
+			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = MAX_MODE_MODEL;
+			debugLog('ComputeMode', 'Max mode enabled - Using Sonnet 5 for background tasks');
 			vscode.window.showInformationMessage('Max mode enabled - Maximum performance, higher cost');
 		} else {
 			// Auto mode: clear ANTHROPIC_DEFAULT_HAIKU_MODEL
@@ -3228,13 +3249,14 @@ export class ClaudeChatProvider {
 	 * Handle subagent enhancement settings (independent of mode settings)
 	 * @param enabled - Whether to enable subagent enhancement
 	 */
-	private _handleSubagentEnhancement(enabled: boolean): void {
-		const SONNET_4_6 = 'claude-sonnet-4-6';
+	private _handleSubagentEnhancement(enabled: boolean, model?: string): void {
+		// Resolve subagent model, falling back to the default when unset/invalid
+		const subagentModel = model ?? SUBAGENT_DEFAULT_MODEL;
 
 		if (enabled) {
 			// Enable enhancement: set CLAUDE_CODE_SUBAGENT_MODEL
-			process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_6;
-			debugLog('ComputeMode', 'Enhanced subagents enabled - Using Sonnet 4.6 for all subagent operations');
+			process.env.CLAUDE_CODE_SUBAGENT_MODEL = subagentModel;
+			debugLog('ComputeMode', `Enhanced subagents enabled - Using ${subagentModel} for all subagent operations`);
 			vscode.window.showInformationMessage('Enhanced subagents enabled - Higher performance, increased cost');
 		} else {
 			// Disable enhancement: clear CLAUDE_CODE_SUBAGENT_MODEL
@@ -3250,7 +3272,8 @@ export class ClaudeChatProvider {
 
 		this._context.workspaceState.update('computeModeSettings', {
 			...currentSettings,
-			enhanceSubagents: enabled
+			enhanceSubagents: enabled,
+			subagentModel: subagentModel
 		});
 	}
 
@@ -3263,18 +3286,19 @@ export class ClaudeChatProvider {
 
 		if (settings) {
 			// Use new format
-			const SONNET_4_6 = 'claude-sonnet-4-6';
+			// Max mode uses Sonnet 5 (requires CLI >= 2.1.197)
+			const MAX_MODE_MODEL = 'claude-sonnet-5';
 
 			// Restore mode settings
 			if (settings.mode === 'max') {
-				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_6;
+				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = MAX_MODE_MODEL;
 				debugLog('ComputeMode', 'Restored Max mode');
 			}
 
-			// Restore subagent settings (independent)
+			// Restore subagent settings (independent), honoring the saved model choice
 			if (settings.enhanceSubagents) {
-				process.env.CLAUDE_CODE_SUBAGENT_MODEL = SONNET_4_6;
-				debugLog('ComputeMode', 'Restored enhanced subagents');
+				process.env.CLAUDE_CODE_SUBAGENT_MODEL = settings.subagentModel ?? SUBAGENT_DEFAULT_MODEL;
+				debugLog('ComputeMode', `Restored enhanced subagents - ${settings.subagentModel ?? SUBAGENT_DEFAULT_MODEL}`);
 			}
 
 			debugLog('ComputeMode', 'Settings restored', settings);
@@ -3282,8 +3306,9 @@ export class ClaudeChatProvider {
 			// Backward compatibility: check old maxModeEnabled config
 			const maxModeEnabled = this._context.workspaceState.get('maxModeEnabled', false);
 			if (maxModeEnabled) {
-				const SONNET_4_6 = 'claude-sonnet-4-6';
-				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = SONNET_4_6;
+				// Max mode uses Sonnet 5 (requires CLI >= 2.1.197)
+				const MAX_MODE_MODEL = 'claude-sonnet-5';
+				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = MAX_MODE_MODEL;
 				debugLog('ComputeMode', 'Migrated from old Max mode setting');
 
 				// Migrate to new format
@@ -3451,19 +3476,6 @@ export class ClaudeChatProvider {
 				active: activeOperations,
 				undone: undoneOperations
 			}
-		});
-	}
-
-	// Send token usage to UI
-	private _sendTokenUsage(): void {
-		const usage = this._conversationManager.getCurrentTokenUsage(
-			this._totalTokensInput,
-			this._totalTokensOutput
-		);
-
-		this._panel?.webview.postMessage({
-			type: 'tokenUsage',
-			data: usage
 		});
 	}
 

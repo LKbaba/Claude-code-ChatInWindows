@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.3</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.4</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -615,6 +615,15 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+				<div class="tool-item" onclick="selectModel('claude-fable-5')">
+					<input type="radio" name="model" id="model-fable-5" value="claude-fable-5">
+					<label for="model-fable-5">
+						<div class="model-title">Fable 5 - Flagship (Mythos-class)</div>
+						<div class="model-description">
+							Most capable model for long-horizon agentic work · 1M context
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" onclick="selectModel('claude-opus-4-8')">
 					<input type="radio" name="model" id="model-opus-4-8" value="claude-opus-4-8">
 					<label for="model-opus-4-8">
@@ -660,21 +669,21 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+				<div class="tool-item" onclick="selectModel('claude-sonnet-5')">
+					<input type="radio" name="model" id="model-sonnet-5" value="claude-sonnet-5">
+					<label for="model-sonnet-5">
+						<div class="model-title">Sonnet 5 - Most agentic Sonnet</div>
+						<div class="model-description">
+							Best for agentic coding · higher token cost (new tokenizer)
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" onclick="selectModel('claude-sonnet-4-6')">
 					<input type="radio" name="model" id="model-sonnet-4-6" value="claude-sonnet-4-6">
 					<label for="model-sonnet-4-6">
 						<div class="model-title">Sonnet 4.6 - Latest intelligent model</div>
 						<div class="model-description">
 							Adaptive Thinking & 1M context window
-						</div>
-					</label>
-				</div>
-				<div class="tool-item" onclick="selectModel('claude-sonnet-4-5-20250929')">
-					<input type="radio" name="model" id="model-sonnet-4-5" value="claude-sonnet-4-5-20250929">
-					<label for="model-sonnet-4-5">
-						<div class="model-title">Sonnet 4.5 - Previous intelligent model</div>
-						<div class="model-description">
-							Best balance of intelligence, speed and cost
 						</div>
 					</label>
 				</div>
@@ -725,7 +734,7 @@ export function getBodyContent(): string {
 					<label for="mode-max">
 						<div class="model-title">Max - Maximum performance</div>
 						<div class="model-description">
-							Prevents system from auto-switching to Haiku, enforces Sonnet 4.6
+							Prevents system from auto-switching to Haiku, enforces Sonnet 5
 						</div>
 					</label>
 				</div>
@@ -739,9 +748,26 @@ export function getBodyContent(): string {
 						<label for="enhance-subagents">
 							<div class="model-title">Enhance Subagents</div>
 							<div class="model-description">
-								Use Sonnet 4.6 for all subagent operations (higher cost)
+								Use a stronger model for all subagent operations (higher cost)
 							</div>
 						</label>
+					</div>
+					<!-- Subagent model picker (only active when Enhance Subagents is checked) -->
+					<div id="subagent-model-options" class="subagent-model-options" style="display: none;">
+						<div class="tool-item">
+							<input type="radio" name="subagent-model" id="subagent-model-46" value="claude-sonnet-4-6" checked onchange="selectSubagentModel('claude-sonnet-4-6')">
+							<label for="subagent-model-46">
+								<div class="model-title">Sonnet 4.6</div>
+								<div class="model-description">Default subagent model</div>
+							</label>
+						</div>
+						<div class="tool-item">
+							<input type="radio" name="subagent-model" id="subagent-model-5" value="claude-sonnet-5" onchange="selectSubagentModel('claude-sonnet-5')">
+							<label for="subagent-model-5">
+								<div class="model-title">Sonnet 5</div>
+								<div class="model-description">Most agentic Sonnet (needs CLI 2.1.197+)</div>
+							</label>
+						</div>
 					</div>
 				</div>
 			</div>

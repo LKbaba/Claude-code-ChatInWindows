@@ -325,6 +325,18 @@ export class VsCodeConfigManager {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         return config.get<string>('thinking.intensity', 'think');
     }
+
+    /**
+     * Gets the configured context window size (tokens).
+     * Clamped to [100000, 1000000] to guard against out-of-range values
+     * hand-edited in settings.json (100K lower bound is a hard CLI constraint:
+     * below system prompt + first message the CLI errors with "Prompt is too long").
+     */
+    public getContextWindowTokens(): number {
+        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
+        const value = config.get<number>('contextWindowTokens', 400000);
+        return Math.max(100000, Math.min(1000000, value));
+    }
     
     /**
      * Gets the default language based on VS Code locale

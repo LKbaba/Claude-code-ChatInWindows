@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import { WindowsCompatibility, ExecutionEnvironment } from '../managers/WindowsCompatibility';
 import { ConfigurationManagerFacade } from '../managers/config/ConfigurationManagerFacade';
 import { ConversationManager } from '../managers/ConversationManager';
-import { VALID_MODELS, ValidModel } from '../utils/constants';
+import { VALID_MODELS, ValidModel, isOneMillionContextModel } from '../utils/constants';
 import { getMcpSystemPrompts } from '../utils/mcpPrompts';
 import { debugLog, debugError } from './DebugLogger';
 import { SecretService } from './SecretService';
@@ -202,6 +202,20 @@ export class ClaudeProcessService {
             });
         }
 
+        // Inject auto-compact window (process-level, never written to user's settings.json).
+        // CLI semantics: effective window = Math.min(model window, this value) — it can only
+        // shrink the window, never grow it. Combined with the "[1m]" model suffix this yields
+        // the configured effective window (e.g. min(1M, 400K) = 400K, compact at ~367K).
+        // For 200K models a value >= 200K is naturally clamped by the CLI; no branching needed.
+        const contextWindowTokens = this._configurationManager.getContextWindowTokens();
+        execEnvironment.spawnOptions.env = {
+            ...execEnvironment.spawnOptions.env,
+            CLAUDE_CODE_AUTO_COMPACT_WINDOW: String(contextWindowTokens)
+        };
+        debugLog('ClaudeProcessService', 'Injected CLAUDE_CODE_AUTO_COMPACT_WINDOW', {
+            contextWindowTokens: contextWindowTokens
+        });
+
         // Add API configuration to environment variables if custom API is enabled
         // Note: Only pass env vars for official 'claude' command
         // Third-party CLIs (e.g., 'xxxxclaude') have their own auth mechanism and don't use these env vars
@@ -267,7 +281,19 @@ export class ClaudeProcessService {
 
         // Add model if not default
         if (options.model && options.model !== 'default' && VALID_MODELS.includes(options.model as ValidModel)) {
-            args.push('--model', options.model);
+            // Inject "[1m]" suffix for 1M-context models: CLI 2.1.85 treats any
+            // model ID with this suffix as a 1M-token window (strips it and adds
+            // the 1M beta header before calling the API). 200K models (haiku etc.)
+            // must NOT get the suffix. Verified by P1/P3 probes (scripts/probe-autocompact.js).
+            const modelArg = isOneMillionContextModel(options.model)
+                ? `${options.model}[1m]`
+                : options.model;
+            args.push('--model', modelArg);
+            debugLog('ClaudeProcessService', 'Model argument for CLI', {
+                requestedModel: options.model,
+                finalModelArg: modelArg,
+                oneMillionContext: modelArg !== options.model
+            });
         }
 
         // Note: Plan mode and thinking mode are now handled through message prefixes,

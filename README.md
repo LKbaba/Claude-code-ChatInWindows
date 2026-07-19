@@ -38,6 +38,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **v4.1.4** | 2026-07-19 | Fable 5 & Sonnet 5 models; real 1M context via `[1m]` + env (400K default window, fixes indicator stuck at 16-18%); statistics 30× faster (worker pool + disk cache); Opus 4.8 leaked tool-call auto-retry |
 | **v4.1.3** | 2026-06-02 | Claude Opus 4.8 model support; Opus 4.7 demoted to Previous; Opus 4.5 hidden from UI (kept for history & pricing) |
 | **v4.1.1** | 2026-04-21 | Gemini Vertex AI ADC mode; MCP env backfill fix (APPDATA/PATH/proxy); Windows `node` stdio wrapper fix; hierarchical auth UI |
 | **v4.1.0** | 2026-04-16 | Opus 4.7 model support; xHigh thinking intensity; /ultrareview command; Compute Mode restore bug fix |

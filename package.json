@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude Code GUI / ChatUI",
   "description": "Full-featured GUI for Claude Code CLI — Windows (no WSL) & macOS. Third-party API support, MCP plugins, Skills & Hooks system, Undo/Redo, real-time token tracking. Actively maintained.",
-  "version": "4.1.3",
+  "version": "4.1.4",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -156,6 +156,14 @@
           "type": "string",
           "default": "C:\\Program Files\\Git\\bin\\bash.exe",
           "description": "Path to git-bash.exe on Windows. This is required for non-WSL execution to provide a Posix-like shell environment for the Claude CLI."
+        },
+        "claudeCodeChatUI.contextWindowTokens": {
+          "type": "number",
+          "default": 400000,
+          "minimum": 100000,
+          "maximum": 1000000,
+          "scope": "resource",
+          "markdownDescription": "Effective context window size (tokens) for Claude CLI sessions and the context indicator denominator. Default `400000`. The actual auto-compact point is roughly `value − 33K` (CLI reserves ~20K for the compact summary plus a ~13K buffer). Raising this makes late-session requests more expensive per turn. Hard lower bound `100000`: below the system prompt + first message size the CLI fails with \"Prompt is too long\" instead of compacting. For 200K-window models (e.g. Haiku) the effective window is automatically clamped to the model's limit."
         },
         "claudeCodeChatUI.thinking.enabled": {
           "type": "boolean",

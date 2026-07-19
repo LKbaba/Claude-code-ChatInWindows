@@ -2,6 +2,30 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.1.4] - 2026-07-19
+
+### Added
+- **Fable 5 & Sonnet 5 model support** — new 5th-gen flagship `claude-fable-5` (Mythos-class, 1M context) and `claude-sonnet-5` (most agentic Sonnet, new tokenizer): `VALID_MODELS`, `MODEL_PRICING`, display names, and model selector UI cards
+- **Real 1M context window** — 1M-capable models are spawned with a `[1m]` model suffix plus a process-level `CLAUDE_CODE_AUTO_COMPACT_WINDOW` env, unlocking the CLI's 200K default ceiling without upgrading the CLI or touching user settings
+- **`claudeCodeChatUI.contextWindowTokens` setting** — effective context window (default 400,000, range [100,000, 1,000,000]); frontend denominator is clamped to the model's real window (e.g. Haiku stays 200K)
+- **Auto-compact awareness** — `compact_boundary` system messages are now parsed; the chat shows a "🗜️ auto-compacted (pre-compact XXK tokens)" divider and the indicator drops back correctly
+- **Statistics worker pool** — jsonl parsing moved to `worker_threads` with size-based LPT scheduling and `"usage":{` prefilter: cold start 47.5s → ~1.5s (893 files / 1GB)
+- **Statistics disk cache** — `stats-cache.json` in globalStorage (mtime+size keyed, atomic writes, schema-versioned): reload warm start < 1s
+- **Auto-retry fallback for leaked tool calls** — detects the Opus 4.8 serialization regression (tool calls emitted as raw text, stray "court" token) and automatically resumes the session with a corrective prompt (max 2 consecutive retries)
+- New docs: `docs/md/Claude-CLI-Context-Mechanism.md` — CLI 2.1.85 context/auto-compact mechanism reference (probe-verified)
+
+### Changed
+- Context indicator is now driven by a backend single source of truth (`contextTokens` = input + cache_creation + cache_read of the latest message; `contextLimit` = min(setting, model window)) — the old only-grow guard and four hardcoded 200000 denominators are removed, so the bar correctly falls after compaction
+- Unknown context state (new/restored session before first usage) renders as a full 100% bar instead of an empty placeholder
+- Statistics aggregation is now a deterministic two-phase pipeline: parallel parse → single-threaded dedup by `(message.id, requestId)` → one scan produces all four tabs (zero rescan on tab switch)
+
+### Fixed
+- **Context indicator stuck at 16-18%** — root-caused to the old CLI compacting unknown models at a 200K/165K ceiling while the plugin dropped `compact_boundary` and the UI never fell back
+- Restored history sessions no longer show stale/incorrect context values; the indicator resets and recalibrates on the first new message
+- Statistics tab counts are now consistent across runs (removed the shared-state dedup race in parallel scanning)
+- Subagent (sidechain) usage no longer overwrites the main conversation's context indicator (`parent_tool_use_id` filtering); subagent tokens still count toward billing totals
+- Unknown model IDs (date-suffixed variants, `[1m]` suffix) now resolve pricing via prefix-match fallback instead of silently costing $0
+
 ## [4.1.3] - 2026-06-02
 
 ### Added

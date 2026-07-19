@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { getToolStatusText, optimizeToolInput } from '../utils/utils';
+import { getModelContextWindow } from '../utils/constants';
 import { ConversationManager } from '../managers/ConversationManager';
 import { OperationTracker } from '../managers/OperationTracker';
 import { Operation, OperationType, OperationData } from '../types/Operation';
@@ -33,6 +34,12 @@ export interface TokenUpdate {
     currentOutputTokens: number;
     cacheCreationTokens?: number;
     cacheReadTokens?: number;
+    // Current context occupancy = latest assistant message's
+    // input + cache_creation + cache_read tokens (not cumulative, no output).
+    // Single source of truth for the context indicator (PRD updatePRDv18 F1.1).
+    contextTokens: number;
+    // Indicator denominator = min(configured window, model's real window)
+    contextLimit: number;
 }
 
 export interface FinalResult {
@@ -55,6 +62,29 @@ export class MessageProcessor {
     private _currentRequestTokensInput: number = 0;
     private _currentRequestTokensOutput: number = 0;
     private _currentMessageId: string | undefined;
+    // True when the LATEST assistant emission of the current turn was plain
+    // text containing leaked ANTML tool-call markup (known Opus 4.8
+    // serialization regression: the model emits `<invoke name="...">` as
+    // ordinary text — often prefixed by a stray "court"/"count" token — the
+    // API ends the turn and the tool is never executed). A subsequent real
+    // tool_use clears the flag. Consumed by the provider at process close
+    // to drive the auto-retry fallback.
+    private _leakedToolCallDetected: boolean = false;
+    // Session context for context-window computation (set by the provider at
+    // session start; model is re-calibrated from the CLI init message).
+    // Intentionally NOT cleared in reset() — it is session configuration, not stream state.
+    private _sessionModel: string | undefined;
+    private _contextWindowTokens: number | undefined;
+    // Last context occupancy reported by a MAIN-thread assistant message.
+    // Subagent (sidechain) messages carry usage of their own separate small
+    // context — they must not overwrite the main conversation's indicator,
+    // so for sidechain updates we re-send this value instead.
+    private _lastMainContextTokens: number = 0;
+
+    // Opening of a leaked ANTML tool-call tag, e.g. `<invoke name="Read">`
+    // (namespace prefix is usually dropped when the leak happens) or a bare
+    // `<function_calls>` block wrapper.
+    private static readonly LEAKED_TOOL_CALL_RE = /<(?:antml:)?(?:invoke\s+name\s*=|function_calls>)/i;
 
     constructor(
         private _conversationManager: ConversationManager,
@@ -78,6 +108,54 @@ export class MessageProcessor {
         this._currentRequestTokensInput = 0;
         this._currentRequestTokensOutput = 0;
         this._currentMessageId = undefined;
+        this._leakedToolCallDetected = false;
+        this._lastMainContextTokens = 0;
+    }
+
+    /**
+     * Return whether the turn ended with a leaked (text-form) tool call and
+     * clear the flag. Called by the provider on process close to decide
+     * whether to auto-retry (see ClaudeChatProvider onClose handler).
+     */
+    public consumeLeakedToolCall(): boolean {
+        const detected = this._leakedToolCallDetected;
+        this._leakedToolCallDetected = false;
+        return detected;
+    }
+
+    /**
+     * Heuristic detection of the Opus 4.8 "tool call emitted as plain text"
+     * regression. A real leak terminates the assistant message right at the
+     * markup, whereas legitimate prose quoting such markup (docs, examples)
+     * normally continues afterwards or wraps it in a code fence.
+     */
+    private static _detectLeakedToolCall(text: string): boolean {
+        const trimmed = text.trimEnd();
+        const tailStart = Math.max(0, trimmed.length - 2000);
+        const relIdx = trimmed.slice(tailStart).search(MessageProcessor.LEAKED_TOOL_CALL_RE);
+        if (relIdx === -1) {
+            return false;
+        }
+        // Odd number of ``` fences before the match => markup sits inside a
+        // fenced code block, i.e. an intentional quoted example — not a leak.
+        const fenceCount = (trimmed.slice(0, tailStart + relIdx).match(/```/g) ?? []).length;
+        if (fenceCount % 2 === 1) {
+            return false;
+        }
+        // The message must effectively END with/inside the markup: either a
+        // closing tag at the very end, or the opening tag itself sits in the
+        // last few hundred chars (truncated leak).
+        return /<\/(?:antml:)?(?:invoke|parameter|function_calls)>$/i.test(trimmed)
+            || MessageProcessor.LEAKED_TOOL_CALL_RE.test(trimmed.slice(-400));
+    }
+
+    /**
+     * Set session context used for context-window computation.
+     * Called by the provider before each process start.
+     */
+    public setSessionContext(model: string, contextWindowTokens: number): void {
+        this._sessionModel = model;
+        this._contextWindowTokens = contextWindowTokens;
     }
 
     /**
@@ -120,10 +198,18 @@ export class MessageProcessor {
 
         // Handle known message types
         if ((type === 'assistant' || type === 'user' || type === 'system') && jsonData.message) {
-            this._processMessage(jsonData.message, callbacks);
+            // parent_tool_use_id (envelope-level) is non-null for messages
+            // emitted from inside a subagent (Task tool sidechain).
+            const isSidechain = jsonData.parent_tool_use_id != null;
+            this._processMessage(jsonData.message, callbacks, isSidechain);
         } else if (type === 'system' && jsonData.subtype === 'init') {
             // CLI init message: contains session_id, tools, model, etc.
             this._processSystemInit(jsonData, callbacks);
+        } else if (type === 'system' && jsonData.subtype === 'compact_boundary') {
+            // CLI compacted the conversation (auto or manual /compact).
+            // Previously fell into the unhandled branch and was silently dropped,
+            // which was one of the root causes of the "stuck at 16-18%" indicator bug.
+            this._processCompactBoundary(jsonData, callbacks);
         } else if (type === 'result') {
             this._processResult(jsonData, callbacks);
         } else if (type === 'tool_progress') {
@@ -155,10 +241,36 @@ export class MessageProcessor {
             skills: jsonData.skills?.length
         });
 
+        // Calibrate session model from CLI-reported value (authoritative;
+        // may carry a date suffix or "[1m]" — normalized at lookup time)
+        if (typeof jsonData.model === 'string' && jsonData.model) {
+            this._sessionModel = jsonData.model;
+        }
+
         if (this._isFirstSystemMessage) {
             this._isFirstSystemMessage = false;
             callbacks.sendToWebview({ type: 'connected' });
         }
+    }
+
+    /**
+     * Process compact_boundary system message.
+     * Exact CLI 2.1.85 wire format (captured by probe P2, snake_case):
+     * {"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":67113}}
+     */
+    private _processCompactBoundary(jsonData: any, callbacks: MessageCallbacks): void {
+        const metadata = jsonData.compact_metadata ?? {};
+        const trigger: string = metadata.trigger ?? 'auto';
+        const preTokens: number = metadata.pre_tokens ?? 0;
+
+        debugLog('MessageProcessor', 'Compact boundary received', { trigger, preTokens });
+
+        // saveMessage both posts to the webview and persists to conversation
+        // history, so the divider is replayed when the session is restored
+        callbacks.saveMessage({
+            type: 'compactBoundary',
+            data: { trigger, preTokens }
+        });
     }
 
     /**
@@ -185,10 +297,10 @@ export class MessageProcessor {
     /**
      * Process a message object
      */
-    private _processMessage(message: any, callbacks: MessageCallbacks): void {
+    private _processMessage(message: any, callbacks: MessageCallbacks, isSidechain: boolean = false): void {
         // Process token usage
         if (message.usage) {
-            this._updateTokens(message.usage, callbacks);
+            this._updateTokens(message.usage, callbacks, isSidechain);
         }
 
         // Process message content by role
@@ -240,6 +352,12 @@ export class MessageProcessor {
         message.content.forEach((content: any) => {
             if (content.type === 'text' && content.text) {
                 debugLog('MessageProcessor', 'Assistant text', content.text);
+                // Track leaked tool-call markup; the LAST assistant emission
+                // of the turn decides (a later tool_use clears the flag)
+                this._leakedToolCallDetected = MessageProcessor._detectLeakedToolCall(content.text);
+                if (this._leakedToolCallDetected) {
+                    debugLog('MessageProcessor', 'Leaked tool-call markup detected in assistant text (Opus 4.8 serialization bug)');
+                }
                 // Regular text response - handled by onAssistantMessage callback
                 callbacks.onAssistantMessage(content.text);
             } else if (content.type === 'thinking' && content.text) {
@@ -259,6 +377,9 @@ export class MessageProcessor {
      * Process tool use
      */
     private _processToolUse(content: any, callbacks: MessageCallbacks): void {
+        // A real structured tool call arrived — any earlier text was not the
+        // final emission of the turn, so it cannot be a terminating leak
+        this._leakedToolCallDetected = false;
         // Reset tracking flag for new tool use
         this._lastOperationTracked = false;
         
@@ -846,17 +967,39 @@ export class MessageProcessor {
     /**
      * Update token counts
      */
-    private _updateTokens(usage: any, callbacks: MessageCallbacks): void {
+    private _updateTokens(usage: any, callbacks: MessageCallbacks, isSidechain: boolean = false): void {
         const inputTokens = usage.input_tokens || 0;
         const outputTokens = usage.output_tokens || 0;
         // Cache-related tokens are not counted in totals, only passed to frontend for display
         const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
         const cacheReadTokens = usage.cache_read_input_tokens || 0;
-        
+
         this._totalTokensInput += inputTokens;
         this._totalTokensOutput += outputTokens;
         this._currentRequestTokensInput += inputTokens;
         this._currentRequestTokensOutput += outputTokens;
+
+        // Current context occupancy: the latest message's input_tokens already
+        // includes the full history (cache fields are split for billing), so
+        // this is NOT accumulated across turns and excludes output_tokens.
+        // After a compact the value naturally drops — that drop is correct info.
+        //
+        // Sidechain (subagent) messages run in their own separate context:
+        // their usage still counts toward billing totals above, but must not
+        // drive the main conversation's context indicator — keep the last
+        // main-thread value instead.
+        let contextTokens: number;
+        if (isSidechain) {
+            contextTokens = this._lastMainContextTokens;
+        } else {
+            contextTokens = inputTokens + cacheCreationTokens + cacheReadTokens;
+            this._lastMainContextTokens = contextTokens;
+        }
+
+        // Denominator: configured window clamped to the model's real window
+        // (prevents advertising 400K on a 200K model like haiku)
+        const modelWindow = getModelContextWindow(this._sessionModel ?? '');
+        const contextLimit = Math.min(this._contextWindowTokens ?? modelWindow, modelWindow);
 
         callbacks.onTokenUpdate({
             totalTokensInput: this._totalTokensInput,
@@ -864,7 +1007,9 @@ export class MessageProcessor {
             currentInputTokens: inputTokens,
             currentOutputTokens: outputTokens,
             cacheCreationTokens: cacheCreationTokens,
-            cacheReadTokens: cacheReadTokens
+            cacheReadTokens: cacheReadTokens,
+            contextTokens: contextTokens,
+            contextLimit: contextLimit
         });
     }
 

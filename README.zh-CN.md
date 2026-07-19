@@ -38,6 +38,7 @@
 
 | 版本 | 日期 | 亮点 |
 |------|------|------|
+| **v4.1.4** | 2026-07-19 | 新增 Fable 5 与 Sonnet 5 模型；`[1m]` + 环境变量解锁真实 1M 上下文（默认 400K 窗口，修复指示条卡 16-18%）；统计性能提升 30 倍（Worker 池 + 磁盘缓存）；Opus 4.8 工具调用泄露自动重试 |
 | **v4.1.3** | 2026-06-02 | 新增 Claude Opus 4.8 模型支持；Opus 4.7 降级为 Previous；Opus 4.5 从 UI 隐藏（保留用于历史会话与费用计算） |
 | **v4.1.1** | 2026-04-21 | Gemini Vertex AI ADC 认证模式；MCP 子进程环境变量回填修复（APPDATA/PATH/代理）；Windows `node` stdio 包装 bug 修复；认证 UI 两级层级化 |
 | **v4.1.0** | 2026-04-16 | Opus 4.7 模型支持；xHigh 思考强度；/ultrareview 命令；Compute Mode 恢复 bug 修复 |

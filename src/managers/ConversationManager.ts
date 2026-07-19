@@ -210,35 +210,6 @@ export class ConversationManager {
         }
     }
 
-    // Get current token usage
-    getCurrentTokenUsage(currentTokensInput: number, currentTokensOutput: number): {
-        used: number;
-        total: number;
-        percentage: number;
-        inputTokens: number;
-        outputTokens: number;
-    } {
-        const TOTAL_TOKENS = 200000; // Claude's 200K context window, fixed value
-
-        // Use actual cumulative values (similar to usage statistics)
-        // These values are passed from MessageProcessor representing actual usage
-        const totalUsed = currentTokensInput + currentTokensOutput;
-
-        // Calculate used percentage
-        const usedPercentage = (totalUsed / TOTAL_TOKENS) * 100;
-
-        // Calculate remaining percentage
-        const remainingPercentage = Math.max(0, 100 - usedPercentage);
-
-        return {
-            used: totalUsed,
-            total: TOTAL_TOKENS,
-            percentage: Math.round(remainingPercentage), // Return remaining percentage
-            inputTokens: currentTokensInput,
-            outputTokens: currentTokensOutput
-        };
-    }
-
     // Get conversation content for summary generation
     getConversationForSummary(): { userMessages: string[], assistantMessages: string[] } {
         const userMessages: string[] = [];

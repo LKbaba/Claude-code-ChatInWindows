@@ -97,6 +97,13 @@ export class ConfigurationManagerFacade {
     }
 
     /**
+     * Gets configured context window size in tokens (clamped to [100000, 1000000])
+     */
+    public getContextWindowTokens(): number {
+        return this.vsCodeManager.getContextWindowTokens();
+    }
+
+    /**
      * Gets API configuration
      */
     public getApiConfig(): ApiConfig {

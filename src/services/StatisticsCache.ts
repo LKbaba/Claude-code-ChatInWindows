@@ -1,7 +1,9 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import * as crypto from 'crypto';
+import { RawStatsEntry } from './statsWorker';
 
-// Statistics entry type
+// Statistics entry type (aggregation-phase shape, after dedup + file attribution)
 export interface StatisticsEntry {
     timestamp: string;
     usage: {
@@ -17,11 +19,12 @@ export interface StatisticsEntry {
     file: string;
 }
 
-// Cached file data
+// Cached file data (stores raw pre-dedup entries — dedup runs per statistics
+// run in the main thread, phase 2 of the two-phase pipeline)
 interface CachedFileData {
     fileTimestamp: number;   // File last modification time (stats.mtimeMs) - for detecting file changes
     cachedAt: number;        // Cache creation time (Date.now()) - for expiry checking
-    entries: StatisticsEntry[];  // Processed data entries
+    entries: RawStatsEntry[];  // Raw narrow-field entries (not deduplicated)
     hash: string;          // File content hash (for detecting changes)
 }
 
@@ -32,6 +35,21 @@ interface AggregatedCacheEntry {
     key: string;
 }
 
+// Disk cache persistence schema (PRD updatePRDv18 F2.3)
+// Hit condition: BOTH mtimeMs and size match — mtime alone can be unreliable
+// across some filesystems/copies (lesson from CLAUDE.md gotcha 6: file-change
+// detection and cache-age semantics must never share one field)
+interface DiskCacheFileEntry {
+    mtimeMs: number;
+    size: number;
+    entries: RawStatsEntry[];
+}
+
+interface DiskCacheData {
+    schemaVersion: number;
+    files: Record<string, DiskCacheFileEntry>;
+}
+
 /**
  * Statistics data cache manager
  * Implements incremental updates and performance optimization
@@ -39,9 +57,6 @@ interface AggregatedCacheEntry {
 export class StatisticsCache {
     // File-level cache: stores processing results for each file
     private fileCache = new Map<string, CachedFileData>();
-
-    // Set of processed message hashes: for deduplication
-    private processedHashes = new Set<string>();
 
     // Aggregated result cache: stores computed aggregation results
     private aggregatedCache = new Map<string, AggregatedCacheEntry>();
@@ -52,47 +67,97 @@ export class StatisticsCache {
     // Maximum number of cached files
     private readonly MAX_CACHED_FILES = 1000;
 
+    // ---- Disk persistence layer (PRD updatePRDv18 F2.3) ----
+    private static readonly DISK_SCHEMA_VERSION = 1;
+    private diskCachePath: string | null = null;
+    private diskCache: DiskCacheData = { schemaVersion: StatisticsCache.DISK_SCHEMA_VERSION, files: {} };
+    private diskCacheDirty = false;
+
     /**
-     * Check if file needs to be re-read
-     * @param filePath File path
-     * @returns true if update needed, false if cache can be used
+     * Load the disk cache from <storageDir>/stats-cache.json.
+     * Missing/corrupt file or schemaVersion mismatch → silently start empty
+     * (full rebuild). Must be awaited before the first statistics run.
      */
-    async needsUpdate(filePath: string): Promise<boolean> {
+    async initDiskCache(storageDir: string): Promise<void> {
+        await fs.promises.mkdir(storageDir, { recursive: true });
+        this.diskCachePath = path.join(storageDir, 'stats-cache.json');
         try {
-            const stats = await fs.promises.stat(filePath);
-            const currentTimestamp = stats.mtimeMs;
-
-            const cachedData = this.fileCache.get(filePath);
-            if (!cachedData) {
-                return true; // No cache, need to read
+            const rawText = await fs.promises.readFile(this.diskCachePath, 'utf8');
+            const parsed = JSON.parse(rawText);
+            if (parsed && parsed.schemaVersion === StatisticsCache.DISK_SCHEMA_VERSION && parsed.files) {
+                this.diskCache = parsed;
             }
-
-            // Check if file was modified
-            if (cachedData.fileTimestamp !== currentTimestamp) {
-                return true; // File modified, need to re-read
-            }
-
-            // Check if cache expired
-            const now = Date.now();
-            if (now - cachedData.cachedAt > this.CACHE_EXPIRY_TIME) {
-                return true; // Cache expired, need to update
-            }
-
-            return false; // Can use cache
-        } catch (error) {
-            // File doesn't exist or inaccessible, need to update
-            return true;
+            // schemaVersion mismatch: keep the empty structure → full rebuild
+        } catch {
+            // No cache file or corrupt JSON → treat as cold start
         }
     }
 
     /**
-     * Get cached entries
-     * @param filePath File path
-     * @returns Cached entries array, or null if no cache
+     * Disk-layer lookup: hit only when both mtimeMs and size match exactly.
      */
-    getCachedEntries(filePath: string): StatisticsEntry[] | null {
+    getDiskEntries(filePath: string, mtimeMs: number, size: number): RawStatsEntry[] | null {
+        const e = this.diskCache.files[filePath];
+        if (e && e.mtimeMs === mtimeMs && e.size === size) {
+            return e.entries;
+        }
+        return null;
+    }
+
+    /**
+     * Record freshly parsed entries into the in-memory disk mirror.
+     * Persisted later by flushDiskCache().
+     */
+    updateDiskEntry(filePath: string, mtimeMs: number, size: number, entries: RawStatsEntry[]): void {
+        this.diskCache.files[filePath] = { mtimeMs, size, entries };
+        this.diskCacheDirty = true;
+    }
+
+    /**
+     * One-shot async persistence after a statistics run:
+     * prunes entries for deleted files, then atomically replaces the cache
+     * file (write to .tmp + rename) to avoid torn writes.
+     */
+    async flushDiskCache(existingFiles: Set<string>): Promise<void> {
+        if (!this.diskCachePath) {
+            return;
+        }
+
+        for (const key of Object.keys(this.diskCache.files)) {
+            if (!existingFiles.has(key)) {
+                delete this.diskCache.files[key];
+                this.diskCacheDirty = true;
+            }
+        }
+
+        if (!this.diskCacheDirty) {
+            return;
+        }
+
+        const tmpPath = this.diskCachePath + '.tmp';
+        await fs.promises.writeFile(tmpPath, JSON.stringify(this.diskCache), 'utf8');
+        await fs.promises.rename(tmpPath, this.diskCachePath);
+        this.diskCacheDirty = false;
+    }
+
+    /**
+     * Memory-layer lookup: hit when the caller-provided mtime matches the
+     * cached fileTimestamp and the entry is within its TTL. On TTL expiry the
+     * caller falls through to the disk layer (mtime+size check) instead of
+     * re-parsing.
+     */
+    getValidCachedEntries(filePath: string, mtimeMs: number): RawStatsEntry[] | null {
         const cachedData = this.fileCache.get(filePath);
-        return cachedData ? cachedData.entries : null;
+        if (!cachedData) {
+            return null;
+        }
+        if (cachedData.fileTimestamp !== mtimeMs) {
+            return null;
+        }
+        if (Date.now() - cachedData.cachedAt > this.CACHE_EXPIRY_TIME) {
+            return null;
+        }
+        return cachedData.entries;
     }
 
     /**
@@ -101,7 +166,7 @@ export class StatisticsCache {
      * @param entries Processed entries
      * @param timestamp File modification time
      */
-    updateCache(filePath: string, entries: StatisticsEntry[], timestamp: number): void {
+    updateCache(filePath: string, entries: RawStatsEntry[], timestamp: number): void {
         // Calculate file content hash (simplified, can use actual file content)
         const hash = crypto.createHash('md5')
             .update(filePath + timestamp)
@@ -118,23 +183,6 @@ export class StatisticsCache {
         if (this.fileCache.size > this.MAX_CACHED_FILES) {
             this.cleanOldestCache();
         }
-    }
-
-    /**
-     * Check if message is already processed
-     * @param hash Message hash
-     * @returns true if already processed
-     */
-    isProcessed(hash: string): boolean {
-        return this.processedHashes.has(hash);
-    }
-
-    /**
-     * Mark message as processed
-     * @param hash Message hash
-     */
-    markAsProcessed(hash: string): void {
-        this.processedHashes.add(hash);
     }
 
     /**
@@ -216,16 +264,7 @@ export class StatisticsCache {
      */
     clearAllCache(): void {
         this.fileCache.clear();
-        this.processedHashes.clear();
         this.aggregatedCache.clear();
-    }
-
-    /**
-     * Clear processed hash set
-     * Used to reset deduplication state when switching statistics type
-     */
-    clearProcessedHashes(): void {
-        this.processedHashes.clear();
     }
 
     /**
@@ -233,12 +272,10 @@ export class StatisticsCache {
      */
     getCacheStats(): {
         fileCacheSize: number;
-        processedHashesSize: number;
         aggregatedCacheSize: number;
     } {
         return {
             fileCacheSize: this.fileCache.size,
-            processedHashesSize: this.processedHashes.size,
             aggregatedCacheSize: this.aggregatedCache.size
         };
     }
