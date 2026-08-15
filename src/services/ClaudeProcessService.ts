@@ -15,6 +15,19 @@ import { getMcpSystemPrompts } from '../utils/mcpPrompts';
 import { debugLog, debugError } from './DebugLogger';
 import { SecretService } from './SecretService';
 
+/**
+ * Runtime constraints injected into every session via --append-system-prompt.
+ * In headless -p mode the CLI process exits after each reply, so anything the
+ * model sets up expecting cross-turn persistence (timers, background monitors,
+ * scheduled reminders) silently dies or becomes an orphan process
+ * (community-confirmed: anthropics/claude-code#52917, #61568, #43944).
+ */
+const HEADLESS_RUNTIME_CONSTRAINTS_PROMPT = `# Runtime Constraints (headless mode)
+- This session runs headless (-p): the CLI process EXITS after each reply.
+- NEVER rely on background processes, sleep/polling loops, timers, or scheduled reminders surviving across turns — they are killed or orphaned when the reply ends. Background tasks WITHIN a single reply are fine.
+- For persistent scheduled work, use OS-level schedulers instead (Windows: schtasks / Task Scheduler).
+- For long batch work: finish it within one reply, or persist progress to files and continue on the next user message.`;
+
 export interface ProcessOptions {
     message: string;
     cwd: string;
@@ -305,7 +318,10 @@ export class ClaudeProcessService {
             args.push(options.customInstructions);
         }
 
-        // Add MCP system prompts if MCP is enabled
+        // Always inject headless runtime constraints, and append MCP system
+        // prompts when MCP is configured.
+        let appendSystemPrompt = HEADLESS_RUNTIME_CONSTRAINTS_PROMPT;
+
         const mcpStatus = this._configurationManager.getMcpStatus();
         debugLog('ClaudeProcessService', 'MCP Status', {
             status: mcpStatus.status,
@@ -321,12 +337,14 @@ export class ClaudeProcessService {
                     hasNewlines: mcpPrompts.includes('\n'),
                     preview: mcpPrompts.substring(0, 100) + '...'
                 });
-                // Mac uses shell: false, so multi-line arguments can be passed directly
-                // Windows keeps the original behavior
-                args.push('--append-system-prompt');
-                args.push(mcpPrompts.trim());
+                appendSystemPrompt += '\n\n' + mcpPrompts.trim();
             }
         }
+
+        // Mac uses shell: false, so multi-line arguments can be passed directly
+        // Windows keeps the original behavior
+        args.push('--append-system-prompt');
+        args.push(appendSystemPrompt);
 
         // Note: The message is not added to args anymore - it will be sent via stdin
 

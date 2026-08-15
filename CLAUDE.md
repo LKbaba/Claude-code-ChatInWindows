@@ -141,6 +141,16 @@ When building Stop-hook completion notifications on Windows, use the WinRT Toast
 
 **Embedding in TypeScript** — for the plugin template, write the PowerShell as a clean multi-line TS template literal, then at runtime: `Buffer.from(script, 'utf16le').toString('base64')` and invoke as `powershell -NoProfile -EncodedCommand ${b64}`. This avoids the nested-quote/backslash escaping nightmare of a single-line inline command.
 
+### 8. Context Window `[1m]` Suffix & Auto-Compact Env (v4.1.4)
+
+The context-window indicator and auto-compaction are controlled by **CLI-side behavior**, not the plugin's own math. Reverse-engineered from CLI 2.1.85 (`ClaudeProcessService.ts` injects these):
+
+- **`[1m]` model suffix** — appending `[1m]` to the model ID (e.g. `--model "claude-fable-5[1m]"`) forces the CLI to treat the window as exactly **1,000,000 tokens regardless of whether it recognizes the model**. The CLI detects it via `/\[1m\]/i.test(model)`. Without it, unrecognized new models (fable-5, sonnet-5) default to a **200K** window, causing the indicator to stall at ~16-18% and premature auto-compaction (~82.5% ≈ 165K observed).
+- **`CLAUDE_CODE_AUTO_COMPACT_WINDOW`** — sets the auto-compaction trigger point, but the CLI applies it with `Math.min` against the model's real window: **it can only SHRINK the window, never GROW it**. So it only takes effect when combined with `[1m]` (which raises the ceiling to 1M first). Current setting: `400000` → effective compaction ≈ 367K (400K minus ~33K output reserve).
+- **`compact_boundary` message** — CLI 2.1.85 emits this system message on compaction; older handling silently dropped it, so the frontend's "indicator only increases, never decreases" logic never reflected post-compact drops. `MessageProcessor` must handle it.
+
+**Rule**: When adding a new model that the installed CLI may not recognize, always ship it with the `[1m]` suffix + `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, otherwise the context indicator breaks. The `MODEL_CONTEXT_WINDOWS` table in `constants.ts` is the plugin-side source of truth for display.
+
 ## Version Release Checklist
 
 When bumping the version, update **all five locations**:

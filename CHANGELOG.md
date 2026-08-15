@@ -2,6 +2,14 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.1.5] - 2026-08-16
+
+### Added
+- **Headless runtime constraints prompt** — every session now injects a `--append-system-prompt` block telling the model that the CLI runs headless (`-p`) and exits after each reply, so it must not rely on background processes, sleep/polling loops, timers, or scheduled reminders surviving across turns (these get killed or orphaned when the reply ends). Steers the model toward OS-level schedulers (Windows `schtasks` / Task Scheduler) or file-persisted progress for long-running work (see anthropics/claude-code#52917, #61568, #43944)
+
+### Changed
+- `--append-system-prompt` assembly is unified: the headless-constraints block is always sent, and MCP system prompts are appended to it when MCP is configured (previously MCP prompts were pushed as a separate argument)
+
 ## [4.1.4] - 2026-07-19
 
 ### Added
