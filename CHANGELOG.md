@@ -2,6 +2,23 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.1.6] - 2026-09-23
+
+### Added
+- **Fable 5.1 model support** — new flagship `claude-fable-5-1` (Mythos-class, 1M context, $10/$50): registered in `VALID_MODELS`, `MODEL_DISPLAY_NAMES`, `MODEL_CONTEXT_WINDOWS`, `MODEL_PRICING`, the `_setSelectedModel` switch, and the model selector UI (above Fable 5). Ships with the `[1m]` context-injection path so the installed CLI treats it as a real 1M-window model
+- **API Key Clear button** — the settings panel now has an explicit Clear button that deletes the key from SecretStorage (`clearApiKey` message → `deleteAnthropicApiKey()`). Deleting via a blank input is intentionally NOT supported, to guard against accidental wipes when the panel loads before the stored key is populated
+- **API Key masked preview & plaintext toggle** — a grey preview under the input shows `sk-ant-***-xxxx` (first 7 + `***` + last 4; keys shorter than 12 chars show only `***`), plus an eye button to temporarily reveal/hide the key. Preview is rendered via `textContent` (no XSS)
+
+### Fixed
+- **Global MCP servers dropping to project level on unrelated setting changes** — clicking the "Use Custom API Endpoint" toggle (or changing any setting) used to flatten global MCP config into the workspace layer and wipe the global list. Root cause: the generic `updateSettings()` collected all `.mcp-server-item` elements across both panels into a scope-less array. MCP servers now flow exclusively through the scope-isolated path (`updateMcpServers`), and the backend defensively strips any `mcp.servers` from the generic settings path
+- `mcp.enabled` is now always written to the user (global) level as a master switch, instead of being duplicated per-project into `.vscode/settings.json`
+
+### Changed
+- Opus 4.7 is hidden from the model selector (community-reported regressions); its data definitions are kept for historical session display and pricing, matching the earlier Opus 4.5 treatment
+- Removed the dead "MCP config target" mechanism (the `mcpConfigTarget` dropdown never existed in the DOM): dropped `_mcpConfigTarget` field/getter/setter, `updateMcpSettings()`, `migrateMcpToWorkspace()`, the `setMcpConfigTarget` message path, and the `cleanupMcpServersFromOtherLevel()` "write-one-clear-the-other" logic that was the direct executor of the global-config wipe. No UI change
+
+> **MCP data recovery note**: if you were affected by the global-MCP-wipe bug, your global `mcp.servers` were deleted but a complete copy remains in the project's `.vscode/settings.json`. You can move them back manually, or simply re-add the servers as **global** in the MCP panel.
+
 ## [4.1.5] - 2026-08-16
 
 ### Added

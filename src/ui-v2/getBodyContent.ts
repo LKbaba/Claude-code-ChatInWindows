@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.5</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.6</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -553,7 +553,12 @@ export function getBodyContent(): string {
 					<div id="apiOptions" style="margin-left: 24px; margin-top: 12px; display: none;">
 						<div style="margin-bottom: 12px;">
 							<label for="api-key" style="display: block; font-size: 12px; margin-bottom: 4px;">API Key</label>
-							<input type="password" id="api-key" placeholder="sk-ant-xxxxxxxxxx" style="width: 100%; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;" onchange="updateSettings()">
+							<div style="display: flex; gap: 6px; align-items: center;">
+								<input type="password" id="api-key" placeholder="sk-ant-xxxxxxxxxx" style="flex: 1; min-width: 0; padding: 6px 8px; font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px;" onchange="updateSettings(); updateApiKeyPreview();">
+								<button type="button" id="api-key-toggle" onclick="toggleApiKeyVisibility()" title="Show/Hide API Key" style="flex: none; padding: 6px 8px; font-size: 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid var(--vscode-input-border); border-radius: 4px; cursor: pointer;">👁</button>
+								<button type="button" onclick="clearApiKey()" title="Clear API Key" style="flex: none; padding: 6px 8px; font-size: 12px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid var(--vscode-input-border); border-radius: 4px; cursor: pointer;">Clear</button>
+							</div>
+							<div id="api-key-preview" style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 4px;"></div>
 						</div>
 						<div style="margin-bottom: 12px;">
 							<label for="api-baseUrl" style="display: block; font-size: 12px; margin-bottom: 4px;">Base URL</label>
@@ -615,6 +620,15 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+				<div class="tool-item" onclick="selectModel('claude-fable-5-1')">
+					<input type="radio" name="model" id="model-fable-5-1" value="claude-fable-5-1">
+					<label for="model-fable-5-1">
+						<div class="model-title">Fable 5.1 - Latest flagship (Mythos-class)</div>
+						<div class="model-description">
+							Best for agentic coding & research · 1M context · cheap cache reads
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" onclick="selectModel('claude-fable-5')">
 					<input type="radio" name="model" id="model-fable-5" value="claude-fable-5">
 					<label for="model-fable-5">
@@ -630,15 +644,6 @@ export function getBodyContent(): string {
 						<div class="model-title">Opus 4.8 - Latest flagship model</div>
 						<div class="model-description">
 							Adaptive thinking, 4× better code self-check & 1M context
-						</div>
-					</label>
-				</div>
-				<div class="tool-item" onclick="selectModel('claude-opus-4-7')">
-					<input type="radio" name="model" id="model-opus-4-7" value="claude-opus-4-7">
-					<label for="model-opus-4-7">
-						<div class="model-title">Opus 4.7 - Previous flagship model</div>
-						<div class="model-description">
-							Enhanced vision, self-verification & 1M context
 						</div>
 					</label>
 				</div>

@@ -4,7 +4,7 @@
  */
 
 import * as cp from 'child_process';
-import { VsCodeConfigManager, VsCodeSettings, McpConfigTarget } from './VsCodeConfigManager';
+import { VsCodeConfigManager, VsCodeSettings } from './VsCodeConfigManager';
 import { McpConfigManager, McpStatus } from './McpConfigManager';
 import { ApiConfigManager, ApiConfig, WindowsConfig } from './ApiConfigManager';
 
@@ -136,20 +136,5 @@ export class ConfigurationManagerFacade {
      */
     public async cleanupOldMcpConfigs(): Promise<void> {
         return this.mcpManager.cleanupOldMcpConfigs();
-    }
-
-    /**
-     * Set MCP configuration save target
-     * @param target 'user' or 'workspace'
-     */
-    public setMcpConfigTarget(target: McpConfigTarget): void {
-        this.vsCodeManager.setMcpConfigTarget(target);
-    }
-
-    /**
-     * Get MCP configuration save target
-     */
-    public getMcpConfigTarget(): McpConfigTarget {
-        return this.vsCodeManager.getMcpConfigTarget();
     }
 }

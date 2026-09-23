@@ -3,7 +3,10 @@
  * Manages general settings for the VS Code extension
  *
  * Configuration save strategy:
- * - MCP related config (mcp.enabled, mcp.servers): Saved to workspace level for project isolation
+ * - mcp.enabled: a master switch (not per-project state) — saved to user level (global)
+ * - mcp.servers: NOT handled here; managed exclusively via the scope-isolated
+ *   path A (_updateMcpServersForScope), which writes global/workspace explicitly
+ * - language.* / thinking.*: saved to workspace level for project isolation
  * - Other config: Saved to user level (global)
  */
 
@@ -17,33 +20,7 @@ export interface VsCodeSettings {
     [key: string]: any;
 }
 
-/**
- * MCP configuration save target
- */
-export type McpConfigTarget = 'user' | 'workspace';
-
 export class VsCodeConfigManager {
-    /**
-     * Current MCP configuration save target level
-     * Defaults to 'workspace' for project-specific MCP configuration
-     */
-    private _mcpConfigTarget: McpConfigTarget = 'workspace';
-
-    /**
-     * Get MCP configuration save target
-     */
-    public getMcpConfigTarget(): McpConfigTarget {
-        return this._mcpConfigTarget;
-    }
-
-    /**
-     * Set MCP configuration save target
-     */
-    public setMcpConfigTarget(target: McpConfigTarget): void {
-        this._mcpConfigTarget = target;
-        debugLog('VsCodeConfigManager', `MCP config target changed to: ${target}`);
-    }
-
     /**
      * Get current active editor's resource URI
      * Used for getting correct configuration scope in multi-root workspace
@@ -166,13 +143,11 @@ export class VsCodeConfigManager {
                 return vscode.ConfigurationTarget.Global;
             }
 
-            // MCP config is controlled by mcpConfigTarget
+            // mcp.enabled is a master switch, not per-project state — always user level.
+            // (mcp.servers never reaches here: it is stripped from the generic settings
+            // path and handled exclusively by the scope-isolated path A.)
             if (this.isMcpRelatedKey(key)) {
-                if (this._mcpConfigTarget === 'workspace') {
-                    return vscode.ConfigurationTarget.Workspace;
-                } else {
-                    return vscode.ConfigurationTarget.Global;
-                }
+                return vscode.ConfigurationTarget.Global;
             }
 
             // Language mode and thinking mode default to workspace level
@@ -186,10 +161,8 @@ export class VsCodeConfigManager {
 
     /**
      * Update extension settings
-     * MCP related config will be saved to level based on mcpConfigTarget
-     *
-     * Important: For mcp.servers, need to clean up config from the other level,
-     * otherwise configs from both levels will merge and delete won't work
+     * Each key is routed to its configuration level via getConfigTargetForKey().
+     * mcp.servers is never processed here (handled by the scope-isolated path A).
      *
      * @param settings Settings to update
      * @returns Promise when settings update completes
@@ -203,117 +176,6 @@ export class VsCodeConfigManager {
 
             debugLog('VsCodeConfigManager', `Saving config "${key}" to ${targetName} level`);
             await config.update(key, value, target);
-
-            // For mcp.servers, need to clean up config from other level
-            // Otherwise configs will merge and delete won't seem to work
-            if (key === 'mcp.servers') {
-                await this.cleanupMcpServersFromOtherLevel(config, target, value);
-            }
-        }
-    }
-
-    /**
-     * Clean up mcp.servers config from the other level
-     * Ensures delete operations work correctly
-     *
-     * Strategy:
-     * - If saved to user level: clear workspace level mcp.servers
-     * - If saved to workspace level: clear user level mcp.servers
-     *
-     * @param config VS Code configuration object
-     * @param savedTarget Target level already saved to
-     * @param newServers New server list
-     */
-    private async cleanupMcpServersFromOtherLevel(
-        config: vscode.WorkspaceConfiguration,
-        savedTarget: vscode.ConfigurationTarget,
-        _newServers: any[]
-    ): Promise<void> {
-        // Check if workspace exists
-        const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
-        if (!hasWorkspace) {
-            // No workspace, no need to clean
-            return;
-        }
-
-        const serversInspect = config.inspect<any[]>('mcp.servers');
-
-        if (savedTarget === vscode.ConfigurationTarget.Global) {
-            // Saved to user level, need to clear workspace level
-            if (serversInspect?.workspaceValue !== undefined) {
-                debugLog('VsCodeConfigManager', 'Clearing workspace level mcp.servers (prevent config merge)');
-                await config.update('mcp.servers', undefined, vscode.ConfigurationTarget.Workspace);
-            }
-        } else if (savedTarget === vscode.ConfigurationTarget.Workspace) {
-            // Saved to workspace level, need to clear user level
-            if (serversInspect?.globalValue !== undefined) {
-                debugLog('VsCodeConfigManager', 'Clearing user level mcp.servers (prevent config merge)');
-                await config.update('mcp.servers', undefined, vscode.ConfigurationTarget.Global);
-            }
-        }
-    }
-
-    /**
-     * Method specifically for updating MCP configuration
-     * Can specify to save to user or workspace level
-     * @param settings MCP related settings
-     * @param target Save target: 'user' | 'workspace'
-     */
-    public async updateMcpSettings(
-        settings: { [key: string]: any },
-        target: McpConfigTarget = 'workspace'
-    ): Promise<void> {
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        const vsTarget = target === 'workspace'
-            ? vscode.ConfigurationTarget.Workspace
-            : vscode.ConfigurationTarget.Global;
-
-        // If no workspace and target is workspace, fall back to global
-        if (target === 'workspace' && (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0)) {
-            debugLog('VsCodeConfigManager', 'No workspace, MCP config saved to user level');
-            for (const [key, value] of Object.entries(settings)) {
-                await config.update(key, value, vscode.ConfigurationTarget.Global);
-            }
-            return;
-        }
-
-        const targetName = target === 'workspace' ? 'workspace' : 'user';
-        for (const [key, value] of Object.entries(settings)) {
-            debugLog('VsCodeConfigManager', `Saving MCP config "${key}" to ${targetName} level`);
-            await config.update(key, value, vsTarget);
-        }
-    }
-
-    /**
-     * Migrate current user-level MCP config to workspace level
-     * Used to convert global config to project-specific config
-     */
-    public async migrateMcpToWorkspace(): Promise<void> {
-        if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-            vscode.window.showWarningMessage('Cannot migrate MCP config: no workspace is open');
-            return;
-        }
-
-        const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        const enabledInspect = config.inspect<boolean>('mcp.enabled');
-        const serversInspect = config.inspect<any[]>('mcp.servers');
-
-        // Get user level values
-        const userEnabled = enabledInspect?.globalValue;
-        const userServers = serversInspect?.globalValue;
-
-        // If user level config exists, copy to workspace level
-        if (userEnabled !== undefined || (userServers && userServers.length > 0)) {
-            if (userEnabled !== undefined) {
-                await config.update('mcp.enabled', userEnabled, vscode.ConfigurationTarget.Workspace);
-            }
-            if (userServers && userServers.length > 0) {
-                await config.update('mcp.servers', userServers, vscode.ConfigurationTarget.Workspace);
-            }
-            debugLog('VsCodeConfigManager', 'MCP config migrated to workspace level');
-            vscode.window.showInformationMessage('MCP config copied to current workspace');
-        } else {
-            vscode.window.showInformationMessage('No user level MCP config found to migrate');
         }
     }
 

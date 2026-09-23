@@ -77,6 +77,7 @@ export class ClaudeChatProvider {
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
 		// Fable model series pricing (5th-gen flagship, Mythos-class)
+		['claude-fable-5-1', { input: 10.00, output: 50.00 }],            // Fable 5.1 latest flagship, 1M context (requires CLI >= 2.1.251)
 		['claude-fable-5', { input: 10.00, output: 50.00 }],              // Fable 5 flagship, 1M context (requires CLI >= 2.1.170)
 		// Opus model series pricing
 		['claude-opus-4-8', { input: 5.00, output: 25.00 }],               // Opus 4.8 latest flagship (May 2026)
@@ -281,16 +282,15 @@ export class ClaudeChatProvider {
 					case 'updateSettings':
 						this._updateSettings(message.settings);
 						return;
+					case 'clearApiKey':
+						this._clearApiKey();
+						return;
 					case 'updateMcpServers':
 						// Update MCP server configuration for the specified scope
 						this._updateMcpServersForScope(message.scope, message.servers);
 						return;
 					case 'testMcpConnection':
 						this._testMcpConnection();
-						return;
-					case 'setMcpConfigTarget':
-						// Set MCP configuration save target ('user' or 'workspace')
-						this._configurationManager.setMcpConfigTarget(message.target);
 						return;
 					case 'getMcpTools':
 						this._getMcpTools(message.serverId, message.serverName);
@@ -1997,11 +1997,28 @@ export class ClaudeChatProvider {
 		// DEBUG: console.log('Updating settings:', settings);
 
 		try {
+			// Defense against MCP scope corruption (updatePRDv2 F3):
+			// The generic settings path must NEVER write mcp.servers — it carries
+			// no scope info and would flatten global config into the workspace layer.
+			// MCP servers are managed exclusively via the scope-isolated path A
+			// ('updateMcpServers' -> _updateMcpServersForScope). Strip it defensively
+			// in case a stale/cached webview still sends it.
+			if (settings['mcp.servers'] !== undefined) {
+				debugWarn('ClaudeChatProvider', 'Ignoring mcp.servers in generic updateSettings — MCP servers must go through the scope-isolated path');
+				delete settings['mcp.servers'];
+			}
+
 			// Intercept api.key — route to SecretStorage instead of settings.json
 			if (settings['api.key'] !== undefined) {
 				const keyValue = settings['api.key'] as string;
 				if (keyValue) {
 					await secretService.setAnthropicApiKey(keyValue);
+				} else {
+					// Empty value is intentionally ignored here — clearing the key is an
+					// explicit action via the Clear button ('clearApiKey' message), not an
+					// implicit side effect of a blank input (guards against accidental
+					// deletion when the panel loads before the stored key is populated).
+					debugLog('ClaudeChatProvider', 'Empty api.key in updateSettings ignored — use Clear button to delete');
 				}
 				// Remove from settings object so it is not written to settings.json
 				const settingsWithoutKey = { ...settings };
@@ -2021,6 +2038,24 @@ export class ClaudeChatProvider {
 		} catch (error) {
 			debugError('ClaudeChatProvider', 'Failed to update settings', error);
 			vscode.window.showErrorMessage('Failed to update settings');
+		}
+	}
+
+	/**
+	 * Explicitly delete the Anthropic API key from SecretStorage.
+	 * Triggered by the Clear button in the settings panel ('clearApiKey' message).
+	 * Re-sends current settings so the panel reflects the cleared state.
+	 */
+	private async _clearApiKey(): Promise<void> {
+		try {
+			await secretService.deleteAnthropicApiKey();
+			debugLog('ClaudeChatProvider', 'Anthropic API key cleared from SecretStorage');
+			vscode.window.showInformationMessage('API key cleared');
+			// Refresh the panel so the input/preview reflect the cleared state
+			this._sendCurrentSettings();
+		} catch (error) {
+			debugError('ClaudeChatProvider', 'Failed to clear API key', error);
+			vscode.window.showErrorMessage('Failed to clear API key');
 		}
 	}
 
@@ -3167,6 +3202,14 @@ export class ClaudeChatProvider {
 			let message: string;
 
 			switch (model) {
+				case 'claude-fable-5-1':
+					displayName = 'Fable 5.1';
+					message = `Claude model switched to: ${displayName} (Latest flagship, Mythos-class — best for agentic coding & research, 1M context)`;
+					break;
+				case 'claude-fable-5':
+					displayName = 'Fable 5';
+					message = `Claude model switched to: ${displayName} (5th-gen flagship, Mythos-class, 1M context)`;
+					break;
 				case 'claude-opus-4-8':
 					displayName = 'Opus 4.8';
 					message = `Claude model switched to: ${displayName} (Latest flagship with adaptive thinking, 4× better code self-check & 1M context)`;

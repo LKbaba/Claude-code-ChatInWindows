@@ -2653,6 +2653,7 @@ export const uiScript = `
 		// Model display names (single definition for the entire UI)
 		const modelDisplayNames = {
 			'opus': 'Opus',
+			'claude-fable-5-1': 'Fable 5.1',
 			'claude-fable-5': 'Fable 5',
 			'claude-opus-4-8': 'Opus 4.8',
 			'claude-opus-4-7': 'Opus 4.7',
@@ -2687,15 +2688,17 @@ export const uiScript = `
 			// If modal is open, update radio button state
 			// Handle long model names with special processing
 			let radioId = 'model-' + model;
-			if (model === 'claude-fable-5') {
+			if (model === 'claude-fable-5-1') {
+				radioId = 'model-fable-5-1';
+			} else if (model === 'claude-fable-5') {
 				radioId = 'model-fable-5';
 			} else if (model === 'claude-opus-4-8') {
 				radioId = 'model-opus-4-8';
-			} else if (model === 'claude-opus-4-7') {
-				radioId = 'model-opus-4-7';
 			} else if (model === 'claude-opus-4-6') {
 				radioId = 'model-opus-4-6';
 			}
+			// Note: claude-opus-4-7 branch removed — UI radio no longer exists,
+			// but modelDisplayNames map above still resolves the title text for history sessions.
 			// Note: claude-opus-4-5 branch removed — UI radio no longer exists,
 			// but modelDisplayNames map above still resolves the title text for history sessions.
 			else if (model === 'claude-sonnet-5') {
@@ -3395,12 +3398,6 @@ export const uiScript = `
 					mcpOptionsDiv.style.display = message.data['mcp.enabled'] ? 'block' : 'none';
 				}
 
-				// Load MCP config target (configuration save location)
-				const mcpConfigTargetSelect = document.getElementById('mcpConfigTarget');
-				if (mcpConfigTargetSelect) {
-					mcpConfigTargetSelect.value = message.data['mcp.configTarget'] || 'workspace';
-				}
-
 				// Display config source info
 				const mcpConfigSource = message.data['mcp.configSource'];
 				const mcpConfigSourceInfo = document.getElementById('mcpConfigSourceInfo');
@@ -3429,6 +3426,7 @@ export const uiScript = `
 				// Load API configuration
 				document.getElementById('api-useCustomAPI').checked = message.data['api.useCustomAPI'] || false;
 				document.getElementById('api-key').value = message.data['api.key'] || '';
+				updateApiKeyPreview();
 				document.getElementById('api-baseUrl').value = message.data['api.baseUrl'] || 'https://api.anthropic.com';
 				document.getElementById('api-cliCommand').value = message.data['api.cliCommand'] || 'claude';  // Load CLI command name config
 				document.getElementById('apiOptions').style.display = message.data['api.useCustomAPI'] ? 'block' : 'none';
@@ -4298,19 +4296,6 @@ export const uiScript = `
 			vscode.postMessage({
 				type: 'testMcpConnection'
 			});
-		}
-
-		// Update MCP config save target (workspace or user)
-		function updateMcpConfigTarget() {
-			const selector = document.getElementById('mcpConfigTarget');
-			if (selector) {
-				const target = selector.value;
-				console.log('[MCP] Config target changed to:', target);
-				vscode.postMessage({
-					type: 'setMcpConfigTarget',
-					target: target
-				});
-			}
 		}
 
 		function updateMcpStatus(data) {
@@ -5500,6 +5485,49 @@ export const uiScript = `
 			updateSettings();
 		}
 
+		// Build a masked preview of an API key.
+		// Length >= 12: first 7 + '***' + last 4 (e.g. sk-ant-***-abcd).
+		// Length < 12: only '***' to avoid exposing a short key entirely.
+		function maskApiKey(key) {
+			if (!key) return '';
+			if (key.length < 12) return '***';
+			return key.slice(0, 7) + '***' + key.slice(-4);
+		}
+
+		// Refresh the masked preview element from the current input value.
+		// Uses textContent (never innerHTML) to prevent XSS.
+		function updateApiKeyPreview() {
+			const input = document.getElementById('api-key');
+			const preview = document.getElementById('api-key-preview');
+			if (!input || !preview) return;
+			preview.textContent = maskApiKey(input.value);
+		}
+
+		// Toggle the API key input between masked (password) and plaintext (text).
+		// Temporary view state only — nothing is persisted.
+		function toggleApiKeyVisibility() {
+			const input = document.getElementById('api-key');
+			const toggle = document.getElementById('api-key-toggle');
+			if (!input) return;
+			if (input.type === 'password') {
+				input.type = 'text';
+				if (toggle) toggle.textContent = '🙈';
+			} else {
+				input.type = 'password';
+				if (toggle) toggle.textContent = '👁';
+			}
+		}
+
+		// Explicitly clear the stored API key (does NOT rely on empty-value-deletes).
+		// Clears the input, resets the preview, and asks the backend to delete
+		// the key from SecretStorage.
+		function clearApiKey() {
+			const input = document.getElementById('api-key');
+			if (input) input.value = '';
+			updateApiKeyPreview();
+			vscode.postMessage({ type: 'clearApiKey' });
+		}
+
 		function updateSettings() {
 			console.log('updateSettings called');
 			// Note: thinking intensity is now handled separately in the thinking intensity modal
@@ -5522,92 +5550,12 @@ export const uiScript = `
 				}
 			}
 
-			// Collect MCP servers configuration
-			const mcpServers = [];
-			const serverElements = document.querySelectorAll('.mcp-server-item');
-			console.log('Found server elements:', serverElements.length);
-			serverElements.forEach((serverEl) => {
-				const serverType = serverEl.getAttribute('data-server-type');
-				const nameInput = serverEl.querySelector('input.mcp-server-name');
-
-				if (!nameInput || !nameInput.value) {
-					console.log('Missing name input, skipping server');
-					return;
-				}
-
-				const name = nameInput.value;
-
-				// ===== HTTP/SSE mode =====
-				if (serverType === 'http' || serverType === 'sse') {
-					const urlInput = serverEl.querySelector('input.mcp-server-url');
-
-					if (!urlInput || !urlInput.value) {
-						console.log('HTTP/SSE server missing URL, skipping');
-						return;
-					}
-
-					const server = {
-						name: name,
-						type: serverType,
-						url: urlInput.value
-					};
-
-					// Collect headers
-					const headerRows = serverEl.querySelectorAll('.headers-container > div');
-					if (headerRows.length > 0) {
-						const headers = {};
-						headerRows.forEach(row => {
-							const keyInput = row.querySelector('.header-key');
-							const valueInput = row.querySelector('.header-value');
-							if (keyInput && valueInput && keyInput.value && valueInput.value) {
-								headers[keyInput.value] = valueInput.value;
-							}
-						});
-						if (Object.keys(headers).length > 0) {
-							server.headers = headers;
-						}
-					}
-
-					mcpServers.push(server);
-					console.log('Added HTTP/SSE server:', server);
-				}
-				// ===== stdio mode (original logic) =====
-				else {
-					const commandInput = serverEl.querySelector('input.mcp-server-command');
-					const argsInput = serverEl.querySelector('input.mcp-server-args');
-					const envInput = serverEl.querySelector('input.mcp-server-env');
-
-					console.log('Server inputs found:', { nameInput, commandInput, argsInput, envInput });
-
-					if (!commandInput) {
-						console.log('Missing required command input, skipping server');
-						return;
-					}
-
-					const command = commandInput.value;
-					const args = argsInput ? argsInput.value : '';
-					const env = envInput ? envInput.value : '';
-
-					if (name && command) {
-						const server = { name, command };
-						if (args) server.args = args.split(' ').filter(arg => arg.trim());
-						if (env) {
-							try {
-								server.env = JSON.parse(env);
-							} catch (e) {
-								// If JSON parsing fails, try key=value format
-								server.env = {};
-								env.split(',').forEach(pair => {
-									const [key, value] = pair.split('=').map(s => s.trim());
-									if (key && value) server.env[key] = value;
-								});
-							}
-						}
-						mcpServers.push(server);
-						console.log('Added stdio server:', server);
-					}
-				}
-			});
+			// NOTE: MCP server list is intentionally NOT collected here.
+			// MCP servers are scope-isolated and only flow through path A
+			// (updateMcpSettingsForScope -> 'updateMcpServers' message ->
+			// _updateMcpServersForScope). Collecting them here via a flat,
+			// scope-less querySelectorAll caused global MCP config to be
+			// overwritten into the workspace layer. See updatePRDv2 F3.
 
 			// Collect API configuration
 			const useCustomAPI = document.getElementById('api-useCustomAPI').checked;
@@ -5616,7 +5564,6 @@ export const uiScript = `
 			const apiCliCommand = document.getElementById('api-cliCommand').value || 'claude';  // Collect CLI command name config
 
 			// Send settings to VS Code immediately
-			console.log('Updating settings with MCP servers:', mcpServers);
 			console.log('Updating API settings:', { useCustomAPI, hasKey: !!apiKey, baseUrl: apiBaseUrl, cliCommand: apiCliCommand });
 
 			// Only send MCP settings since WSL elements don't exist in the UI
@@ -5625,7 +5572,6 @@ export const uiScript = `
 					type: 'updateSettings',
 					settings: {
 						'mcp.enabled': mcpEnabledCheckbox.checked,
-						'mcp.servers': mcpServers,
 						'api.useCustomAPI': useCustomAPI,
 						'api.key': apiKey,
 						'api.baseUrl': apiBaseUrl,
@@ -5707,6 +5653,9 @@ export const uiScript = `
 		window.toggleStats = toggleStats;
 		window.toggleConversationHistory = toggleConversationHistory;
 		window.toggleApiOptions = toggleApiOptions;
+		window.clearApiKey = clearApiKey;
+		window.toggleApiKeyVisibility = toggleApiKeyVisibility;
+		window.updateApiKeyPreview = updateApiKeyPreview;
 		// Gemini Integration function mounting
 		window.toggleGeminiOptions = toggleGeminiOptions;
 		window.updateGeminiApiKey = updateGeminiApiKey;

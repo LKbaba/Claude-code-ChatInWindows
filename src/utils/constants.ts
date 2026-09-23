@@ -10,9 +10,10 @@ export const VALID_MODELS = [
     'sonnet',
     'default',
     'opusplan',                       // Opus Plan hybrid mode
+    'claude-fable-5-1',               // Fable 5.1 - Latest flagship (Mythos-class), 1M context; requires CLI >= 2.1.251
     'claude-fable-5',                 // Fable 5 - 5th-gen flagship (Mythos-class), 1M context; requires CLI >= 2.1.170
     'claude-opus-4-8',                // Opus 4.8 - Latest flagship with adaptive thinking & enhanced reliability
-    'claude-opus-4-7',                // Opus 4.7 - Previous flagship with enhanced vision & self-verification
+    'claude-opus-4-7',                // Opus 4.7 - Legacy (hidden from UI but kept for history/pricing)
     'claude-opus-4-6',                // Opus 4.6 - Previous flagship with Adaptive Thinking
     'claude-opus-4-5-20251101',       // Opus 4.5 - Legacy (hidden from UI but kept for history/pricing)
     'claude-sonnet-5',                // Sonnet 5 - Most agentic Sonnet, new tokenizer; requires CLI >= 2.1.197
@@ -27,6 +28,7 @@ export type ValidModel = typeof VALID_MODELS[number];
  */
 export const MODEL_DISPLAY_NAMES: Record<string, string> = {
     'opus': 'Opus',
+    'claude-fable-5-1': 'Fable 5.1',
     'claude-fable-5': 'Fable 5',
     'claude-opus-4-8': 'Opus 4.8',
     'claude-opus-4-7': 'Opus 4.7',
@@ -117,6 +119,7 @@ export const FILE_SIZE_LIMITS = {
  */
 export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
     // 1M-context models
+    'claude-fable-5-1': 1_000_000,
     'claude-fable-5': 1_000_000,
     'claude-sonnet-5': 1_000_000,
     'claude-opus-4-8': 1_000_000,
