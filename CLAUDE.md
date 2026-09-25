@@ -151,6 +151,28 @@ The context-window indicator and auto-compaction are controlled by **CLI-side be
 
 **Rule**: When adding a new model that the installed CLI may not recognize, always ship it with the `[1m]` suffix + `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, otherwise the context indicator breaks. The `MODEL_CONTEXT_WINDOWS` table in `constants.ts` is the plugin-side source of truth for display.
 
+**Update (CLI 2.1.280, docs only, not yet tested)**: the CLI now natively knows the 1M window for Opus 4.7+, Sonnet 5 and Fable 5/5.1; only Opus 4.6 / Sonnet 4.6 still need `[1m]`. The suffix is harmless on the others, so keep it until tested.
+
+### 9. Task-Tracking Tools Are Off by Default on New Models (v4.1.7)
+
+Since CLI 2.1.233, `TodoWrite` / `TaskCreate`-family tools are omitted on Opus 4.8+, Sonnet 5, Fable 5+ and any unrecognized model ID — the todo checklist silently disappears. Even where they exist, the CLI defaults to `TaskCreate/TaskUpdate/TaskList/TaskGet` (one item per call), while the UI only renders `TodoWrite` (full list per call).
+
+**Fix**: `ClaudeProcessService` injects `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` + `CLAUDE_CODE_ENABLE_TASKS=0` (user-set values win). If a future CLI removes `TodoWrite`, the UI must track Task-tool state itself. See `specs/updatePRDv4.md` §3.
+
+### 10. Per-Turn CLI Process (Architecture Constraint)
+
+Each user turn spawns a new CLI, writes one stdin message, then closes stdin (`--resume` carries context). Consequences: background Bash tasks such as dev servers die ~5s after the turn ends; no mid-turn input; stop = `taskkill`; `/loop`, Channels and permission prompts are unavailable. Features that need a long-lived process are blocked until a streaming-input rewrite. Do NOT add `--permission-prompts none` — it removes the `AskUserQuestion` tool the UI relies on.
+
+### 11. Windows Spawn Argument Concatenation (v4.1.7)
+
+On Windows, `claude.cmd` must be spawned with `shell: true`, and Node then joins file + args into one cmd.exe line with **no quoting or escaping** (and prints `DEP0190`). Failures are silent — the CLI ignores stray words and keeps running.
+
+- Multi-line text must go through a file: the appended system prompt is written to `%TEMP%\claude-chatui\append-system-prompt-<hash>.md` and passed via `--append-system-prompt-file`. Passing it inline via `--append-system-prompt` delivered only `#` from v4.1.5 until v4.1.7.
+- Args with spaces (executable path, `--mcp-config` under `C:\Users\John Smith`) are quoted by `_quoteForCmd()`, and the full command line is built by the plugin before `cp.spawn(commandLine, { shell: true })`.
+- **Verify any change here** with a stand-in `.cmd` that prints its argv — never trust that "it runs" means the args arrived intact. Mac uses `shell: false` and is unaffected.
+
+Official docs mirror (local, gitignored): `docs/md/INDEX.md` → `docs/md/claude-code/`, `agent-sdk/`, `api/`. Re-fetch with `node .tmp-docsync/fetch-docs.js`.
+
 ## Version Release Checklist
 
 When bumping the version, update **all five locations**:

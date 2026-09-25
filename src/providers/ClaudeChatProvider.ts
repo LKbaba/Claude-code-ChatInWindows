@@ -80,6 +80,8 @@ export class ClaudeChatProvider {
 		['claude-fable-5-1', { input: 10.00, output: 50.00 }],            // Fable 5.1 latest flagship, 1M context (requires CLI >= 2.1.251)
 		['claude-fable-5', { input: 10.00, output: 50.00 }],              // Fable 5 flagship, 1M context (requires CLI >= 2.1.170)
 		// Opus model series pricing
+		// NOTE: keep 'claude-opus-5-5' before any future 'claude-opus-5' entry — prefix fallback iterates insertion order
+		['claude-opus-5-5', { input: 4.00, output: 20.00 }],              // Opus 5.5 latest Opus flagship, 1M context (requires CLI >= 2.1.280)
 		['claude-opus-4-8', { input: 5.00, output: 25.00 }],               // Opus 4.8 latest flagship (May 2026)
 		['claude-opus-4-7', { input: 5.00, output: 25.00 }],               // Opus 4.7 previous flagship with self-verification
 		['claude-opus-4-6', { input: 5.00, output: 25.00 }],               // Opus 4.6 previous flagship with Adaptive Thinking
@@ -88,9 +90,9 @@ export class ClaudeChatProvider {
 		['claude-opus-4-20250514', { input: 15.00, output: 75.00 }],     // Opus 4
 		['claude-3-opus-20240229', { input: 15.00, output: 75.00 }],     // Claude 3 Opus
 		// Sonnet model series pricing
-		// Sonnet 5 standard price = $3/$15 (same as 4.6); promo until 8/31 is $2/$10.
-		// Note: new tokenizer produces ~30% more tokens for the same content, so effective cost is ~+30% at standard price.
-		['claude-sonnet-5', { input: 3.00, output: 15.00 }],             // Sonnet 5 most agentic Sonnet (requires CLI >= 2.1.197)
+		// Sonnet 5 = $2/$10: the launch price became permanent on 2026-08-10; the planned 9/1 rise to $3/$15 was cancelled.
+		// Note: new tokenizer produces ~30% more tokens for the same content than Sonnet 4.6.
+		['claude-sonnet-5', { input: 2.00, output: 10.00 }],             // Sonnet 5 most agentic Sonnet (requires CLI >= 2.1.197)
 		['claude-sonnet-4-6', { input: 3.00, output: 15.00 }],           // Sonnet 4.6 latest intelligent model
 		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 previous intelligent model
 		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }],    // Sonnet 4
@@ -3209,6 +3211,10 @@ export class ClaudeChatProvider {
 				case 'claude-fable-5':
 					displayName = 'Fable 5';
 					message = `Claude model switched to: ${displayName} (5th-gen flagship, Mythos-class, 1M context)`;
+					break;
+				case 'claude-opus-5-5':
+					displayName = 'Opus 5.5';
+					message = `Claude model switched to: ${displayName} (Latest Opus flagship — matches Fable 5.1 at much lower cost, 1M context)`;
 					break;
 				case 'claude-opus-4-8':
 					displayName = 'Opus 4.8';

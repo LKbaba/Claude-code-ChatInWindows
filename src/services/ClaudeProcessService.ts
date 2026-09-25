@@ -4,7 +4,9 @@
  */
 
 import * as cp from 'child_process';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { WindowsCompatibility, ExecutionEnvironment } from '../managers/WindowsCompatibility';
@@ -27,6 +29,25 @@ const HEADLESS_RUNTIME_CONSTRAINTS_PROMPT = `# Runtime Constraints (headless mod
 - NEVER rely on background processes, sleep/polling loops, timers, or scheduled reminders surviving across turns — they are killed or orphaned when the reply ends. Background tasks WITHIN a single reply are fine.
 - For persistent scheduled work, use OS-level schedulers instead (Windows: schtasks / Task Scheduler).
 - For long batch work: finish it within one reply, or persist progress to files and continue on the next user message.`;
+
+/**
+ * Nudge toward a visible checklist. Newer models (Opus 5.5 etc.) rarely call the
+ * task-tracking tools on their own even when enabled, so the UI checklist never
+ * appears. Wording follows whichever tool family the session actually gets
+ * (see the CLAUDE_CODE_ENABLE_TODO_TOOLS / CLAUDE_CODE_ENABLE_TASKS injection).
+ * Returns an empty string when the user has turned the tools off.
+ */
+function buildTaskTrackingPrompt(env: NodeJS.ProcessEnv): string {
+    const isOff = (value: string | undefined) => /^(0|false)$/i.test((value || '').trim());
+    if (isOff(env.CLAUDE_CODE_ENABLE_TODO_TOOLS ?? '1')) {
+        return '';
+    }
+    const howTo = isOff(env.CLAUDE_CODE_ENABLE_TASKS ?? '0')
+        ? 'create a TodoWrite checklist first and keep it updated as you work (one item in_progress at a time)'
+        : 'add each step with TaskCreate first and mark progress with TaskUpdate as you work (one item in_progress at a time)';
+    return `# Task Tracking
+- For tasks with 3 or more distinct steps, ${howTo}. Skip it for simple questions or single-step work.`;
+}
 
 export interface ProcessOptions {
     message: string;
@@ -119,6 +140,8 @@ export class ClaudeProcessService {
                 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY',
                 'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_GENAI_USE_VERTEXAI', 'GOOGLE_CLOUD_PROJECT',
                 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
+                'CLAUDE_CODE_ENABLE_TODO_TOOLS', 'CLAUDE_CODE_ENABLE_TASKS',
+                'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
             ];
             const summary: Record<string, string> = {};
             for (const k of keysOfInterest) {
@@ -137,7 +160,18 @@ export class ClaudeProcessService {
             debugError('ClaudeProcessService:env-probe', 'Failed to dump env', e);
         }
 
-        this._currentProcess = cp.spawn(execEnvironment.claudeExecutablePath, args, { ...execEnvironment.spawnOptions, cwd: fixedCwd });
+        const spawnOptions = { ...execEnvironment.spawnOptions, cwd: fixedCwd };
+        if (process.platform === 'win32' && spawnOptions.shell) {
+            // With shell: true, Node joins file + args into one cmd.exe line without escaping
+            // (and warns DEP0190). Build the line ourselves with every part quoted as needed,
+            // so paths with spaces (executable or args) survive and no warning is emitted.
+            const commandLine = [execEnvironment.claudeExecutablePath, ...args]
+                .map(ClaudeProcessService._quoteForCmd)
+                .join(' ');
+            this._currentProcess = cp.spawn(commandLine, spawnOptions);
+        } else {
+            this._currentProcess = cp.spawn(execEnvironment.claudeExecutablePath, args, spawnOptions);
+        }
 
         // Send JSON-formatted user message to stdin
         if (this._currentProcess.stdin) {
@@ -146,6 +180,13 @@ export class ClaudeProcessService {
             const jsonMessage = JSON.stringify(userMessage);
             debugLog('ClaudeProcessService', `Sending JSON message to stdin: ${jsonMessage.substring(0, 200)}...`);
             this._currentProcess.stdin.write(jsonMessage + '\n');
+            // Per-turn process model ("single message input"): closing stdin here makes the
+            // CLI exit after this turn; the next turn spawns a new process with --resume.
+            // Known consequences (CLI 2.1.280, see docs headless.md / streaming-vs-single-mode.md):
+            // - background Bash tasks (e.g. dev servers) are killed ~5s after the final result
+            // - no mid-turn user input, no soft interrupt (stop = taskkill), no /loop or Channels
+            // Keeping stdin open (streaming input mode) would lift these but needs a lifecycle
+            // rewrite; deferred, tracked in specs/updatePRDv4.md.
             this._currentProcess.stdin.end();
         }
         
@@ -228,6 +269,19 @@ export class ClaudeProcessService {
         debugLog('ClaudeProcessService', 'Injected CLAUDE_CODE_AUTO_COMPACT_WINDOW', {
             contextWindowTokens: contextWindowTokens
         });
+
+        // Task-tracking tools: since CLI 2.1.233 they are omitted on newer models
+        // (Opus 4.8+, Sonnet 5, Fable 5+), so the todo checklist never shows up.
+        // CLAUDE_CODE_ENABLE_TODO_TOOLS=1 brings them back on every model, and
+        // CLAUDE_CODE_ENABLE_TASKS=0 picks the TodoWrite variant (full list per call)
+        // that the UI renders as a checklist, instead of TaskCreate/TaskUpdate.
+        // Values already present in the inherited environment win.
+        const inheritedEnv = execEnvironment.spawnOptions.env || {};
+        execEnvironment.spawnOptions.env = {
+            ...inheritedEnv,
+            CLAUDE_CODE_ENABLE_TODO_TOOLS: inheritedEnv.CLAUDE_CODE_ENABLE_TODO_TOOLS ?? '1',
+            CLAUDE_CODE_ENABLE_TASKS: inheritedEnv.CLAUDE_CODE_ENABLE_TASKS ?? '0'
+        };
 
         // Add API configuration to environment variables if custom API is enabled
         // Note: Only pass env vars for official 'claude' command
@@ -321,6 +375,10 @@ export class ClaudeProcessService {
         // Always inject headless runtime constraints, and append MCP system
         // prompts when MCP is configured.
         let appendSystemPrompt = HEADLESS_RUNTIME_CONSTRAINTS_PROMPT;
+        const taskTrackingPrompt = buildTaskTrackingPrompt(process.env);
+        if (taskTrackingPrompt) {
+            appendSystemPrompt += '\n\n' + taskTrackingPrompt;
+        }
 
         const mcpStatus = this._configurationManager.getMcpStatus();
         debugLog('ClaudeProcessService', 'MCP Status', {
@@ -341,14 +399,62 @@ export class ClaudeProcessService {
             }
         }
 
-        // Mac uses shell: false, so multi-line arguments can be passed directly
-        // Windows keeps the original behavior
-        args.push('--append-system-prompt');
-        args.push(appendSystemPrompt);
+        if (process.platform === 'win32') {
+            // Windows spawns claude.cmd with shell: true, and Node concatenates args into one
+            // cmd.exe line without escaping: a multi-line prompt is cut at the first newline and
+            // split into words (verified: only "#" arrived, the rest was silently dropped).
+            // Passing the text through a file avoids command-line quoting entirely.
+            const promptFile = ClaudeProcessService._writeAppendSystemPromptFile(appendSystemPrompt);
+            if (promptFile) {
+                args.push('--append-system-prompt-file', promptFile);
+            }
+        } else {
+            // Mac uses shell: false, so multi-line arguments can be passed directly
+            args.push('--append-system-prompt');
+            args.push(appendSystemPrompt);
+        }
 
         // Note: The message is not added to args anymore - it will be sent via stdin
 
         return args;
+    }
+
+    /**
+     * Write the appended system prompt to a content-addressed file under the OS temp dir.
+     * Same content -> same file name, so concurrent windows never overwrite each other's
+     * prompt and the number of files stays bounded by the number of distinct prompts.
+     * @returns The file path, or undefined if writing failed (prompt is skipped)
+     */
+    private static _writeAppendSystemPromptFile(content: string): string | undefined {
+        try {
+            const dir = path.join(os.tmpdir(), 'claude-chatui');
+            fs.mkdirSync(dir, { recursive: true });
+            const hash = crypto.createHash('sha1').update(content).digest('hex').slice(0, 12);
+            const filePath = path.join(dir, `append-system-prompt-${hash}.md`);
+            if (!fs.existsSync(filePath)) {
+                fs.writeFileSync(filePath, content, 'utf8');
+            }
+            debugLog('ClaudeProcessService', 'Append system prompt file ready', {
+                filePath,
+                length: content.length
+            });
+            return filePath;
+        } catch (error) {
+            debugError('ClaudeProcessService', 'Failed to write append system prompt file', error);
+            return undefined;
+        }
+    }
+
+    /**
+     * Quote an argument for the cmd.exe line Node builds when spawning with shell: true.
+     * Node joins args with spaces and no escaping, so a path containing spaces
+     * (e.g. C:\Users\John Smith\...) would otherwise be split into several args.
+     */
+    private static _quoteForCmd(arg: string): string {
+        if (/[\s&|<>^()]/.test(arg) && !arg.includes('"')) {
+            return `"${arg}"`;
+        }
+        return arg;
     }
 
     /**

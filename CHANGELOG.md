@@ -2,6 +2,23 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.1.7] - 2026-09-25
+
+### Added
+- **Opus 5.5 model support** — `claude-opus-5-5` (latest Opus flagship, 1M context, $4/$20; requires CLI >= 2.1.280): registered in `VALID_MODELS`, `MODEL_DISPLAY_NAMES`, `MODEL_CONTEXT_WINDOWS`, `MODEL_PRICING`, the `_setSelectedModel` switch, and the model selector UI. Ships with the `[1m]` context-injection path
+- **Todo checklist restored on new models** — since CLI 2.1.233 the task-list tools are omitted on Opus 4.8+, Sonnet 5, Fable 5+ and unknown models, so the "Update Todos" card silently disappeared. The CLI is now spawned with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` + `CLAUDE_CODE_ENABLE_TASKS=0` (user-set values win), which brings back `TodoWrite`
+- **Task Tracking prompt** — new models rarely create a checklist on their own even when the tool exists. The appended system prompt now asks for a checklist on tasks with 3+ distinct steps (and skips it for simple questions). The wording follows the tools actually enabled: `TodoWrite` by default, `TaskCreate/TaskUpdate` if you set `CLAUDE_CODE_ENABLE_TASKS=1`, omitted if you turn the todo tools off
+- **New CLI tools recognized** — icons, status text and tool-list entries for `PowerShell`, `LSP`, `Monitor`, `Workflow`, `TaskCreate/TaskUpdate/TaskList/TaskGet`, `SendMessage`, `ListAgents`, `CronCreate/CronDelete/CronList`, `ScheduleWakeup`, `PushNotification`, `SendUserFile`, and the MCP helper tools (previously all shown as 🔧 "Processing"). `TaskCreate` / `TaskUpdate` cards show the task name / `#id → status`
+
+### Fixed
+- **Appended system prompt never reached the model on Windows** — Windows spawns `claude.cmd` with `shell: true`, where Node joins args into one cmd.exe line without quoting; the multi-line `--append-system-prompt` was cut down to a single `#`. As a result the v4.1.5 headless runtime constraints and all MCP usage prompts were silently dropped on Windows. The prompt is now written to a temp file and passed via `--append-system-prompt-file` (macOS unchanged). Takes effect immediately in new sessions; existing sessions keep their recorded prompt until the next compaction
+- **`DEP0190` deprecation warning** removed — the plugin now builds the full cmd.exe command line itself with proper quoting, which also fixes launching when `claude.cmd` or the MCP config path contains spaces (e.g. `C:\Users\John Smith`)
+- Sonnet 5 fallback pricing corrected to $2/$10 (the launch price became permanent on 2026-08-10). Only affects statistics estimates for records without `costUSD`; live cost always used the CLI's `total_cost_usd`
+
+### Changed
+- `TaskOutput` (removed in CLI 2.1.277) dropped from the settings tool list; its icon is kept for rendering old sessions
+- Debug log now records the injected todo env vars and which task-list tools the CLI actually exposes
+
 ## [4.1.6] - 2026-09-23
 
 ### Added

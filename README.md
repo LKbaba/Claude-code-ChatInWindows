@@ -38,6 +38,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **v4.1.7** | 2026-09-25 | Opus 5.5 model (1M context); **fixed appended system prompt never reaching the model on Windows** (runtime constraints + MCP prompts were dropped since v4.1.5); Todo checklist restored on new models + Task Tracking prompt; icons for new CLI tools (PowerShell, LSP, Monitor, Workflow, Task*); removed DEP0190 warning; Sonnet 5 price $2/$10 |
 | **v4.1.6** | 2026-09-23 | Fable 5.1 model (1M context, `[1m]` injection); **fixed global MCP servers dropping to project level** when toggling API endpoint / changing settings; API Key Clear button + masked preview & plaintext toggle; hid Opus 4.7 from selector; removed dead MCP config-target mechanism |
 | **v4.1.5** | 2026-08-16 | Headless runtime constraints prompt — tells the model the CLI exits after each reply, so background processes/timers/polling loops don't survive across turns; steers long tasks toward OS schedulers or file-persisted progress |
 | **v4.1.4** | 2026-07-19 | Fable 5 & Sonnet 5 models; real 1M context via `[1m]` + env (400K default window, fixes indicator stuck at 16-18%); statistics 30× faster (worker pool + disk cache); Opus 4.8 leaked tool-call auto-retry |

@@ -12,6 +12,7 @@ export const VALID_MODELS = [
     'opusplan',                       // Opus Plan hybrid mode
     'claude-fable-5-1',               // Fable 5.1 - Latest flagship (Mythos-class), 1M context; requires CLI >= 2.1.251
     'claude-fable-5',                 // Fable 5 - 5th-gen flagship (Mythos-class), 1M context; requires CLI >= 2.1.170
+    'claude-opus-5-5',                // Opus 5.5 - Latest Opus flagship, 1M context; requires CLI >= 2.1.280
     'claude-opus-4-8',                // Opus 4.8 - Latest flagship with adaptive thinking & enhanced reliability
     'claude-opus-4-7',                // Opus 4.7 - Legacy (hidden from UI but kept for history/pricing)
     'claude-opus-4-6',                // Opus 4.6 - Previous flagship with Adaptive Thinking
@@ -30,6 +31,7 @@ export const MODEL_DISPLAY_NAMES: Record<string, string> = {
     'opus': 'Opus',
     'claude-fable-5-1': 'Fable 5.1',
     'claude-fable-5': 'Fable 5',
+    'claude-opus-5-5': 'Opus 5.5',
     'claude-opus-4-8': 'Opus 4.8',
     'claude-opus-4-7': 'Opus 4.7',
     'claude-opus-4-6': 'Opus 4.6',
@@ -65,9 +67,30 @@ export const TOOL_STATUS_MAP: Record<string, string> = {
     'WebSearch': 'Searching web',
     'NotebookEdit': 'Editing notebook',
     'ToolSearch': 'Loading tool definitions',
-    // Task management
-    'TaskOutput': 'Getting task output',
+    'PowerShell': 'Executing PowerShell',
+    'LSP': 'Querying language server',
+    'Monitor': 'Monitoring output',
+    'Workflow': 'Running workflow',
+    // Task list (replaces TodoWrite unless CLAUDE_CODE_ENABLE_TASKS=0)
+    'TaskCreate': 'Creating task',
+    'TaskUpdate': 'Updating task',
+    'TaskList': 'Listing tasks',
+    'TaskGet': 'Reading task',
+    // Background tasks & agents
     'TaskStop': 'Stopping task',
+    'SendMessage': 'Messaging agent',
+    'ListAgents': 'Listing agents',
+    // Scheduling & notifications
+    'CronCreate': 'Scheduling task',
+    'CronDelete': 'Cancelling scheduled task',
+    'CronList': 'Listing scheduled tasks',
+    'ScheduleWakeup': 'Scheduling next run',
+    'PushNotification': 'Sending notification',
+    'SendUserFile': 'Sending file',
+    // MCP helpers
+    'WaitForMcpServers': 'Waiting for MCP servers',
+    'ListMcpResourcesTool': 'Listing MCP resources',
+    'ReadMcpResourceTool': 'Reading MCP resource',
     // User interaction
     'AskUserQuestion': 'Waiting for user input',
     'Skill': 'Executing skill',
@@ -78,6 +101,7 @@ export const TOOL_STATUS_MAP: Record<string, string> = {
     'EnterWorktree': 'Creating worktree',
     'ExitWorktree': 'Exiting worktree',
     // Legacy tools (may still appear in older sessions)
+    'TaskOutput': 'Getting task output',        // Removed in CLI 2.1.277
     'MultiEdit': 'Editing multiple files',
     'KillShell': 'Stopping background task',
     'NotebookRead': 'Reading notebook',
@@ -122,6 +146,7 @@ export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
     'claude-fable-5-1': 1_000_000,
     'claude-fable-5': 1_000_000,
     'claude-sonnet-5': 1_000_000,
+    'claude-opus-5-5': 1_000_000,
     'claude-opus-4-8': 1_000_000,
     'claude-opus-4-7': 1_000_000,
     'claude-opus-4-6': 1_000_000,

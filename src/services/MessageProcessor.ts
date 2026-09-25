@@ -238,6 +238,10 @@ export class MessageProcessor {
             session_id: jsonData.session_id,
             model: jsonData.model,
             tools: jsonData.tools?.length,
+            // Task-list tools actually offered this session (verifies the TODO env injection)
+            taskTools: Array.isArray(jsonData.tools)
+                ? jsonData.tools.filter((t: string) => /^(Todo|Task)/.test(t))
+                : undefined,
             skills: jsonData.skills?.length
         });
 
@@ -692,6 +696,16 @@ export class MessageProcessor {
             case 'TaskStop':
                 if (content.input?.task_id) {
                     details = ` • task: ${content.input.task_id}`;
+                }
+                break;
+            case 'TaskCreate':
+                if (content.input?.subject) {
+                    details = ` • ${content.input.subject}`;
+                }
+                break;
+            case 'TaskUpdate':
+                if (content.input?.taskId) {
+                    details = ` • #${content.input.taskId}${content.input.status ? ` → ${content.input.status}` : ''}`;
                 }
                 break;
             case 'KillShell':

@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.6</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.7</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -233,12 +233,28 @@ export function getBodyContent(): string {
 					<label for="tool-websearch">WebSearch - Search the web</label>
 				</div>
 				<div class="tool-item">
+					<input type="checkbox" id="tool-powershell" checked disabled>
+					<label for="tool-powershell">PowerShell - Execute PowerShell commands</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-lsp" checked disabled>
+					<label for="tool-lsp">LSP - Code intelligence via language servers</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-monitor" checked disabled>
+					<label for="tool-monitor">Monitor - Watch background command output</label>
+				</div>
+				<div class="tool-item">
+					<input type="checkbox" id="tool-workflow" checked disabled>
+					<label for="tool-workflow">Workflow - Orchestrate many subagents</label>
+				</div>
+				<div class="tool-item">
 					<input type="checkbox" id="tool-todowrite" checked disabled>
 					<label for="tool-todowrite">TodoWrite - Manage task lists</label>
 				</div>
 				<div class="tool-item">
-					<input type="checkbox" id="tool-taskoutput" checked disabled>
-					<label for="tool-taskoutput">TaskOutput - Retrieve output from background tasks</label>
+					<input type="checkbox" id="tool-task-list" checked disabled>
+					<label for="tool-task-list">TaskCreate / TaskUpdate / TaskList / TaskGet - Task list (alternative to TodoWrite)</label>
 				</div>
 				<div class="tool-item">
 					<input type="checkbox" id="tool-taskstop" checked disabled>
@@ -635,6 +651,15 @@ export function getBodyContent(): string {
 						<div class="model-title">Fable 5 - Flagship (Mythos-class)</div>
 						<div class="model-description">
 							Most capable model for long-horizon agentic work · 1M context
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" onclick="selectModel('claude-opus-5-5')">
+					<input type="radio" name="model" id="model-opus-5-5" value="claude-opus-5-5">
+					<label for="model-opus-5-5">
+						<div class="model-title">Opus 5.5 - Latest Opus flagship</div>
+						<div class="model-description">
+							Matches Fable 5.1 at much lower cost · 1M context · fast & concise
 						</div>
 					</label>
 				</div>

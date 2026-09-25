@@ -1141,9 +1141,30 @@ export const uiScript = `
 				'WebSearch': '🔍',
 				'NotebookEdit': '📔',
 				'ToolSearch': '🔎',
-				// Task management
-				'TaskOutput': '📤',
+				'PowerShell': '💻',      // Windows shell tool (CLI 2.1.120+)
+				'LSP': '🧭',
+				'Monitor': '📡',
+				'Workflow': '🧩',
+				// Task list (TaskCreate/Get/List/Update replace TodoWrite when CLAUDE_CODE_ENABLE_TASKS is not 0)
+				'TaskCreate': '📋',
+				'TaskUpdate': '☑️',
+				'TaskList': '🗂️',
+				'TaskGet': '🔖',
+				// Background tasks & agents
 				'TaskStop': '💀',
+				'SendMessage': '✉️',
+				'ListAgents': '👥',
+				// Scheduling & notifications
+				'CronCreate': '⏰',
+				'CronDelete': '⏰',
+				'CronList': '⏰',
+				'ScheduleWakeup': '⏰',
+				'PushNotification': '🔔',
+				'SendUserFile': '📎',
+				// MCP helpers
+				'WaitForMcpServers': '⏳',
+				'ListMcpResourcesTool': '📚',
+				'ReadMcpResourceTool': '📚',
 				// User interaction & modes
 				'AskUserQuestion': '🤔',
 				'Skill': '🛠️',
@@ -1152,6 +1173,7 @@ export const uiScript = `
 				'EnterWorktree': '🌿',
 				'ExitWorktree': '🔙',
 				// Legacy tools (backward compat)
+				'TaskOutput': '📤',      // Removed in CLI 2.1.277
 				'MultiEdit': '📑',
 				'KillShell': '💀',
 				'NotebookRead': '📓',
@@ -1185,6 +1207,8 @@ export const uiScript = `
 				'ExitWorktree': 'linear-gradient(135deg, #64748b 0%, #475569 100%)',     // Gray - exit
 				'TaskOutput': 'linear-gradient(135deg, #059669 0%, #047857 100%)',       // Darker green - output
 				'TaskStop': 'linear-gradient(135deg, #64748b 0%, #475569 100%)',         // Darker gray - utility cleanup
+				'Workflow': 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',         // Muted violet - orchestrates subagents
+				'SendMessage': 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',      // Muted violet - agent messaging
 				'ToolSearch': 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)',       // Cyan - search/load
 				'Skill': 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',            // Industrial orange - skill/tool
 				// Default purple gradient for other tools (slightly darker)
@@ -2655,6 +2679,7 @@ export const uiScript = `
 			'opus': 'Opus',
 			'claude-fable-5-1': 'Fable 5.1',
 			'claude-fable-5': 'Fable 5',
+			'claude-opus-5-5': 'Opus 5.5',
 			'claude-opus-4-8': 'Opus 4.8',
 			'claude-opus-4-7': 'Opus 4.7',
 			'claude-opus-4-6': 'Opus 4.6',
@@ -2692,6 +2717,8 @@ export const uiScript = `
 				radioId = 'model-fable-5-1';
 			} else if (model === 'claude-fable-5') {
 				radioId = 'model-fable-5';
+			} else if (model === 'claude-opus-5-5') {
+				radioId = 'model-opus-5-5';
 			} else if (model === 'claude-opus-4-8') {
 				radioId = 'model-opus-4-8';
 			} else if (model === 'claude-opus-4-6') {
