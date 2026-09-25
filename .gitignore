@@ -49,3 +49,9 @@ debug_log.bak
 updaPRD.md
 /specs
 /.vscode
+
+# Official docs mirror (personal offline reference; do not publish in this public repo)
+docs/md/claude-code/
+docs/md/agent-sdk/
+docs/md/api/
+.tmp-docsync/
