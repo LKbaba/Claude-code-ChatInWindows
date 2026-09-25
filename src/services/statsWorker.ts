@@ -32,6 +32,8 @@ export interface RawStatsEntry {
         output_tokens: number;
         cache_creation_input_tokens: number;
         cache_read_input_tokens: number;
+        // Part of cache_creation_input_tokens written with the 1-hour TTL (billed 2x input)
+        cache_creation_1h_input_tokens: number;
     };
     costUSD: number;
     model: string;
@@ -107,7 +109,8 @@ function processLine(line: string, warmupUuids: Set<string>, out: RawStatsEntry[
             input_tokens: usage.input_tokens || 0,
             output_tokens: usage.output_tokens || 0,
             cache_creation_input_tokens: usage.cache_creation_input_tokens || 0,
-            cache_read_input_tokens: usage.cache_read_input_tokens || 0
+            cache_read_input_tokens: usage.cache_read_input_tokens || 0,
+            cache_creation_1h_input_tokens: usage.cache_creation?.ephemeral_1h_input_tokens || 0
         },
         costUSD: entry.costUSD || 0,
         model: entry.message?.model || '',

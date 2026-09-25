@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.7</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.8</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -396,7 +396,6 @@ export function getBodyContent(): string {
 									<option value="shadcn">shadcn/ui</option>
 									<option value="grok-assistant">Grok Assistant</option>
 									<option value="gemini-assistant">Gemini Assistant</option>
-									<option value="codex-official">Codex</option>
 								</select>
 							</div>
 						</div>
@@ -425,7 +424,6 @@ export function getBodyContent(): string {
 									<option value="shadcn">shadcn/ui</option>
 									<option value="grok-assistant">Grok Assistant</option>
 									<option value="gemini-assistant">Gemini Assistant</option>
-									<option value="codex-official">Codex</option>
 								</select>
 							</div>
 						</div>
@@ -552,6 +550,19 @@ export function getBodyContent(): string {
 							</p>
 						</div>
 					</div>
+
+					<!-- Codex Sub-section (prompt only: Claude calls the local codex CLI via Bash) -->
+					<div class="tool-item" style="margin-top: 12px;">
+						<input type="checkbox" id="codex-enabled" onchange="toggleCodexIntegration()">
+						<label for="codex-enabled" style="font-weight: 600;">Codex</label>
+					</div>
+					<div id="codexOptions" style="margin-left: 24px; margin-top: 8px; display: none;">
+						<p id="codex-status" style="font-size: 11px; margin: 0 0 4px 0;"></p>
+						<p style="font-size: 11px; color: var(--vscode-descriptionForeground); margin: 0;">
+							💡 Claude can hand tasks to OpenAI Codex via <code>codex exec</code> (read-only unless you ask it to edit files).
+							Just ask, e.g. "have Codex review this change".
+						</p>
+					</div>
 				</div>
 
 				<h3 style="margin-top: 24px; margin-bottom: 16px; font-size: 14px; font-weight: 600;">API Configuration</h3>
@@ -618,25 +629,24 @@ export function getBodyContent(): string {
 
 	<!-- Model selector modal -->
 	<div id="modelModal" class="tools-modal" style="display: none;">
-		<div class="tools-modal-content" style="width: 400px;">
+		<!-- Picker + Config panel: side by side when wide enough, otherwise Config replaces the picker -->
+		<div class="model-popover-group" id="modelPopoverGroup">
+		<div class="tools-modal-content model-picker-card">
 			<div class="tools-modal-header">
 				<span>Enforce Model</span>
-				<button class="tools-close-btn" onclick="hideModelModal()">✕</button>
+				<div class="model-header-actions">
+					<button class="model-config-btn" id="modelConfigBtn" aria-pressed="false" onclick="toggleModelConfig()" title="Choose which models are shown and their effort level">
+						<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.1 1l.4 2a5 5 0 0 1 1.3.7l1.9-.7 1.1 1.9-1.5 1.3a5 5 0 0 1 0 1.6l1.5 1.3-1.1 1.9-1.9-.7a5 5 0 0 1-1.3.7l-.4 2H6.9l-.4-2a5 5 0 0 1-1.3-.7l-1.9.7-1.1-1.9 1.5-1.3a5 5 0 0 1 0-1.6L2.2 4.9l1.1-1.9 1.9.7a5 5 0 0 1 1.3-.7l.4-2h2.2zM8 5.8A2.2 2.2 0 1 0 8 10.2 2.2 2.2 0 0 0 8 5.8z"/></svg>
+						Config <i class="model-config-chev">›</i>
+					</button>
+					<button class="tools-close-btn" onclick="hideModelModal()">✕</button>
+				</div>
 			</div>
 			<div class="model-explanatory-text">
 				This overrides your default model setting for this conversation only.
 			</div>
 			<div class="tools-list">
-				<div class="tool-item" onclick="selectModel('opus')">
-					<input type="radio" name="model" id="model-opus" value="opus" checked>
-					<label for="model-opus">
-						<div class="model-title">Opus - Most capable model</div>
-						<div class="model-description">
-							Best for complex tasks and highest quality output
-						</div>
-					</label>
-				</div>
-				<div class="tool-item" onclick="selectModel('claude-fable-5-1')">
+				<div class="tool-item" data-model="claude-fable-5-1" onclick="selectModel('claude-fable-5-1')">
 					<input type="radio" name="model" id="model-fable-5-1" value="claude-fable-5-1">
 					<label for="model-fable-5-1">
 						<div class="model-title">Fable 5.1 - Latest flagship (Mythos-class)</div>
@@ -645,7 +655,7 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('claude-fable-5')">
+				<div class="tool-item" data-model="claude-fable-5" onclick="selectModel('claude-fable-5')">
 					<input type="radio" name="model" id="model-fable-5" value="claude-fable-5">
 					<label for="model-fable-5">
 						<div class="model-title">Fable 5 - Flagship (Mythos-class)</div>
@@ -654,7 +664,7 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('claude-opus-5-5')">
+				<div class="tool-item" data-model="claude-opus-5-5" onclick="selectModel('claude-opus-5-5')">
 					<input type="radio" name="model" id="model-opus-5-5" value="claude-opus-5-5">
 					<label for="model-opus-5-5">
 						<div class="model-title">Opus 5.5 - Latest Opus flagship</div>
@@ -663,7 +673,16 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('claude-opus-4-8')">
+				<div class="tool-item" data-model="claude-opus-5" onclick="selectModel('claude-opus-5')">
+					<input type="radio" name="model" id="model-opus-5" value="claude-opus-5">
+					<label for="model-opus-5">
+						<div class="model-title">Opus 5 - Previous Opus flagship</div>
+						<div class="model-description">
+							$5/$25 · 1M context · requires CLI 2.1.219+
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" data-model="claude-opus-4-8" onclick="selectModel('claude-opus-4-8')">
 					<input type="radio" name="model" id="model-opus-4-8" value="claude-opus-4-8">
 					<label for="model-opus-4-8">
 						<div class="model-title">Opus 4.8 - Latest flagship model</div>
@@ -672,7 +691,16 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('claude-opus-4-6')">
+				<div class="tool-item" data-model="claude-opus-4-7" onclick="selectModel('claude-opus-4-7')">
+					<input type="radio" name="model" id="model-opus-4-7" value="claude-opus-4-7">
+					<label for="model-opus-4-7">
+						<div class="model-title">Opus 4.7 - Previous flagship model</div>
+						<div class="model-description">
+							Enhanced vision, self-verification & 1M context
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" data-model="claude-opus-4-6" onclick="selectModel('claude-opus-4-6')">
 					<input type="radio" name="model" id="model-opus-4-6" value="claude-opus-4-6">
 					<label for="model-opus-4-6">
 						<div class="model-title">Opus 4.6 - Previous flagship model</div>
@@ -681,7 +709,16 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('opusplan')">
+				<div class="tool-item" data-model="claude-opus-4-5-20251101" onclick="selectModel('claude-opus-4-5-20251101')">
+					<input type="radio" name="model" id="model-opus-4-5" value="claude-opus-4-5-20251101">
+					<label for="model-opus-4-5">
+						<div class="model-title">Opus 4.5 - Legacy flagship model</div>
+						<div class="model-description">
+							200K context · no effort control
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" data-model="opusplan" onclick="selectModel('opusplan')">
 					<input type="radio" name="model" id="model-opusplan" value="opusplan">
 					<label for="model-opusplan">
 						<div class="model-title">Opus Plan - Smart hybrid mode</div>
@@ -690,16 +727,7 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('sonnet')">
-					<input type="radio" name="model" id="model-sonnet" value="sonnet">
-					<label for="model-sonnet">
-						<div class="model-title">Sonnet - Balanced model</div>
-						<div class="model-description">
-							Good balance of speed and capability
-						</div>
-					</label>
-				</div>
-				<div class="tool-item" onclick="selectModel('claude-sonnet-5')">
+				<div class="tool-item" data-model="claude-sonnet-5" onclick="selectModel('claude-sonnet-5')">
 					<input type="radio" name="model" id="model-sonnet-5" value="claude-sonnet-5">
 					<label for="model-sonnet-5">
 						<div class="model-title">Sonnet 5 - Most agentic Sonnet</div>
@@ -708,7 +736,7 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('claude-sonnet-4-6')">
+				<div class="tool-item" data-model="claude-sonnet-4-6" onclick="selectModel('claude-sonnet-4-6')">
 					<input type="radio" name="model" id="model-sonnet-4-6" value="claude-sonnet-4-6">
 					<label for="model-sonnet-4-6">
 						<div class="model-title">Sonnet 4.6 - Latest intelligent model</div>
@@ -717,7 +745,16 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('claude-haiku-4-5-20251001')">
+				<div class="tool-item" data-model="claude-sonnet-4-5-20250929" onclick="selectModel('claude-sonnet-4-5-20250929')">
+					<input type="radio" name="model" id="model-sonnet-4-5" value="claude-sonnet-4-5-20250929">
+					<label for="model-sonnet-4-5">
+						<div class="model-title">Sonnet 4.5 - Legacy Sonnet model</div>
+						<div class="model-description">
+							200K context · no effort control
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" data-model="claude-haiku-4-5-20251001" onclick="selectModel('claude-haiku-4-5-20251001')">
 					<input type="radio" name="model" id="model-haiku-4-5" value="claude-haiku-4-5-20251001">
 					<label for="model-haiku-4-5">
 						<div class="model-title">Haiku 4.5 - Cost-effective model</div>
@@ -726,7 +763,7 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
-				<div class="tool-item" onclick="selectModel('default')">
+				<div class="tool-item" data-model="default" onclick="selectModel('default')">
 					<input type="radio" name="model" id="model-default" value="default">
 					<label for="model-default">
 						<div class="model-title">Default - User configured</div>
@@ -736,6 +773,28 @@ export function getBodyContent(): string {
 					</label>
 				</div>
 			</div>
+			<div class="model-picker-footer" id="modelPickerFooter"></div>
+		</div>
+
+		<!-- Model Config panel: per-model visibility + effort (rows rendered by renderModelConfig) -->
+		<div class="tools-modal-content model-config-card" id="modelConfigPanel">
+			<div class="model-config-inner">
+				<div class="tools-modal-header model-config-header">
+					<button class="model-config-back" onclick="closeModelConfig()" title="Back to model list">‹</button>
+					<span>Model Config</span>
+					<button class="tools-close-btn" onclick="closeModelConfigPanel()" title="Close config">✕</button>
+				</div>
+				<div class="model-config-body" id="modelConfigBody"></div>
+				<div class="model-config-footer">
+					<div>Changing effort mid-conversation resets the prompt cache, except on Opus 5.5 and Fable 5.1.</div>
+					<div class="model-config-env-note" id="modelConfigEnvNote" style="display: none;"></div>
+					<div class="model-config-footer-row">
+						<span id="modelConfigCount"></span>
+						<button class="model-config-link" onclick="resetModelConfig()">Reset all</button>
+					</div>
+				</div>
+			</div>
+		</div>
 		</div>
 	</div>
 
@@ -816,14 +875,13 @@ export function getBodyContent(): string {
 			</div>
 			<div class="tools-list">
 				<div class="thinking-slider-container">
-					<input type="range" min="0" max="5" value="0" step="1" class="thinking-slider" id="thinkingIntensitySlider" oninput="updateThinkingIntensityDisplay(this.value)">
+					<input type="range" min="0" max="4" value="0" step="1" class="thinking-slider" id="thinkingIntensitySlider" oninput="updateThinkingIntensityDisplay(this.value)">
 					<div class="slider-labels">
 						<div class="slider-label active" id="thinking-label-0" onclick="setThinkingIntensityValue(0)">Think</div>
 						<div class="slider-label" id="thinking-label-1" onclick="setThinkingIntensityValue(1)">Think Hard</div>
 						<div class="slider-label" id="thinking-label-2" onclick="setThinkingIntensityValue(2)">Think Harder</div>
 						<div class="slider-label" id="thinking-label-3" onclick="setThinkingIntensityValue(3)">Ultrathink</div>
-						<div class="slider-label" id="thinking-label-4" onclick="setThinkingIntensityValue(4)">xHigh</div>
-						<div class="slider-label" id="thinking-label-5" onclick="setThinkingIntensityValue(5)">Sequential (MCP)</div>
+						<div class="slider-label" id="thinking-label-4" onclick="setThinkingIntensityValue(4)">Sequential (MCP)</div>
 					</div>
 				</div>
 				<div class="thinking-modal-actions">

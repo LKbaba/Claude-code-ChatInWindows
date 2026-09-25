@@ -5,7 +5,7 @@
 
 import * as cp from 'child_process';
 import { VsCodeConfigManager, VsCodeSettings } from './VsCodeConfigManager';
-import { McpConfigManager, McpStatus } from './McpConfigManager';
+import { McpConfigManager, McpStatus, McpConfigBuildResult } from './McpConfigManager';
 import { ApiConfigManager, ApiConfig, WindowsConfig } from './ApiConfigManager';
 
 export interface Settings extends VsCodeSettings {
@@ -69,8 +69,15 @@ export class ConfigurationManagerFacade {
     /**
      * Builds MCP configuration
      */
-    public async buildMcpConfig(): Promise<{ config: any, configPath: string | null }> {
+    public async buildMcpConfig(): Promise<McpConfigBuildResult> {
         return this.mcpManager.buildMcpConfig();
+    }
+
+    /**
+     * Removes the temp dir of a config file built by buildMcpConfig() once its CLI process exited
+     */
+    public removeMcpConfigDir(configPath: string | null | undefined): void {
+        this.mcpManager.removeMcpConfigDir(configPath);
     }
 
     /**
@@ -94,6 +101,13 @@ export class ConfigurationManagerFacade {
      */
     public getThinkingIntensity(): string {
         return this.vsCodeManager.getThinkingIntensity();
+    }
+
+    /**
+     * Migrates the removed "xhigh" thinking intensity to "ultrathink"
+     */
+    public async migrateLegacyThinkingIntensity(): Promise<void> {
+        return this.vsCodeManager.migrateLegacyThinkingIntensity();
     }
 
     /**

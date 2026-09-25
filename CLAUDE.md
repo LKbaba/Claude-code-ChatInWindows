@@ -171,6 +171,29 @@ On Windows, `claude.cmd` must be spawned with `shell: true`, and Node then joins
 - Args with spaces (executable path, `--mcp-config` under `C:\Users\John Smith`) are quoted by `_quoteForCmd()`, and the full command line is built by the plugin before `cp.spawn(commandLine, { shell: true })`.
 - **Verify any change here** with a stand-in `.cmd` that prints its argv — never trust that "it runs" means the args arrived intact. Mac uses `shell: false` and is unaffected.
 
+### 12. MCP Secret Placeholders (v4.1.8)
+
+The per-turn MCP config file (`~/.claude/mcp-<random>/mcp-config.json`) must never contain real keys. `McpConfigManager` writes `${CHATUI_SECRET_<NAME>}` placeholders and returns the real values in `secretEnv`; `ClaudeProcessService` puts them only into that turn's spawn env. The CLI expands the placeholders when launching MCP servers — verified byte-exact for multi-line values (Vertex JSON). Each turn deletes its own `mcp-*` folder on exit; folders older than 24h are removed on start. Never use a 0h cutoff (another window's CLI may still be reading its config), and never delete by prefix alone (`~/.claude/mcp-needs-auth-cache.json` belongs to the CLI).
+
+### 13. Backup Repo & Restore (v4.1.8)
+
+- Snapshots exclude `debug_log.txt` / `debug_log.bak` (`BACKUP_EXCLUDES`); otherwise every message commits the log. When the workspace did not change, the previous snapshot is reused so every message still has a restore point.
+- `previewRestore()` / `restoreToCommit()` resolve the commit from git, not from in-memory state (buttons from before a restart must work). Before writing, a snapshot of the current state is taken so the restore can be undone.
+- Only changed / deleted files are written back. Files that are ignored now but exist in old snapshots are left alone, and nested git repos (gitlinks, mode `160000`) are never touched — do NOT go back to `git checkout <sha> -- .`, it overwrote the current debug log.
+- Restoring is blocked while Claude is replying.
+
+### 14. Model Picker Lists Must Stay in Sync (v4.1.8)
+
+The picker radio rows are static HTML in `getBodyContent.ts`, while the Config panel is rendered from `PICKER_MODELS` in `constants.ts` (plus the `radioId` mapping in `selectModel()` in `ui-script.ts`). **Adding a model means updating all three.** Take effort support from `docs/md/claude-code/model-config.md` (`effort: 'all' | 'no-xhigh' | 'none' | 'cli'`), not from "the CLI didn't error": Haiku 4.5 accepts `--effort` silently but ignores it. Keep old models reachable with `defaultHidden: true` instead of deleting them.
+
+### 15. Codex Integration (v4.1.8)
+
+Codex CLI 0.154.0 removed `codex mcp-server` (openai/codex PR #42993); `mcp-server` is now read as a prompt and the MCP connection closes. Do NOT re-add a Codex MCP template. Instead, the `claudeCodeChatUI.codexIntegrationEnabled` switch (default off) appends `CODEX_CLI_PROMPT`, which teaches Claude to call `codex exec` via Bash — only when the switch is on AND `findCodexCli()` finds the binary. The command details in that prompt (`< /dev/null`, stderr holds logs, `resume` rejects `-s` and needs `-c sandbox_mode=...`) were verified on codex-cli 0.156.1; re-test after upgrading Codex. `codex app-server` speaks its own protocol and cannot be used as an MCP server.
+
+### 16. `CLAUDE_CODE_EFFORT_LEVEL` Beats `--effort` (v4.1.8)
+
+The CLI lets `CLAUDE_CODE_EFFORT_LEVEL` override `--effort`, `/effort` and `modelSettings` — including a value set in a `settings.json` `env` block, which also overwrites the spawn env. Before the fix every per-model level silently ran at the user's global value, while the debug log still showed the requested level. For models with an explicit level, `ClaudeProcessService` adds `--settings %TEMP%\claude-chatui\effort-env-reset.json` containing `{"env":{"CLAUDE_CODE_EFFORT_LEVEL":""}}`; Auto leaves the variable alone. Do not "fix" it by setting the variable to the chosen level: it would also override skill / subagent frontmatter effort. Setting it to `auto` is wrong too (it drops the effort field and still beats `--effort`). **Verify effort changes by capturing the request body** (a local stub server via `ANTHROPIC_BASE_URL`, check `output_config.effort`) — logs and `--debug` do not show the effective level.
+
 Official docs mirror (local, gitignored): `docs/md/INDEX.md` → `docs/md/claude-code/`, `agent-sdk/`, `api/`. Re-fetch with `node .tmp-docsync/fetch-docs.js`.
 
 ## Version Release Checklist
@@ -218,15 +241,3 @@ Browser version fix:
 - v1.0.12+ uses Playwright 1.57.0, requires chromium-1200 with `chrome-win64/` structure
 - Quick fix: `npx playwright@latest install chromium`
 - Manual symlink (if needed): `cd ~/AppData/Local/ms-playwright && cmd //c "mklink /J chromium-1200 chromium-1181"`
-
-## Codex MCP Guide
-
-Codex is an autonomous coding agent by OpenAI, integrated via MCP.
-
-Workflow: Claude plans architecture → delegate scoped tasks to Codex → review results
-- `codex` tool: start a session with prompt, sandbox, approval-policy
-- `codex-reply` tool: continue a session by threadId for multi-turn tasks
-- Pass project context via `developer-instructions` parameter
-- Recommended: sandbox='workspace-write', approval-policy='on-failure'
-
-Prerequisite: `npm i -g @openai/codex`, OPENAI_API_KEY configured

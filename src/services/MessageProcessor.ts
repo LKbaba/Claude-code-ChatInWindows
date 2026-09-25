@@ -25,6 +25,8 @@ export interface MessageCallbacks {
     onOperationTracked?: (operation: Operation) => void;
     // Plan Mode state change callback: triggered when Claude calls EnterPlanMode/ExitPlanMode
     onPlanModeChange?: (isInPlanMode: boolean) => void;
+    // rate_limit_event payload (rate_limit_info); only sent to subscription logins
+    onRateLimit?: (info: any) => void;
 }
 
 export interface TokenUpdate {
@@ -216,8 +218,11 @@ export class MessageProcessor {
             // CLI sends progress updates for long-running tools
             this._processToolProgress(jsonData, callbacks);
         } else if (type === 'rate_limit_event') {
-            // Rate limiting info from CLI — log for diagnostics
+            // Rate limiting info from CLI (feeds the 5h usage ring)
             debugLog('MessageProcessor', 'Rate limit event', jsonData.rate_limit_info);
+            if (callbacks.onRateLimit && jsonData.rate_limit_info) {
+                callbacks.onRateLimit(jsonData.rate_limit_info);
+            }
         } else if (jsonData.error) {
             this._processError(jsonData, callbacks);
         } else if (type) {

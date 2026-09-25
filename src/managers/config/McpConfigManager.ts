@@ -18,7 +18,185 @@ export interface McpStatus {
     servers?: any[];
 }
 
+export interface McpConfigBuildResult {
+    config: any;
+    configPath: string | null;
+    /**
+     * Real secret values referenced by `${CHATUI_SECRET_*}` placeholders in the
+     * written config file. Must be merged into the spawn env of the CLI process
+     * only (never into process.env); the CLI expands the placeholders itself
+     * when it starts the MCP servers.
+     */
+    secretEnv: Record<string, string>;
+}
+
+/** Name produced by fs.mkdtempSync(path.join(claudeDir, 'mcp-')): exactly 6 random [A-Za-z0-9] chars */
+const MCP_TEMP_DIR_PATTERN = /^mcp-[A-Za-z0-9]{6}$/;
+const MCP_CONFIG_FILE_NAME = 'mcp-config.json';
+/** Temp dirs older than this are considered orphaned (the CLI reads the file only at startup) */
+const MCP_STALE_DIR_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Prefix for env vars carrying secrets, so we never clobber a user's own XAI_API_KEY etc. */
+const SECRET_ENV_PREFIX = 'CHATUI_SECRET_';
+/** Env/header names whose values must never be written to the debug log */
+const SECRET_NAME_PATTERN = /key|token|secret|credential|password|auth/i;
+
 export class McpConfigManager {
+    private _sweepInProgress = false;
+
+    /**
+     * Returns the ~/.claude directory where MCP temp config dirs are created
+     */
+    private static getClaudeDir(): string {
+        return path.join(os.homedir(), '.claude');
+    }
+
+    /**
+     * Strict check that a path is one of our own MCP temp config dirs and is old enough to delete.
+     * ALL conditions must hold: direct child of ~/.claude, name matches the mkdtemp pattern,
+     * a real directory (not a symlink), containing exactly one regular file `mcp-config.json`,
+     * and last modified at least `maxAgeMs` ago.
+     */
+    private static isDeletableMcpTempDir(dirPath: string, maxAgeMs: number): boolean {
+        try {
+            const resolved = path.resolve(dirPath);
+            const parent = path.dirname(resolved);
+            const claudeDir = path.resolve(McpConfigManager.getClaudeDir());
+            const sameParent = process.platform === 'win32'
+                ? parent.toLowerCase() === claudeDir.toLowerCase()
+                : parent === claudeDir;
+            if (!sameParent || !MCP_TEMP_DIR_PATTERN.test(path.basename(resolved))) {
+                return false;
+            }
+
+            const dirStat = fs.lstatSync(resolved);
+            if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
+                return false;
+            }
+
+            const entries = fs.readdirSync(resolved);
+            if (entries.length !== 1 || entries[0] !== MCP_CONFIG_FILE_NAME) {
+                return false;
+            }
+            const fileStat = fs.lstatSync(path.join(resolved, MCP_CONFIG_FILE_NAME));
+            if (!fileStat.isFile()) {
+                return false;
+            }
+
+            const lastModified = Math.max(dirStat.mtimeMs, fileStat.mtimeMs);
+            return Date.now() - lastModified >= maxAgeMs;
+        } catch {
+            // Vanished or unreadable: leave it alone
+            return false;
+        }
+    }
+
+    /**
+     * Delete the temp dir that holds a config file written by buildMcpConfig().
+     * Called when the CLI process that used it has exited. The exact path is
+     * known, so this never touches another window's config.
+     */
+    public removeMcpConfigDir(configPath: string | null | undefined): void {
+        if (!configPath) {
+            return;
+        }
+        const dir = path.dirname(configPath);
+        if (!McpConfigManager.isDeletableMcpTempDir(dir, 0)) {
+            debugWarn('McpConfigManager', `Skipped removing MCP config dir (failed safety check): ${dir}`);
+            return;
+        }
+        try {
+            fs.rmSync(dir, { recursive: true, force: true });
+            debugLog('McpConfigManager', `Removed MCP config dir after CLI exit: ${dir}`);
+        } catch (error) {
+            debugWarn('McpConfigManager', `Failed to remove MCP config dir: ${dir}`, error);
+        }
+    }
+
+    /**
+     * Delete orphaned MCP temp config dirs (e.g. left behind when VS Code was
+     * closed mid-turn). Only entries passing isDeletableMcpTempDir() are removed.
+     * @returns Number of removed dirs
+     */
+    public async sweepStaleMcpConfigDirs(maxAgeMs: number = MCP_STALE_DIR_MAX_AGE_MS): Promise<number> {
+        if (this._sweepInProgress) {
+            return 0;
+        }
+        this._sweepInProgress = true;
+        let removed = 0;
+        try {
+            const claudeDir = McpConfigManager.getClaudeDir();
+            let entries: string[];
+            try {
+                entries = await fs.promises.readdir(claudeDir);
+            } catch {
+                return 0;
+            }
+
+            for (const entry of entries) {
+                if (!MCP_TEMP_DIR_PATTERN.test(entry)) {
+                    continue;
+                }
+                const fullPath = path.join(claudeDir, entry);
+                // Re-check right before deleting
+                if (!McpConfigManager.isDeletableMcpTempDir(fullPath, maxAgeMs)) {
+                    continue;
+                }
+                try {
+                    await fs.promises.rm(fullPath, { recursive: true, force: true });
+                    removed++;
+                    debugLog('McpConfigManager', `Removed stale MCP config dir: ${fullPath}`);
+                } catch (error) {
+                    debugWarn('McpConfigManager', `Failed to remove stale MCP config dir: ${fullPath}`, error);
+                }
+            }
+            debugLog('McpConfigManager', `Stale MCP config sweep finished, removed ${removed} dir(s)`);
+        } finally {
+            this._sweepInProgress = false;
+        }
+        return removed;
+    }
+
+    /**
+     * Replace a secret value with a `${CHATUI_SECRET_<name>}` placeholder and
+     * record the real value in secretEnv for the CLI process env.
+     */
+    private static toSecretPlaceholder(secretEnv: Record<string, string>, name: string, value: string): string {
+        const envName = SECRET_ENV_PREFIX + name;
+        secretEnv[envName] = value;
+        return '${' + envName + '}';
+    }
+
+    /**
+     * Deep copy of an MCP config with secret-looking env/header values redacted.
+     * `${...}` placeholders are kept as-is since they carry no secret.
+     */
+    public static redactMcpConfigForLog(config: any): any {
+        const redactMap = (map: any) => {
+            if (!map || typeof map !== 'object') {
+                return map;
+            }
+            const out: Record<string, any> = {};
+            for (const [k, v] of Object.entries<any>(map)) {
+                const sv = String(v ?? '');
+                out[k] = SECRET_NAME_PATTERN.test(k) && !sv.startsWith('${')
+                    ? `<redacted len=${sv.length}>`
+                    : v;
+            }
+            return out;
+        };
+
+        const servers: Record<string, any> = {};
+        for (const [name, cfg] of Object.entries<any>(config?.mcpServers || {})) {
+            servers[name] = { ...cfg };
+            if (cfg && cfg.env) {
+                servers[name].env = redactMap(cfg.env);
+            }
+            if (cfg && cfg.headers) {
+                servers[name].headers = redactMap(cfg.headers);
+            }
+        }
+        return { ...config, mcpServers: servers };
+    }
     /**
      * Get current active editor's resource URI
      * Used to get correct configuration scope in multi-root workspace scenarios
@@ -139,16 +317,22 @@ export class McpConfigManager {
 
     /**
      * Builds MCP configuration for Claude CLI
-     * @returns MCP configuration object and temp file path
+     * @returns MCP configuration object, temp file path, and the secret env for the CLI process
      */
-    public async buildMcpConfig(): Promise<{ config: any, configPath: string | null }> {
+    public async buildMcpConfig(): Promise<McpConfigBuildResult> {
+        // Opportunistic cleanup of orphaned temp dirs from earlier sessions.
+        // Not awaited: it only touches dirs older than 24h, so it cannot race
+        // with the config written below or with another window's live config.
+        void this.sweepStaleMcpConfigDirs().catch(error => {
+            debugWarn('McpConfigManager', 'Stale MCP config sweep failed', error);
+        });
+
         const mcpEnabled = this.getMcpEnabled();
         const mcpServers = this.getMergedMcpServers();
-        
+        const secretEnv: Record<string, string> = {};
+
         if (!mcpEnabled || mcpServers.length === 0) {
-            // Clean up old MCP configs when MCP is disabled or no servers
-            await this.cleanupOldMcpConfigs();
-            return { config: null, configPath: null };
+            return { config: null, configPath: null, secretEnv };
         }
 
         // Create MCP configuration object
@@ -300,8 +484,9 @@ export class McpConfigManager {
         });
 
         // ==================== AI API Key Runtime Injection ====================
-        // Inject securely stored API keys / credentials into matching MCP servers
-        await this.injectApiKeysIfNeeded(mcpConfig);
+        // Inject securely stored API keys / credentials into matching MCP servers.
+        // The config file only gets ${CHATUI_SECRET_*} placeholders; real values go to secretEnv.
+        await this.injectApiKeysIfNeeded(mcpConfig, secretEnv);
 
         // ==================== Host Environment Backfill ====================
         // Claude CLI passes the `env` map in mcp-config.json directly to
@@ -337,15 +522,18 @@ export class McpConfigManager {
                 const tempDir = fs.mkdtempSync(path.join(claudeDir, 'mcp-'));
                 mcpConfigPath = path.join(tempDir, 'mcp-config.json');
                 
-                // Log configuration before writing
-                debugLog('buildMcpConfig', 'Generated MCP configuration', mcpConfig);
+                // Log configuration before writing (redacted: second line of defense after placeholders)
+                debugLog('buildMcpConfig', 'Generated MCP configuration', McpConfigManager.redactMcpConfigForLog(mcpConfig));
 
                 fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
 
                 // Verify the file was written correctly
                 const writtenContent = fs.readFileSync(mcpConfigPath, 'utf8');
                 debugLog('buildMcpConfig', `Written MCP config file: ${mcpConfigPath}`);
-                debugLog('buildMcpConfig', 'File content', JSON.parse(writtenContent));
+                debugLog('buildMcpConfig', 'File content', McpConfigManager.redactMcpConfigForLog(JSON.parse(writtenContent)));
+                debugLog('buildMcpConfig', 'Secrets passed via CLI process env', Object.fromEntries(
+                    Object.entries(secretEnv).map(([k, v]) => [k, `<set len=${v.length}>`])
+                ));
 
                 // ==================== DIAGNOSTIC: per-server env keys ====================
                 // Print the env keys that each MCP server will supposedly receive via
@@ -357,7 +545,7 @@ export class McpConfigManager {
                     for (const [name, cfg] of Object.entries<any>(parsed.mcpServers || {})) {
                         const envEntries = Object.entries<any>(cfg.env || {}).map(([k, v]) => {
                             const sv = String(v ?? '');
-                            const redact = /key|token|secret|credential|password/i.test(k);
+                            const redact = SECRET_NAME_PATTERN.test(k) && !sv.startsWith('${');
                             const short = sv.length > 40 ? sv.slice(0, 20) + '...(' + sv.length + ')' : sv;
                             return [k, redact ? `<redacted len=${sv.length}>` : short];
                         });
@@ -386,7 +574,7 @@ export class McpConfigManager {
             }
         }
 
-        return { config: mcpConfig, configPath: mcpConfigPath };
+        return { config: mcpConfig, configPath: mcpConfigPath, secretEnv };
     }
 
     /**
@@ -411,7 +599,7 @@ export class McpConfigManager {
         }
 
         // Build test configuration
-        const { config: mcpConfig, configPath } = await this.buildMcpConfig();
+        const { configPath, secretEnv } = await this.buildMcpConfig();
         if (!configPath) {
             return {
                 status: 'error',
@@ -424,18 +612,21 @@ export class McpConfigManager {
             if (!claudeExecutablePath) {
                 throw new Error("Claude executable path could not be determined.");
             }
-            
+
             // Merge MCP server environment variables
             mcpServers.forEach(server => {
                 if (server.env && typeof server.env === 'object') {
                     spawnOptions.env = { ...spawnOptions.env, ...server.env };
                 }
             });
-            
+            // Values for the ${CHATUI_SECRET_*} placeholders (child process only)
+            spawnOptions.env = { ...(spawnOptions.env || process.env), ...secretEnv };
+
             // Test the MCP connection by running a simple command
             const args = ['--version', '--mcp-config', configPath];
             const testProcess = cp.spawn(claudeExecutablePath, args, spawnOptions);
-            
+            testProcess.on('close', () => this.removeMcpConfigDir(configPath));
+
             return new Promise((resolve) => {
                 let output = '';
                 let error = '';
@@ -474,6 +665,7 @@ export class McpConfigManager {
                 });
             });
         } catch (error: any) {
+            this.removeMcpConfigDir(configPath);
             return {
                 status: 'error',
                 message: `Failed to test MCP: ${error.message}`,
@@ -503,10 +695,13 @@ export class McpConfigManager {
     /**
      * Inject securely stored API keys and credentials into matching MCP servers
      */
-    private async injectApiKeysIfNeeded(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
+    private async injectApiKeysIfNeeded(
+        mcpConfig: { mcpServers: { [key: string]: any } },
+        secretEnv: Record<string, string>
+    ): Promise<void> {
         try {
-            await this.injectGeminiCredentials(mcpConfig);
-            await this.injectGrokApiKey(mcpConfig);
+            await this.injectGeminiCredentials(mcpConfig, secretEnv);
+            await this.injectGrokApiKey(mcpConfig, secretEnv);
         } catch (error) {
             debugError('McpConfigManager', 'API key injection failed', error);
         }
@@ -582,7 +777,10 @@ export class McpConfigManager {
      *   - vertex-json -> GOOGLE_GENAI_USE_VERTEXAI + GOOGLE_CREDENTIALS_JSON + GOOGLE_CLOUD_PROJECT
      *   - adc         -> GOOGLE_GENAI_USE_VERTEXAI + GOOGLE_CLOUD_PROJECT (SDK resolves ADC)
      */
-    private async injectGeminiCredentials(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
+    private async injectGeminiCredentials(
+        mcpConfig: { mcpServers: { [key: string]: any } },
+        secretEnv: Record<string, string>
+    ): Promise<void> {
         const shouldInject = await secretService.shouldInjectGeminiApiKey();
         if (!shouldInject) {
             debugLog('McpConfigManager', 'Gemini Integration not enabled or selected auth mode not configured, skipping');
@@ -613,14 +811,14 @@ export class McpConfigManager {
             switch (authMode) {
                 case 'api-key':
                     if (apiKey) {
-                        serverConfig.env.GEMINI_API_KEY = apiKey;
+                        serverConfig.env.GEMINI_API_KEY = McpConfigManager.toSecretPlaceholder(secretEnv, 'GEMINI_API_KEY', apiKey);
                         debugLog('McpConfigManager', `Injected Gemini API Key into server '${serverName}'`);
                     }
                     break;
                 case 'vertex-json':
                     if (vertexCredentials && project) {
                         serverConfig.env.GOOGLE_GENAI_USE_VERTEXAI = 'true';
-                        serverConfig.env.GOOGLE_CREDENTIALS_JSON = vertexCredentials;
+                        serverConfig.env.GOOGLE_CREDENTIALS_JSON = McpConfigManager.toSecretPlaceholder(secretEnv, 'GOOGLE_CREDENTIALS_JSON', vertexCredentials);
                         serverConfig.env.GOOGLE_CLOUD_PROJECT = project;
                         debugLog('McpConfigManager', `Injected Vertex AI JSON credentials into server '${serverName}' (project: ${project})`);
                     }
@@ -644,7 +842,10 @@ export class McpConfigManager {
     /**
      * Inject Grok API Key into Grok servers
      */
-    private async injectGrokApiKey(mcpConfig: { mcpServers: { [key: string]: any } }): Promise<void> {
+    private async injectGrokApiKey(
+        mcpConfig: { mcpServers: { [key: string]: any } },
+        secretEnv: Record<string, string>
+    ): Promise<void> {
         const shouldInject = await secretService.shouldInjectGrokApiKey();
         if (!shouldInject) {
             debugLog('McpConfigManager', 'Grok Integration not enabled or API Key not set, skipping');
@@ -662,7 +863,7 @@ export class McpConfigManager {
                 if (!serverConfig.env) {
                     serverConfig.env = {};
                 }
-                serverConfig.env.XAI_API_KEY = apiKey;
+                serverConfig.env.XAI_API_KEY = McpConfigManager.toSecretPlaceholder(secretEnv, 'XAI_API_KEY', apiKey);
                 injectedCount++;
                 debugLog('McpConfigManager', `Injected Grok API Key into server '${serverName}'`);
             }
@@ -674,30 +875,14 @@ export class McpConfigManager {
     }
 
     /**
-     * Cleans up old MCP configuration files
+     * Cleans up old MCP configuration dirs.
+     * Uses the same strict rules as the per-launch sweep. It used to delete every
+     * `mcp-*` entry, which could remove another window's live config and also hit
+     * unrelated CLI files such as ~/.claude/mcp-needs-auth-cache.json.
      */
     public async cleanupOldMcpConfigs(): Promise<void> {
         try {
-            const homeDir = os.homedir();
-            const claudeDir = path.join(homeDir, '.claude');
-            
-            if (!fs.existsSync(claudeDir)) {
-                return;
-            }
-            
-            // Delete all old mcp-* temporary directories
-            const entries = fs.readdirSync(claudeDir);
-            for (const entry of entries) {
-                if (entry.startsWith('mcp-')) {
-                    const fullPath = path.join(claudeDir, entry);
-                    try {
-                        fs.rmSync(fullPath, { recursive: true, force: true });
-                        debugLog('cleanupOldMcpConfigs', `Removed old MCP config: ${fullPath}`);
-                    } catch (error) {
-                        debugError('cleanupOldMcpConfigs', `Failed to remove: ${fullPath}`, error);
-                    }
-                }
-            }
+            await this.sweepStaleMcpConfigDirs();
         } catch (error) {
             debugLog('cleanupOldMcpConfigs', 'Error cleaning up old MCP configs', error);
         }

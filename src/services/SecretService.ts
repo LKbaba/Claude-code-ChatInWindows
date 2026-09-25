@@ -505,19 +505,21 @@ export class SecretService {
     }
 
     /**
-     * Get masked display of API Key (for UI display)
+     * Get masked display of API Key (for UI display).
+     * Same rule as the webview's maskApiKey() for the Anthropic key: keep a
+     * verifiable fragment so users can tell which key is saved.
+     * Length >= 12: first 7 + '***' + last 4 (e.g. "xai-AbC***wxyz"); shorter: '***'.
      * @param apiKey Original API Key
-     * @returns Masked string, e.g., "AIza••••••••••••••••••••"
+     * @returns Masked string
      */
     public static maskApiKey(apiKey: string | undefined): string {
         if (!apiKey) {
             return '';
         }
-        if (apiKey.length <= 8) {
-            return '••••••••';
+        if (apiKey.length < 12) {
+            return '***';
         }
-        // Show first 4 characters, replace the rest with •
-        return apiKey.substring(0, 4) + '•'.repeat(Math.min(apiKey.length - 4, 20));
+        return apiKey.slice(0, 7) + '***' + apiKey.slice(-4);
     }
 
     /**

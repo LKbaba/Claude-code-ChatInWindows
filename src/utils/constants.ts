@@ -6,20 +6,20 @@
  * Valid model names for Claude
  */
 export const VALID_MODELS = [
-    'opus',
-    'sonnet',
+    // 'opus' / 'sonnet' aliases were removed in v4.1.8; saved selections migrate to 'default'
     'default',
     'opusplan',                       // Opus Plan hybrid mode
-    'claude-fable-5-1',               // Fable 5.1 - Latest flagship (Mythos-class), 1M context; requires CLI >= 2.1.251
+    'claude-fable-5-1',               // Fable 5.1 - Latest flagship (Mythos-class), 1M context; requires CLI >= 2.1.257 per docs (2.1.251 observed in a real error)
     'claude-fable-5',                 // Fable 5 - 5th-gen flagship (Mythos-class), 1M context; requires CLI >= 2.1.170
     'claude-opus-5-5',                // Opus 5.5 - Latest Opus flagship, 1M context; requires CLI >= 2.1.280
+    'claude-opus-5',                  // Opus 5 - Legacy Opus flagship, 1M context; requires CLI >= 2.1.219
     'claude-opus-4-8',                // Opus 4.8 - Latest flagship with adaptive thinking & enhanced reliability
-    'claude-opus-4-7',                // Opus 4.7 - Legacy (hidden from UI but kept for history/pricing)
+    'claude-opus-4-7',                // Opus 4.7 - Legacy (back in the picker since v4.1.8)
     'claude-opus-4-6',                // Opus 4.6 - Previous flagship with Adaptive Thinking
-    'claude-opus-4-5-20251101',       // Opus 4.5 - Legacy (hidden from UI but kept for history/pricing)
+    'claude-opus-4-5-20251101',       // Opus 4.5 - Legacy (in the picker since v4.1.8, hidden by default)
     'claude-sonnet-5',                // Sonnet 5 - Most agentic Sonnet, new tokenizer; requires CLI >= 2.1.197
     'claude-sonnet-4-6',              // Sonnet 4.6 - Latest intelligent model
-    'claude-sonnet-4-5-20250929',     // Sonnet 4.5 - Legacy (hidden from UI but kept for history/pricing)
+    'claude-sonnet-4-5-20250929',     // Sonnet 4.5 - Legacy (in the picker since v4.1.8, hidden by default)
     'claude-haiku-4-5-20251001'       // Haiku 4.5
 ] as const;
 export type ValidModel = typeof VALID_MODELS[number];
@@ -32,6 +32,7 @@ export const MODEL_DISPLAY_NAMES: Record<string, string> = {
     'claude-fable-5-1': 'Fable 5.1',
     'claude-fable-5': 'Fable 5',
     'claude-opus-5-5': 'Opus 5.5',
+    'claude-opus-5': 'Opus 5',
     'claude-opus-4-8': 'Opus 4.8',
     'claude-opus-4-7': 'Opus 4.7',
     'claude-opus-4-6': 'Opus 4.6',
@@ -48,6 +49,65 @@ export const MODEL_DISPLAY_NAMES: Record<string, string> = {
     'claude-haiku-4-5-20251001': 'Haiku 4.5',
     'default': 'Default'
 };
+
+/**
+ * Effort levels accepted by `claude --effort` (ultracode is intentionally not offered)
+ */
+export const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type EffortLevel = typeof EFFORT_LEVELS[number];
+
+/**
+ * Effort support per model (docs/md/claude-code/model-config.md, "Adjust effort level"):
+ * - 'all':      low / medium / high / xhigh / max
+ * - 'no-xhigh': Opus 4.6 and Sonnet 4.6 have no xhigh (the CLI would run it as high)
+ * - 'none':     the model does not support effort (Haiku 4.5, Opus 4.5, Sonnet 4.5)
+ * - 'cli':      the actual model is unknown to the plugin; effort is left to the CLI's /effort setting
+ */
+export type EffortSupport = 'all' | 'no-xhigh' | 'none' | 'cli';
+
+export interface PickerModelInfo {
+    id: string;
+    effort: EffortSupport;
+    /** Model default when no level is set; null when it depends on the resolved model */
+    defaultEffort: EffortLevel | null;
+    /** Hidden from the picker until the user turns it on in Config (older models) */
+    defaultHidden?: boolean;
+}
+
+/**
+ * Models offered in the model picker, in display order. Must match the radio list in
+ * getBodyContent.ts. Opus 5.5 defaults to medium, Opus 4.7 to xhigh, every other effort-capable model to high.
+ */
+export const PICKER_MODELS: readonly PickerModelInfo[] = [
+    { id: 'claude-fable-5-1', effort: 'all', defaultEffort: 'high' },
+    { id: 'claude-fable-5', effort: 'all', defaultEffort: 'high' },
+    { id: 'claude-opus-5-5', effort: 'all', defaultEffort: 'medium' },
+    { id: 'claude-opus-5', effort: 'all', defaultEffort: 'high' },
+    { id: 'claude-opus-4-8', effort: 'all', defaultEffort: 'high' },
+    { id: 'claude-opus-4-7', effort: 'all', defaultEffort: 'xhigh' },
+    { id: 'claude-opus-4-6', effort: 'no-xhigh', defaultEffort: 'high' },
+    { id: 'claude-opus-4-5-20251101', effort: 'none', defaultEffort: null, defaultHidden: true },
+    { id: 'opusplan', effort: 'all', defaultEffort: null },            // Opus + Sonnet phases share one level
+    { id: 'claude-sonnet-5', effort: 'all', defaultEffort: 'high' },
+    { id: 'claude-sonnet-4-6', effort: 'no-xhigh', defaultEffort: 'high' },
+    { id: 'claude-sonnet-4-5-20250929', effort: 'none', defaultEffort: null, defaultHidden: true },
+    { id: 'claude-haiku-4-5-20251001', effort: 'none', defaultEffort: null },
+    { id: 'default', effort: 'cli', defaultEffort: null }
+];
+
+/**
+ * Whether the plugin may pass `--effort <level>` for this model
+ */
+export function isEffortLevelSupported(modelId: string, level: string): level is EffortLevel {
+    if (!(EFFORT_LEVELS as readonly string[]).includes(level)) {
+        return false;
+    }
+    const info = PICKER_MODELS.find(m => m.id === modelId);
+    if (!info || info.effort === 'none' || info.effort === 'cli') {
+        return false;
+    }
+    return !(info.effort === 'no-xhigh' && level === 'xhigh');
+}
 
 /**
  * Tool status mapping for displaying human-readable status messages
@@ -147,6 +207,7 @@ export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
     'claude-fable-5': 1_000_000,
     'claude-sonnet-5': 1_000_000,
     'claude-opus-5-5': 1_000_000,
+    'claude-opus-5': 1_000_000,
     'claude-opus-4-8': 1_000_000,
     'claude-opus-4-7': 1_000_000,
     'claude-opus-4-6': 1_000_000,

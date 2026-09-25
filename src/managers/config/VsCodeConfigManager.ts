@@ -49,7 +49,7 @@ export class VsCodeConfigManager {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
         const settings: VsCodeSettings = {
             'thinking.enabled': config.get<boolean>('thinking.enabled', false),
-            'thinking.intensity': config.get<string>('thinking.intensity', 'think'),
+            'thinking.intensity': VsCodeConfigManager.normalizeThinkingIntensity(config.get<string>('thinking.intensity', 'think')),
             'language.enabled': config.get<boolean>('language.enabled', false),
             'language.selected': config.get<string | null>('language.selected', this.getDefaultLanguage()),
             'language.onlyCommunicate': config.get<boolean>('language.onlyCommunicate', false)
@@ -185,7 +185,39 @@ export class VsCodeConfigManager {
      */
     public getThinkingIntensity(): string {
         const config = vscode.workspace.getConfiguration('claudeCodeChatUI');
-        return config.get<string>('thinking.intensity', 'think');
+        return VsCodeConfigManager.normalizeThinkingIntensity(config.get<string>('thinking.intensity', 'think'));
+    }
+
+    /**
+     * The "xhigh" thinking level was removed in v4.1.8 (real effort levels now live in
+     * the model config and share that name). Saved values map to the nearest level.
+     */
+    private static normalizeThinkingIntensity(value: string): string {
+        return value === 'xhigh' ? 'ultrathink' : value;
+    }
+
+    /**
+     * Rewrite a saved "xhigh" thinking intensity to "ultrathink" in every scope it
+     * was set (user, workspace, each workspace folder). No-op when not present.
+     */
+    public async migrateLegacyThinkingIntensity(): Promise<void> {
+        const key = 'thinking.intensity';
+        const rootConfig = vscode.workspace.getConfiguration('claudeCodeChatUI');
+        const rootInspect = rootConfig.inspect<string>(key);
+        if (rootInspect?.globalValue === 'xhigh') {
+            await rootConfig.update(key, 'ultrathink', vscode.ConfigurationTarget.Global);
+        }
+        if (rootInspect?.workspaceValue === 'xhigh') {
+            await rootConfig.update(key, 'ultrathink', vscode.ConfigurationTarget.Workspace);
+        }
+        for (const folder of vscode.workspace.workspaceFolders || []) {
+            const folderConfig = vscode.workspace.getConfiguration('claudeCodeChatUI', folder.uri);
+            const folderInspect = folderConfig.inspect<string>(key);
+            // In a single-folder workspace the folder value is the workspace value (already handled)
+            if (folderInspect?.workspaceFolderValue === 'xhigh' && vscode.workspace.workspaceFile) {
+                await folderConfig.update(key, 'ultrathink', vscode.ConfigurationTarget.WorkspaceFolder);
+            }
+        }
     }
 
     /**

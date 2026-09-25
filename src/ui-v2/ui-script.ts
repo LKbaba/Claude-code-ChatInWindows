@@ -887,6 +887,7 @@ export const uiScript = `
 		const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 		let lastContextTokens = 0; // Latest real context occupancy from backend (0 = unknown)
 		let contextLimit = 0; // Indicator denominator from backend = min(configured window, model window); 0 = unknown
+		let rateLimit5h = null; // { utilization, status, resetsAt, updatedAt } from backend; null = never received (e.g. API key login)
 		
 		// Tool execution tracking
 		let currentToolExecution = null;
@@ -944,6 +945,68 @@ export const uiScript = `
 		// is correct information (PRD updatePRDv18 F1.4). Before the backend sends
 		// any data (contextLimit === 0) it shows a full bar (100% remaining) —
 		// the tooltip still marks the value as unknown until real usage arrives.
+		// "5h ◔" ring for the subscription's 5-hour limit, left of Compact.
+		// Empty string (hidden) until the first rate_limit_event arrives.
+		function buildRateLimit5hHtml() {
+			if (!rateLimit5h || typeof rateLimit5h.utilization !== 'number') {
+				return '';
+			}
+			// Past the reset time the window has started over
+			const expired = rateLimit5h.resetsAt && Date.now() / 1000 > rateLimit5h.resetsAt;
+			let percent = expired ? 0 : Math.max(0, Math.min(100, Math.round(rateLimit5h.utilization * 100)));
+			const status = expired ? 'allowed' : rateLimit5h.status;
+
+			let color = '#66BB6A'; // Green
+			if (percent >= 90) {
+				color = '#EF5350'; // Red
+			} else if (percent >= 70) {
+				color = '#FFCA28'; // Yellow
+			}
+			if (status === 'allowed_warning' && percent < 90) {
+				color = '#FFCA28';
+			} else if (status === 'rejected') {
+				color = '#EF5350';
+				percent = 100;
+			}
+
+			const radius = 6;
+			const circumference = 2 * Math.PI * radius;
+			const filled = (circumference * percent / 100).toFixed(2);
+
+			// Two lines like the Context Window tooltip: usage, then when the window resets
+			let tooltip = '5-hour limit: ' + percent + '% used';
+			if (rateLimit5h.resetsAt) {
+				const resetDate = new Date(rateLimit5h.resetsAt * 1000);
+				const resetClock = String(resetDate.getHours()).padStart(2, '0') + ':' + String(resetDate.getMinutes()).padStart(2, '0');
+				if (expired) {
+					tooltip += '\\nReset at ' + resetClock;
+				} else {
+					const minutesLeft = Math.max(1, Math.ceil((resetDate.getTime() - Date.now()) / 60000));
+					const leftText = minutesLeft < 60 ? minutesLeft + ' min'
+						: Math.floor(minutesLeft / 60) + 'h ' + (minutesLeft % 60) + 'm';
+					tooltip += '\\nResets at ' + resetClock + ' (in ' + leftText + ')';
+				}
+			}
+
+			return \`
+				<div class="rate-limit-5h" style="display: flex; align-items: center; gap: 5px;" title="\${escapeHtml(tooltip)}">
+					<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">5h</span>
+					<svg width="14" height="14" viewBox="0 0 16 16" style="transform: rotate(-90deg); display: block;">
+						<circle cx="8" cy="8" r="\${radius}" fill="none" stroke="rgba(255, 255, 255, 0.15)" stroke-width="2.5"></circle>
+						<circle cx="8" cy="8" r="\${radius}" fill="none" stroke="\${color}" stroke-width="2.5"
+							stroke-dasharray="\${filled} \${circumference.toFixed(2)}" style="transition: stroke-dasharray 0.3s ease;"></circle>
+					</svg>
+				</div>
+			\`;
+		}
+
+		// Keep the reset countdown and the post-reset 0% current without new events
+		setInterval(() => {
+			if (rateLimit5h) {
+				updateContextIndicator();
+			}
+		}, 60000);
+
 		function updateContextIndicator() {
 			// Find or create token indicator container
 			let indicatorContainer = document.getElementById('tokenUsageIndicator');
@@ -984,6 +1047,7 @@ export const uiScript = `
 			// Update indicator content
 			indicatorContainer.innerHTML = \`
 				<div class="usage-display" style="display: inline-flex; align-items: center; gap: 12px;">
+					\${buildRateLimit5hHtml()}
 					<div style="display: flex; align-items: center; gap: 6px;">
 						<span class="compact-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">Compact</span>
 						<div class="mode-switch" id="compactButton" onclick="compactConversation()" title="Compact context"></div>
@@ -2187,6 +2251,13 @@ export const uiScript = `
 		// Model selector functions
 		let currentModel = 'opus'; // Default model
 
+		// Model Config panel state (v4.1.8), filled by the 'modelConfig' message.
+		// modelConfigModels mirrors PICKER_MODELS in constants.ts.
+		let modelConfigModels = [];
+		let modelEffortByModel = {};
+		let modelHiddenList = [];
+		let modelConfigOpen = false;
+
 		function showModelSelector() {
 			openModal('modelModal');
 			// Select the current model radio button
@@ -2194,10 +2265,13 @@ export const uiScript = `
 			if (radioButton) {
 				radioButton.checked = true;
 			}
+			updateModelPopoverLayout();
+			renderModelPicker();
 		}
 
 		function hideModelModal() {
 			closeModal('modelModal');
+			closeModelConfig();
 		}
 
 		// Show compute mode selection modal
@@ -2420,7 +2494,7 @@ export const uiScript = `
 
 		function saveThinkingIntensity() {
 			const thinkingSlider = document.getElementById('thinkingIntensitySlider');
-			const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'xhigh', 'sequential-thinking'];
+			const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
 			const thinkingIntensity = intensityValues[thinkingSlider.value] || 'think';
 
 			// Save thinking mode settings to VS Code
@@ -2434,7 +2508,7 @@ export const uiScript = `
 		}
 
 		function updateThinkingModeToggleName(intensityValue) {
-			const intensityNames = ['Think', 'Think Hard', 'Think Harder', 'Ultrathink', 'xHigh', 'Sequential (MCP)'];
+			const intensityNames = ['Think', 'Think Hard', 'Think Harder', 'Ultrathink', 'Sequential (MCP)'];
 			const modeName = intensityNames[intensityValue] || 'Think';
 			const toggleLabel = document.getElementById('thinkingModeLabel');
 			if (toggleLabel) {
@@ -2444,7 +2518,7 @@ export const uiScript = `
 
 		function updateThinkingIntensityDisplay(value) {
 			// Update label highlighting for thinking intensity modal
-			for (let i = 0; i < 6; i++) {
+			for (let i = 0; i < 5; i++) {
 				const label = document.getElementById('thinking-label-' + i);
 				if (i == value) {
 					label.classList.add('active');
@@ -2680,6 +2754,7 @@ export const uiScript = `
 			'claude-fable-5-1': 'Fable 5.1',
 			'claude-fable-5': 'Fable 5',
 			'claude-opus-5-5': 'Opus 5.5',
+			'claude-opus-5': 'Opus 5',
 			'claude-opus-4-8': 'Opus 4.8',
 			'claude-opus-4-7': 'Opus 4.7',
 			'claude-opus-4-6': 'Opus 4.6',
@@ -2696,8 +2771,11 @@ export const uiScript = `
 		function selectModel(model, fromBackend = false) {
 			currentModel = model;
 
-			// Update display text
-			document.getElementById('selectedModel').textContent = modelDisplayNames[model] || model;
+			// Update display text (model name plus its effort level, if set)
+			updateModelButtonLabel();
+			// The "In use" lock in the Config panel follows the selected model
+			renderModelPicker();
+			renderModelConfig();
 
 			// Only send model selection to VS Code extension when not triggered from backend
 			if (!fromBackend) {
@@ -2719,16 +2797,17 @@ export const uiScript = `
 				radioId = 'model-fable-5';
 			} else if (model === 'claude-opus-5-5') {
 				radioId = 'model-opus-5-5';
+			} else if (model === 'claude-opus-5') {
+				radioId = 'model-opus-5';
 			} else if (model === 'claude-opus-4-8') {
 				radioId = 'model-opus-4-8';
+			} else if (model === 'claude-opus-4-7') {
+				radioId = 'model-opus-4-7';
 			} else if (model === 'claude-opus-4-6') {
 				radioId = 'model-opus-4-6';
-			}
-			// Note: claude-opus-4-7 branch removed — UI radio no longer exists,
-			// but modelDisplayNames map above still resolves the title text for history sessions.
-			// Note: claude-opus-4-5 branch removed — UI radio no longer exists,
-			// but modelDisplayNames map above still resolves the title text for history sessions.
-			else if (model === 'claude-sonnet-5') {
+			} else if (model === 'claude-opus-4-5-20251101') {
+				radioId = 'model-opus-4-5';
+			} else if (model === 'claude-sonnet-5') {
 				radioId = 'model-sonnet-5';
 			} else if (model === 'claude-sonnet-4-6') {
 				radioId = 'model-sonnet-4-6';
@@ -2752,6 +2831,241 @@ export const uiScript = `
 		// Close model modal when clicking outside
 		document.getElementById('modelModal').addEventListener('click', (e) => {
 			if (e.target === document.getElementById('modelModal')) {
+				hideModelModal();
+			}
+		});
+
+		// ===== Model Config panel: per-model visibility + effort =====
+		// Side by side needs picker 400 + gap 12 + config 440 + margins (see index.ts)
+		const MODEL_CONFIG_SIDE_BY_SIDE_MIN = 880;
+		// Levels and tips follow docs/md/claude-code/model-config.md ("Choose an effort level")
+		const EFFORT_LEVEL_OPTIONS = [
+			{ id: 'auto', short: 'Auto', full: 'Auto', tip: "Don't pass --effort. The CLI uses the level saved with /effort for this model, otherwise the model default." },
+			{ id: 'low', short: 'Low', full: 'Low', tip: 'Short, scoped, latency-sensitive tasks.' },
+			{ id: 'medium', short: 'Med', full: 'Medium', tip: 'Cost-sensitive work that can trade off some intelligence.' },
+			{ id: 'high', short: 'High', full: 'High', tip: 'Balances token usage and intelligence.' },
+			{ id: 'xhigh', short: 'xHigh', full: 'xHigh', tip: 'Deeper reasoning at higher token spend.' },
+			{ id: 'max', short: 'Max', full: 'Max', tip: 'Deepest reasoning. May show diminishing returns and overthink.' }
+		];
+
+		function effortLevelLabel(level) {
+			const opt = EFFORT_LEVEL_OPTIONS.find(function(o) { return o.id === level; });
+			return opt ? opt.full : level;
+		}
+
+		function getModelEffort(model) {
+			return modelEffortByModel[model] || 'auto';
+		}
+
+		function isEffortAllowed(info, level) {
+			if (info.effort === 'none' || info.effort === 'cli') {
+				return level === 'auto';
+			}
+			return !(info.effort === 'no-xhigh' && level === 'xhigh');
+		}
+
+		function updateModelButtonLabel() {
+			const label = document.getElementById('selectedModel');
+			const name = modelDisplayNames[currentModel] || currentModel;
+			const level = getModelEffort(currentModel);
+			label.innerHTML = escapeHtml(name) + (level === 'auto'
+				? ''
+				: ' <span class="model-effort-suffix">· ' + escapeHtml(effortLevelLabel(level)) + '</span>');
+		}
+
+		function updateModelPopoverLayout() {
+			const group = document.getElementById('modelPopoverGroup');
+			group.classList.toggle('stacked', window.innerWidth < MODEL_CONFIG_SIDE_BY_SIDE_MIN);
+			group.classList.toggle('config-open', modelConfigOpen);
+			document.getElementById('modelConfigBtn').setAttribute('aria-pressed', String(modelConfigOpen));
+		}
+		window.addEventListener('resize', updateModelPopoverLayout);
+
+		// Hide rows, add effort tags and the "N hidden" footer on the static picker list
+		function renderModelPicker(flashModel) {
+			const hidden = new Set(modelHiddenList);
+			document.querySelectorAll('#modelModal .tool-item[data-model]').forEach(function(item) {
+				const model = item.getAttribute('data-model');
+				// The model in use stays listed even if another window hid it
+				item.classList.toggle('model-hidden', hidden.has(model) && model !== currentModel);
+				const level = getModelEffort(model);
+				let tag = item.querySelector('.model-effort-tag');
+				if (level === 'auto') {
+					if (tag) { tag.remove(); }
+					return;
+				}
+				if (!tag) {
+					tag = document.createElement('span');
+					tag.className = 'model-effort-tag';
+					tag.title = 'Effort level';
+					item.appendChild(tag);
+				}
+				tag.textContent = effortLevelLabel(level);
+				if (flashModel === model) {
+					const flashed = tag;
+					flashed.classList.add('flash');
+					setTimeout(function() { flashed.classList.remove('flash'); }, 450);
+				}
+			});
+
+			const hiddenCount = document.querySelectorAll('#modelModal .tool-item.model-hidden').length;
+			const footer = document.getElementById('modelPickerFooter');
+			if (!hiddenCount) {
+				footer.innerHTML = '';
+				return;
+			}
+			footer.innerHTML = '<span>' + hiddenCount + ' model' + (hiddenCount > 1 ? 's' : '') + ' hidden</span>' +
+				(modelConfigOpen ? '' : '<button class="model-config-link" onclick="openModelConfig()">Show in Config</button>');
+		}
+
+		function modelConfigSubLine(info) {
+			if (info.effort === 'none') { return 'No effort support'; }
+			if (info.effort === 'cli') { return 'Follows CLI setting'; }
+			if (info.id === 'opusplan') { return 'Both phases'; }
+			return info.defaultEffort ? 'Default ' + effortLevelLabel(info.defaultEffort) : '';
+		}
+
+		function renderModelConfig() {
+			const body = document.getElementById('modelConfigBody');
+			if (!body) { return; }
+			const hidden = new Set(modelHiddenList);
+			let html = '';
+			modelConfigModels.forEach(function(info) {
+				const model = info.id;
+				const name = modelDisplayNames[model] || model;
+				const shown = !hidden.has(model);
+				const lock = model === currentModel ? 'In use' : (model === 'default' ? 'Always shown' : '');
+				html += '<div class="model-cfg-row' + (shown ? '' : ' is-hidden') + '">' +
+					'<button class="model-visibility-switch" role="switch" aria-checked="' + shown + '"' +
+					' aria-label="Show ' + escapeHtml(name) + ' in model list"' +
+					(lock ? ' disabled title="' + escapeHtml(lock) + ' - cannot be hidden"' : ' title="Show in model list"') +
+					' data-toggle-model="' + escapeHtml(model) + '"></button>' +
+					'<div class="model-cfg-text"><div class="model-cfg-name">' + escapeHtml(name) +
+					(lock ? '<span class="model-cfg-badge">' + escapeHtml(lock) + '</span>' : '') + '</div>' +
+					'<div class="model-cfg-sub">' + escapeHtml(modelConfigSubLine(info)) + '</div></div>';
+
+				if (info.effort === 'none' || info.effort === 'cli') {
+					html += '<div class="model-effort-none">' + (info.effort === 'none' ? 'Not available' : 'Set with /effort') + '</div>';
+				} else {
+					const current = getModelEffort(model);
+					html += '<div class="model-effort-seg" role="radiogroup" aria-label="Effort for ' + escapeHtml(name) + '">';
+					EFFORT_LEVEL_OPTIONS.forEach(function(opt) {
+						const allowed = isEffortAllowed(info, opt.id);
+						const tip = allowed ? opt.tip : 'Not available on ' + name + ' (runs as High)';
+						html += '<button role="radio" aria-checked="' + (current === opt.id) + '"' +
+							' class="' + (opt.id === 'auto' ? 'auto' : '') + (current === opt.id ? ' on' : '') + '"' +
+							(allowed ? '' : ' disabled') + ' title="' + escapeHtml(tip) + '"' +
+							' data-model="' + escapeHtml(model) + '" data-level="' + opt.id + '">' + opt.short + '</button>';
+					});
+					html += '</div>';
+				}
+				html += '</div>';
+			});
+			body.innerHTML = html;
+
+			const shownCount = modelConfigModels.filter(function(info) { return !hidden.has(info.id); }).length;
+			document.getElementById('modelConfigCount').textContent = shownCount + ' of ' + modelConfigModels.length + ' models shown';
+		}
+
+		function openModelConfig() {
+			modelConfigOpen = true;
+			updateModelPopoverLayout();
+			renderModelConfig();
+			renderModelPicker();
+			// Refresh from the extension: the env override may have changed on disk
+			vscode.postMessage({ type: 'getModelConfig' });
+		}
+
+		// CLAUDE_CODE_EFFORT_LEVEL outranks the CLI's own per-model levels. The extension
+		// clears it for models with an explicit level here, so it only affects models on Auto.
+		function renderEffortEnvNote(override) {
+			const note = document.getElementById('modelConfigEnvNote');
+			if (!override || !override.value) {
+				note.style.display = 'none';
+				note.textContent = '';
+				return;
+			}
+			note.textContent = 'CLAUDE_CODE_EFFORT_LEVEL=' + override.value + ' is set in ' + override.source +
+				'. Models on Auto run at this level; levels picked here still apply.';
+			note.style.display = '';
+		}
+
+		function closeModelConfig() {
+			modelConfigOpen = false;
+			updateModelPopoverLayout();
+			renderModelPicker();
+		}
+
+		function toggleModelConfig() {
+			if (modelConfigOpen) {
+				closeModelConfig();
+			} else {
+				openModelConfig();
+			}
+		}
+
+		// Config panel's close button: in stacked mode it is the only visible card, so close everything
+		function closeModelConfigPanel() {
+			if (document.getElementById('modelPopoverGroup').classList.contains('stacked')) {
+				hideModelModal();
+			} else {
+				closeModelConfig();
+			}
+		}
+
+		// Changes are applied locally right away; the backend echoes the saved state back
+		function setModelEffort(model, level) {
+			if (level === 'auto') {
+				delete modelEffortByModel[model];
+			} else {
+				modelEffortByModel[model] = level;
+			}
+			renderModelConfig();
+			renderModelPicker(model);
+			updateModelButtonLabel();
+			vscode.postMessage({ type: 'setModelEffort', model: model, level: level });
+		}
+
+		function toggleModelHidden(model) {
+			const hide = modelHiddenList.indexOf(model) === -1;
+			modelHiddenList = hide
+				? modelHiddenList.concat([model])
+				: modelHiddenList.filter(function(m) { return m !== model; });
+			renderModelConfig();
+			renderModelPicker();
+			vscode.postMessage({ type: 'setModelHidden', model: model, hidden: hide });
+		}
+
+		function resetModelConfig() {
+			modelEffortByModel = {};
+			// Older models go back to hidden, matching the backend's reset
+			modelHiddenList = modelConfigModels
+				.filter(function(info) { return info.defaultHidden; })
+				.map(function(info) { return info.id; });
+			renderModelConfig();
+			renderModelPicker();
+			updateModelButtonLabel();
+			vscode.postMessage({ type: 'resetModelConfig' });
+		}
+
+		document.getElementById('modelConfigBody').addEventListener('click', function(e) {
+			const toggle = e.target.closest('[data-toggle-model]');
+			if (toggle) {
+				if (!toggle.disabled) { toggleModelHidden(toggle.getAttribute('data-toggle-model')); }
+				return;
+			}
+			const seg = e.target.closest('[data-level]');
+			if (seg && !seg.disabled) {
+				setModelEffort(seg.getAttribute('data-model'), seg.getAttribute('data-level'));
+			}
+		});
+
+		// Esc: collapse the Config panel first, then close the picker
+		document.addEventListener('keydown', function(e) {
+			if (e.key !== 'Escape' || document.getElementById('modelModal').style.display !== 'flex') { return; }
+			if (modelConfigOpen) {
+				closeModelConfig();
+			} else {
 				hideModelModal();
 			}
 		});
@@ -3152,15 +3466,20 @@ export const uiScript = `
 					break;
 					
 				case 'restoreProgress':
-					addMessage('🔄 ' + message.data, 'system');
+					showRestoreProgress(message.data);
 					break;
-					
+
 				case 'restoreSuccess':
-					//hideRestoreContainer(message.data.commitSha);
-					addMessage('✅ ' + message.data.message, 'system');
+					showRestoreResult(message.data);
 					break;
-					
+
+				case 'rateLimit5h':
+					rateLimit5h = message.data || null;
+					updateContextIndicator();
+					break;
+
 				case 'restoreError':
+					clearRestoreProgress();
 					addMessage('❌ ' + message.data, 'error');
 					break;
 					
@@ -3200,6 +3519,15 @@ export const uiScript = `
 					// Update the UI with the current model
 					currentModel = message.model;
 					selectModel(message.model, true);
+					break;
+				case 'modelConfig':
+					modelConfigModels = (message.data && message.data.models) || [];
+					modelEffortByModel = (message.data && message.data.effortByModel) || {};
+					modelHiddenList = (message.data && message.data.hiddenModels) || [];
+					renderEffortEnvNote(message.data && message.data.effortEnvOverride);
+					renderModelConfig();
+					renderModelPicker();
+					updateModelButtonLabel();
 					break;
 				case 'terminalOpened':
 					// Display notification about checking the terminal
@@ -3335,7 +3663,7 @@ export const uiScript = `
 				// Restore thinking mode settings
 				const savedThinkingMode = message.data['thinking.enabled'] || false;
 				const thinkingIntensity = message.data['thinking.intensity'] || 'think';
-				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'xhigh', 'sequential-thinking'];
+				const intensityValues = ['think', 'think-hard', 'think-harder', 'ultrathink', 'sequential-thinking'];
 				const sliderValue = intensityValues.indexOf(thinkingIntensity);
 
 				// Restore thinking mode switch state
@@ -3471,6 +3799,11 @@ export const uiScript = `
 				initGrokIntegration(message.data);
 			}
 
+			// Handle Codex Integration config message
+			if (message.type === 'codexIntegrationConfig') {
+				initCodexIntegration(message.data);
+			}
+
 			// Handle Vertex AI credentials import result
 			if (message.type === 'vertexCredentialsImported') {
 				const vertexStatus = document.getElementById('vertex-status');
@@ -3536,23 +3869,104 @@ export const uiScript = `
 			});
 		}
 
+		function undoRestore(commitSha) {
+			console.log('Undo restore clicked, target commit:', commitSha);
+			vscode.postMessage({
+				type: 'restoreCommit',
+				commitSha: commitSha,
+				isUndo: true
+			});
+		}
+
+		const RESTORE_BUTTON_TITLE = 'Restores workspace files only (the conversation is not rewound). Files ignored by .gitignore are not included.';
+
 		function showRestoreContainer(data) {
 			const restoreContainer = document.createElement('div');
 			restoreContainer.className = 'restore-container';
 			restoreContainer.id = \`restore-\${data.sha}\`;
-			
+
 			const timeAgo = new Date(data.timestamp).toLocaleTimeString();
-			const shortSha = data.sha ? data.sha.substring(0, 8) : 'unknown';
-			
+			const safeSha = escapeForOnclick(String(data.sha || ''));
+
 			restoreContainer.innerHTML = \`
-				<button class="restore-btn dark" onclick="restoreToCommit('\${data.sha}')">
-					Restore checkpoint
+				<button class="restore-btn dark" onclick="restoreToCommit('\${safeSha}')" title="\${escapeHtml(RESTORE_BUTTON_TITLE)}">
+					↺ Restore checkpoint
 				</button>
-				<span class="restore-date">\${timeAgo}</span>
+				<span class="restore-date">\${escapeHtml(timeAgo)}</span>
 			\`;
-			
+
 			messagesDiv.appendChild(restoreContainer);
 			scrollToBottom();  // Use smart scroll function
+		}
+
+		// Transient "restoring..." line; replaced by the result card (never saved)
+		function showRestoreProgress(text) {
+			clearRestoreProgress();
+			const progress = document.createElement('div');
+			progress.id = 'restore-progress';
+			progress.className = 'restore-progress';
+			progress.textContent = '⟳ ' + text;
+			messagesDiv.appendChild(progress);
+			scrollToBottom();
+		}
+
+		function clearRestoreProgress() {
+			const progress = document.getElementById('restore-progress');
+			if (progress) progress.remove();
+		}
+
+		// One card per restore: what happened, counts, and an Undo button.
+		// Built with textContent only: checkpointLabel is user-typed text.
+		// Saved with the conversation, so it is also rebuilt when history is loaded.
+		function showRestoreResult(data) {
+			clearRestoreProgress();
+			data = data || {};
+
+			const card = document.createElement('div');
+			card.className = 'restore-card' + (data.isUndo ? ' undo' : '');
+
+			const icon = document.createElement('span');
+			icon.className = 'restore-card-icon';
+			icon.textContent = data.isUndo ? '↩' : '↺';
+
+			const body = document.createElement('div');
+			body.className = 'restore-card-body';
+			const title = document.createElement('div');
+			title.className = 'restore-card-title';
+			if (data.isUndo) {
+				title.textContent = 'Restore undone: files are back to how they were before it';
+			} else if (data.checkpointLabel) {
+				title.textContent = 'Files restored to before “' + data.checkpointLabel + '”';
+			} else {
+				title.textContent = 'Files restored';
+			}
+			title.title = title.textContent;
+
+			const meta = document.createElement('div');
+			meta.className = 'restore-card-meta';
+			const parts = [];
+			if (typeof data.overwritten === 'number') parts.push(data.overwritten + ' written back');
+			if (typeof data.removed === 'number') parts.push(data.removed + ' deleted');
+			if (data.restoredAt) parts.push(new Date(data.restoredAt).toLocaleTimeString());
+			// Older saved results only have the summary sentence
+			meta.textContent = parts.length > 0 ? parts.join(' · ') : (data.message || '');
+
+			body.appendChild(title);
+			body.appendChild(meta);
+			card.appendChild(icon);
+			card.appendChild(body);
+
+			if (!data.isUndo && data.undoSha) {
+				const undoBtn = document.createElement('button');
+				undoBtn.className = 'restore-btn dark';
+				undoBtn.textContent = '↩ Undo';
+				undoBtn.title = 'Put workspace files back to how they were right before this restore.';
+				undoBtn.onclick = () => undoRestore(data.undoSha);
+				card.appendChild(undoBtn);
+			}
+
+			messagesDiv.appendChild(card);
+			scrollToBottom();
 		}
 
 		function hideRestoreContainer(commitSha) {
@@ -5231,14 +5645,9 @@ export const uiScript = `
 					command: 'npx',
 					args: ['-y', '@lkbaba/mcp-server-gemini@latest'],
 					env: {}
-				},
-				// Codex autonomous coding agent - delegate implementation, review, debugging
-				'codex-official': {
-					name: 'codex-official',
-					command: 'codex',
-					args: ['mcp-server'],
-					env: {}
 				}
+				// Codex template removed in v4.1.8: Codex CLI 0.154.0 dropped "codex mcp-server".
+				// Claude now calls "codex exec" via Bash instead (see ClaudeProcessService).
 			};
 			
 			const template = templates[templateValue];
@@ -5488,6 +5897,37 @@ export const uiScript = `
 			console.log('[Grok] Integration initialization complete:', config);
 		}
 
+		// ==================== Codex Integration Functions ====================
+
+		function toggleCodexIntegration() {
+			const checkbox = document.getElementById('codex-enabled');
+			const optionsDiv = document.getElementById('codexOptions');
+			if (!checkbox || !optionsDiv) { return; }
+			optionsDiv.style.display = checkbox.checked ? 'block' : 'none';
+			vscode.postMessage({ type: 'updateCodexIntegration', enabled: checkbox.checked });
+		}
+
+		/**
+		 * @param {Object} config - { enabled, cliPath } where cliPath is '' when codex is not on PATH
+		 */
+		function initCodexIntegration(config) {
+			const checkbox = document.getElementById('codex-enabled');
+			const optionsDiv = document.getElementById('codexOptions');
+			const status = document.getElementById('codex-status');
+			if (checkbox) { checkbox.checked = !!config.enabled; }
+			if (optionsDiv) { optionsDiv.style.display = config.enabled ? 'block' : 'none'; }
+			if (status) {
+				// textContent: the path comes from the file system
+				if (config.cliPath) {
+					status.textContent = '✅ Codex CLI found: ' + config.cliPath;
+					status.style.color = 'var(--vscode-descriptionForeground)';
+				} else {
+					status.textContent = '⚠️ Codex CLI not found. Install it with "npm i -g @openai/codex", run "codex login", then reopen this panel.';
+					status.style.color = 'var(--vscode-errorForeground)';
+				}
+			}
+		}
+
 		/**
 		 * Delete saved Grok API Key
 		 */
@@ -5691,6 +6131,9 @@ export const uiScript = `
 		window.toggleGrokOptions = toggleGrokOptions;
 		window.updateGrokApiKey = updateGrokApiKey;
 		window.initGrokIntegration = initGrokIntegration;
+		// Codex Integration function mounting
+		window.toggleCodexIntegration = toggleCodexIntegration;
+		window.initCodexIntegration = initCodexIntegration;
 		window.importVertexCredentials = importVertexCredentials;
 		// Delete / mode-switch functions
 		window.switchGeminiAuthMode = switchGeminiAuthMode;

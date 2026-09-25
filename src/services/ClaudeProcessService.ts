@@ -12,7 +12,8 @@ import * as vscode from 'vscode';
 import { WindowsCompatibility, ExecutionEnvironment } from '../managers/WindowsCompatibility';
 import { ConfigurationManagerFacade } from '../managers/config/ConfigurationManagerFacade';
 import { ConversationManager } from '../managers/ConversationManager';
-import { VALID_MODELS, ValidModel, isOneMillionContextModel } from '../utils/constants';
+import { ModelPreferencesManager } from '../managers/ModelPreferencesManager';
+import { VALID_MODELS, ValidModel, isOneMillionContextModel, EffortLevel, isEffortLevelSupported } from '../utils/constants';
 import { getMcpSystemPrompts } from '../utils/mcpPrompts';
 import { debugLog, debugError } from './DebugLogger';
 import { SecretService } from './SecretService';
@@ -29,6 +30,47 @@ const HEADLESS_RUNTIME_CONSTRAINTS_PROMPT = `# Runtime Constraints (headless mod
 - NEVER rely on background processes, sleep/polling loops, timers, or scheduled reminders surviving across turns — they are killed or orphaned when the reply ends. Background tasks WITHIN a single reply are fine.
 - For persistent scheduled work, use OS-level schedulers instead (Windows: schtasks / Task Scheduler).
 - For long batch work: finish it within one reply, or persist progress to files and continue on the next user message.`;
+
+/**
+ * How to delegate to the OpenAI Codex CLI, injected only when the user enabled
+ * Settings → AI Assistant → Codex and codex is on PATH.
+ * Codex 0.154.0 removed `codex mcp-server`, so there is no Codex MCP tool anymore;
+ * `codex exec` via Bash replaces it. Verified on codex-cli 0.156.1: stdout carries only
+ * the final answer, stdin must be closed or codex waits for it, and `resume` has no
+ * -s flag (sandbox is set with -c sandbox_mode=...).
+ */
+const CODEX_CLI_PROMPT = `# Codex CLI (OpenAI)
+The OpenAI Codex CLI is installed. When the user asks to use Codex (e.g. a review, a second opinion, or a delegated task), call it through Bash — there is no Codex MCP tool:
+- Start: \`codex exec -s read-only --skip-git-repo-check "<task>" < /dev/null 2>/dev/null\` from the project directory. Keep \`< /dev/null\`, otherwise codex waits for stdin.
+- stdout is only Codex's final answer; progress logs, errors and the session id go to stderr. If stdout is empty or the exit code is non-zero, rerun without \`2>/dev/null\` to see the error.
+- Sandbox: read-only by default. Use \`-s workspace-write\` only when the user wants Codex to edit files, then check its changes with \`git diff\`. Never use --dangerously-bypass-approvals-and-sandbox.
+- Follow-up in the same Codex session: \`codex exec resume --last --skip-git-repo-check "<follow-up>" < /dev/null 2>/dev/null\` from the same directory. resume has no -s flag; add \`-c sandbox_mode="workspace-write"\` if the follow-up must edit files.
+- Codex cannot see this conversation: put the goal, relevant files and constraints in the prompt.
+- Codex can take minutes: set the Bash timeout to 600000 and keep tasks small enough to finish within this reply.`;
+
+const CODEX_ENABLED_KEY = 'codexIntegrationEnabled';
+
+function isCodexIntegrationEnabled(): boolean {
+    return vscode.workspace.getConfiguration('claudeCodeChatUI').get<boolean>(CODEX_ENABLED_KEY, false);
+}
+
+/**
+ * Locate the Codex CLI on PATH (npm global install: codex.cmd on Windows).
+ * Checked every turn so installing or removing Codex takes effect without a reload.
+ * @returns Full path of the executable, or undefined when not found
+ */
+function findCodexCli(envPath: string | undefined): string | undefined {
+    const names = process.platform === 'win32' ? ['codex.cmd', 'codex.exe'] : ['codex'];
+    for (const dir of (envPath || '').split(path.delimiter).filter(Boolean)) {
+        for (const name of names) {
+            const candidate = path.join(dir, name);
+            if (fs.existsSync(candidate)) {
+                return candidate;
+            }
+        }
+    }
+    return undefined;
+}
 
 /**
  * Nudge toward a visible checklist. Newer models (Opus 5.5 etc.) rarely call the
@@ -54,6 +96,8 @@ export interface ProcessOptions {
     cwd: string;
     sessionId?: string;
     model: string;
+    // Per-model effort from the Config panel; undefined = Auto (no --effort flag)
+    effort?: EffortLevel;
     windowsEnvironmentInfo?: string;
     customInstructions?: string;
     resumeFrom?: string;
@@ -94,6 +138,22 @@ export class ClaudeProcessService {
     }
 
     /**
+     * Codex toggle state for the settings panel. Uses the same PATH as the CLI
+     * spawn, so "found" here means the prompt will really be injected.
+     */
+    public async getCodexIntegrationStatus(): Promise<{ enabled: boolean; cliPath: string }> {
+        const execEnvironment = await this._windowsCompatibility.getExecutionEnvironment();
+        const cliPath = findCodexCli(execEnvironment.spawnOptions.env?.PATH ?? process.env.PATH) || '';
+        return { enabled: isCodexIntegrationEnabled(), cliPath };
+    }
+
+    public async setCodexIntegrationEnabled(enabled: boolean): Promise<void> {
+        await vscode.workspace.getConfiguration('claudeCodeChatUI')
+            .update(CODEX_ENABLED_KEY, enabled, vscode.ConfigurationTarget.Global);
+        debugLog('ClaudeProcessService', `Codex integration ${enabled ? 'enabled' : 'disabled'}`);
+    }
+
+    /**
      * Start a new Claude process
      */
     public async startProcess(options: ProcessOptions, callbacks: ProcessCallbacks): Promise<void> {
@@ -105,8 +165,13 @@ export class ClaudeProcessService {
         }
 
         this._isStarting = true;
+        // Temp MCP config written for this turn; deleted once this CLI process exits
+        let mcpConfigPath: string | null = null;
+        let handlersAttached = false;
         try {
-        const { execEnvironment, args } = await this._prepareProcessExecution(options);
+        const prepared = await this._prepareProcessExecution(options);
+        const { execEnvironment, args } = prepared;
+        mcpConfigPath = prepared.mcpConfigPath;
         
         if (!execEnvironment.claudeExecutablePath) {
             throw new Error('Claude executable path could not be determined');
@@ -144,8 +209,12 @@ export class ClaudeProcessService {
                 'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
             ];
             const summary: Record<string, string> = {};
+            // Windows env names are case-insensitive (PATH is usually stored as "Path"),
+            // so look keys up case-insensitively to avoid false "(missing)" reports
+            const envKeyByLower = new Map(Object.keys(env).map(key => [key.toLowerCase(), key]));
             for (const k of keysOfInterest) {
-                const v = env[k];
+                const actualKey = process.platform === 'win32' ? (envKeyByLower.get(k.toLowerCase()) ?? k) : k;
+                const v = env[actualKey];
                 if (v === undefined) {
                     summary[k] = '(missing)';
                 } else if (/key|token|secret|credential|password/i.test(k)) {
@@ -191,7 +260,14 @@ export class ClaudeProcessService {
         }
         
         // Set up event handlers
-        this._setupProcessHandlers(this._currentProcess, callbacks);
+        this._setupProcessHandlers(this._currentProcess, callbacks, mcpConfigPath);
+        handlersAttached = true;
+        } catch (error) {
+            // The close handler never got attached, so clean up the config dir here
+            if (!handlersAttached) {
+                this._configurationManager.removeMcpConfigDir(mcpConfigPath);
+            }
+            throw error;
         } finally {
             // Always clear the starting flag, whether spawn succeeded or threw
             this._isStarting = false;
@@ -233,15 +309,16 @@ export class ClaudeProcessService {
     private async _prepareProcessExecution(options: ProcessOptions): Promise<{
         execEnvironment: ExecutionEnvironment;
         args: string[];
+        mcpConfigPath: string | null;
     }> {
         // Get execution environment
         const execEnvironment = await this._windowsCompatibility.getExecutionEnvironment();
 
         // Build MCP configuration if enabled
-        const { configPath: mcpConfigPath } = await this._configurationManager.buildMcpConfig();
+        const { configPath: mcpConfigPath, secretEnv: mcpSecretEnv } = await this._configurationManager.buildMcpConfig();
 
         // Build command arguments
-        const args = await this._buildCommandArgs(options, mcpConfigPath);
+        const args = await this._buildCommandArgs(options, mcpConfigPath, execEnvironment.spawnOptions.env?.PATH);
 
         // Merge MCP environment variables if needed
         const mcpStatus = this._configurationManager.getMcpStatus();
@@ -253,6 +330,19 @@ export class ClaudeProcessService {
                         ...server.env 
                     };
                 }
+            });
+        }
+
+        // Real values for the ${CHATUI_SECRET_*} placeholders in the MCP config file.
+        // Only this child process gets them; the CLI expands the placeholders when
+        // it starts the MCP servers (verified on CLI 2.1.280, multi-line JSON included).
+        if (Object.keys(mcpSecretEnv).length > 0) {
+            execEnvironment.spawnOptions.env = {
+                ...(execEnvironment.spawnOptions.env || process.env),
+                ...mcpSecretEnv
+            };
+            debugLog('ClaudeProcessService', 'Injected MCP secret env vars', {
+                names: Object.keys(mcpSecretEnv)
             });
         }
 
@@ -314,13 +404,16 @@ export class ClaudeProcessService {
             });
         }
 
-        return { execEnvironment, args };
+        return { execEnvironment, args, mcpConfigPath };
     }
 
     /**
      * Build command arguments for Claude CLI
      */
-    private async _buildCommandArgs(options: ProcessOptions, mcpConfigPath: string | null): Promise<string[]> {
+    /**
+     * @param envPath PATH the CLI will run with, used to detect the Codex CLI
+     */
+    private async _buildCommandArgs(options: ProcessOptions, mcpConfigPath: string | null, envPath?: string): Promise<string[]> {
         const args: string[] = [];
 
         // Add base arguments
@@ -363,6 +456,28 @@ export class ClaudeProcessService {
             });
         }
 
+        // Effort is re-sent every turn: each turn spawns a new CLI and --effort does not persist.
+        // Re-check support here so a stale saved level never reaches a model that rejects it.
+        if (options.effort && isEffortLevelSupported(options.model, options.effort)) {
+            args.push('--effort', options.effort);
+            // CLAUDE_CODE_EFFORT_LEVEL beats --effort, even from a settings.json `env` block
+            // (verified on CLI 2.1.280: --effort low still sent "high"). A --settings file that
+            // sets it to "" neutralizes it and keeps the normal precedence, so skill/subagent
+            // frontmatter effort still applies. Only done for an explicit level: Auto keeps
+            // the user's own CLI setting.
+            const override = ModelPreferencesManager.detectEffortEnvOverride(options.cwd);
+            const resetFile = ClaudeProcessService._writeEffortEnvResetFile();
+            if (resetFile) {
+                args.push('--settings', resetFile);
+            }
+            debugLog('ClaudeProcessService', 'Effort argument for CLI', {
+                model: options.model,
+                effort: options.effort,
+                clearedEnvOverride: override ? `${override.value} (${override.source})` : 'none',
+                settingsFile: resetFile || 'not written'
+            });
+        }
+
         // Note: Plan mode and thinking mode are now handled through message prefixes,
         // not through CLI arguments. The actual prompts are added in extension.ts
 
@@ -378,6 +493,15 @@ export class ClaudeProcessService {
         const taskTrackingPrompt = buildTaskTrackingPrompt(process.env);
         if (taskTrackingPrompt) {
             appendSystemPrompt += '\n\n' + taskTrackingPrompt;
+        }
+
+        // Codex prompt: only when the user turned it on AND the CLI can actually be found
+        if (isCodexIntegrationEnabled()) {
+            const codexPath = findCodexCli(envPath ?? process.env.PATH);
+            if (codexPath) {
+                appendSystemPrompt += '\n\n' + CODEX_CLI_PROMPT;
+            }
+            debugLog('ClaudeProcessService', 'Codex integration', { codexPath: codexPath || 'not found' });
         }
 
         const mcpStatus = this._configurationManager.getMcpStatus();
@@ -446,6 +570,28 @@ export class ClaudeProcessService {
     }
 
     /**
+     * Write the settings file that clears CLAUDE_CODE_EFFORT_LEVEL for one CLI run.
+     * The content is constant, so every window shares one file. A file path is used
+     * instead of inline JSON because cmd.exe would mangle the quotes (see Gotcha #11).
+     * @returns The file path, or undefined if writing failed (--settings is skipped)
+     */
+    private static _writeEffortEnvResetFile(): string | undefined {
+        try {
+            const dir = path.join(os.tmpdir(), 'claude-chatui');
+            fs.mkdirSync(dir, { recursive: true });
+            const filePath = path.join(dir, 'effort-env-reset.json');
+            const content = JSON.stringify({ env: { CLAUDE_CODE_EFFORT_LEVEL: '' } });
+            if (!fs.existsSync(filePath) || fs.readFileSync(filePath, 'utf8') !== content) {
+                fs.writeFileSync(filePath, content, 'utf8');
+            }
+            return filePath;
+        } catch (error) {
+            debugError('ClaudeProcessService', 'Failed to write effort env reset file', error);
+            return undefined;
+        }
+    }
+
+    /**
      * Quote an argument for the cmd.exe line Node builds when spawning with shell: true.
      * Node joins args with spaces and no escaping, so a path containing spaces
      * (e.g. C:\Users\John Smith\...) would otherwise be split into several args.
@@ -494,7 +640,7 @@ export class ClaudeProcessService {
     /**
      * Set up process event handlers
      */
-    private _setupProcessHandlers(process: cp.ChildProcess, callbacks: ProcessCallbacks): void {
+    private _setupProcessHandlers(process: cp.ChildProcess, callbacks: ProcessCallbacks, mcpConfigPath: string | null): void {
         let stdoutBuffer = '';
         let stderrBuffer = '';
 
@@ -548,6 +694,9 @@ export class ClaudeProcessService {
             if (stderrBuffer.trim()) {
                 callbacks.onError(stderrBuffer);
             }
+
+            // The CLI reads --mcp-config only at startup, so this turn's file is no longer needed
+            this._configurationManager.removeMcpConfigDir(mcpConfigPath);
 
             // Clear process reference
             if (this._currentProcess === process) {

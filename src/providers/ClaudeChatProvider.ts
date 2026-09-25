@@ -8,7 +8,8 @@ import { FileOperationsManager } from '../managers/FileOperationsManager';
 import { ConfigurationManagerFacade } from '../managers/config/ConfigurationManagerFacade';
 import { CustomCommandsManager } from '../managers/CustomCommandsManager';
 import { ClaudeChatViewProvider } from './ClaudeChatViewProvider';
-import { BackupManager } from '../managers/BackupManager';
+import { BackupManager, RestorePreview } from '../managers/BackupManager';
+import { ModelPreferencesManager } from '../managers/ModelPreferencesManager';
 import { ConversationManager } from '../managers/ConversationManager';
 import { WindowsCompatibility } from '../managers/WindowsCompatibility';
 import { ClaudeProcessService } from '../services/ClaudeProcessService';
@@ -35,6 +36,14 @@ interface ComputeModeSettings {
 	subagentModel?: string;          // Subagent model when enhancement is enabled (defaults to Sonnet 4.6)
 }
 
+// Last known 5-hour subscription usage (from CLI rate_limit_event)
+interface RateLimit5hState {
+	utilization: number;            // 0-1 share of the 5-hour limit already used
+	status: string;                 // allowed | allowed_warning | rejected
+	resetsAt?: number;              // Unix seconds; past it the webview shows 0%
+	updatedAt: number;              // ms timestamp of the event
+}
+
 // Default subagent model used when enhancement is enabled but no model is specified
 const SUBAGENT_DEFAULT_MODEL = 'claude-sonnet-4-6';
 
@@ -54,6 +63,7 @@ export class ClaudeChatProvider {
 	private _configurationManager: ConfigurationManagerFacade;
 	private _customCommandsManager: CustomCommandsManager;
 	private _backupManager: BackupManager;
+	private _modelPreferences: ModelPreferencesManager;
 	private _conversationManager: ConversationManager;
 	private _windowsCompatibility: WindowsCompatibility;
 	private _processService: ClaudeProcessService;
@@ -66,6 +76,9 @@ export class ClaudeChatProvider {
 	private _statsDiskCacheReady: Promise<void>;
 	private _isCompactMode: boolean = false; // Compact mode flag
 	private _compactSummaryBuffer: string = ''; // Compact summary buffer
+	// Set after a checkpoint restore; prepended to the next user message so Claude
+	// knows files changed under it (restore rewinds files only, not the conversation)
+	private _pendingRestoreNote: string | undefined;
 	// Consecutive auto-retry counter for the Opus 4.8 "tool call leaked as
 	// plain text" regression (see MessageProcessor.consumeLeakedToolCall).
 	// Reset after any clean turn or new session; capped to avoid loops.
@@ -77,11 +90,12 @@ export class ClaudeChatProvider {
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
 		// Fable model series pricing (5th-gen flagship, Mythos-class)
-		['claude-fable-5-1', { input: 10.00, output: 50.00 }],            // Fable 5.1 latest flagship, 1M context (requires CLI >= 2.1.251)
+		['claude-fable-5-1', { input: 10.00, output: 50.00 }],            // Fable 5.1 latest flagship, 1M context (requires CLI >= 2.1.257 per docs; 2.1.251 observed in a real error)
 		['claude-fable-5', { input: 10.00, output: 50.00 }],              // Fable 5 flagship, 1M context (requires CLI >= 2.1.170)
 		// Opus model series pricing
-		// NOTE: keep 'claude-opus-5-5' before any future 'claude-opus-5' entry — prefix fallback iterates insertion order
+		// NOTE: 'claude-opus-5-5' must stay before 'claude-opus-5' — prefix fallback iterates insertion order
 		['claude-opus-5-5', { input: 4.00, output: 20.00 }],              // Opus 5.5 latest Opus flagship, 1M context (requires CLI >= 2.1.280)
+		['claude-opus-5', { input: 5.00, output: 25.00 }],                // Opus 5 legacy flagship, 1M context (requires CLI >= 2.1.219)
 		['claude-opus-4-8', { input: 5.00, output: 25.00 }],               // Opus 4.8 latest flagship (May 2026)
 		['claude-opus-4-7', { input: 5.00, output: 25.00 }],               // Opus 4.7 previous flagship with self-verification
 		['claude-opus-4-6', { input: 5.00, output: 25.00 }],               // Opus 4.6 previous flagship with Adaptive Thinking
@@ -104,6 +118,32 @@ export class ClaudeChatProvider {
 		['claude-3-haiku-20240307', { input: 0.25, output: 1.25 }],      // Claude 3 Haiku
 	]);
 
+	// globalState key for the last known 5-hour usage (see _handleRateLimitInfo)
+	private static readonly RATE_LIMIT_5H_KEY = 'claude.rateLimit5h';
+
+	// Prompt cache pricing, as multipliers of the base input price
+	// (docs/md/api/about-claude__pricing.md, 2026-09). Only used when a log
+	// entry has no costUSD. Cache reads are 0.1x except on the models below;
+	// writes are 1.25x for the 5-minute TTL and 2x for the 1-hour TTL.
+	private static readonly CACHE_READ_MULTIPLIERS = new Map<string, number>([
+		['claude-fable-5-1', 0.025],
+		['claude-mythos-5-1', 0.025],
+		['claude-opus-5-5', 0.05],
+	]);
+	private static readonly DEFAULT_CACHE_READ_MULTIPLIER = 0.1;
+	private static readonly CACHE_WRITE_5M_MULTIPLIER = 1.25;
+	private static readonly CACHE_WRITE_1H_MULTIPLIER = 2;
+
+	private static _getCacheReadMultiplier(modelId: string): number {
+		const normalized = normalizeModelId(modelId);
+		for (const [prefix, multiplier] of ClaudeChatProvider.CACHE_READ_MULTIPLIERS) {
+			if (normalized.startsWith(prefix)) {
+				return multiplier;
+			}
+		}
+		return ClaudeChatProvider.DEFAULT_CACHE_READ_MULTIPLIER;
+	}
+
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
 		private readonly _context: vscode.ExtensionContext
@@ -114,6 +154,7 @@ export class ClaudeChatProvider {
 		this._configurationManager = new ConfigurationManagerFacade();
 		this._customCommandsManager = new CustomCommandsManager(this._context);
 		this._backupManager = new BackupManager(this._context);
+		this._modelPreferences = new ModelPreferencesManager(this._context.globalState);
 		this._conversationManager = new ConversationManager(this._context);
 		this._windowsCompatibility = new WindowsCompatibility(this._npmPrefixPromise, this._configurationManager);
 		
@@ -161,8 +202,19 @@ export class ClaudeChatProvider {
 			debugError('ClaudeChatProvider', 'Failed to migrate API key', error);
 		});
 
+		// "xhigh" thinking intensity was removed in v4.1.8; rewrite saved values to "ultrathink"
+		this._configurationManager.migrateLegacyThinkingIntensity().catch(error => {
+			debugError('ClaudeChatProvider', 'Failed to migrate thinking intensity', error);
+		});
+
 		// Load saved model preference (default to Sonnet 4.6)
 		this._selectedModel = this._context.workspaceState.get('claude.selectedModel', 'claude-sonnet-4-6');
+		// The "opus" / "sonnet" aliases were removed from the picker in v4.1.8
+		if (this._selectedModel === 'opus' || this._selectedModel === 'sonnet') {
+			debugLog('ClaudeChatProvider', 'Migrating removed model alias to default', { from: this._selectedModel });
+			this._selectedModel = 'default';
+			this._context.workspaceState.update('claude.selectedModel', 'default');
+		}
 
 		// Restore compute mode state
 		this._restoreComputeModeState();
@@ -247,7 +299,7 @@ export class ClaudeChatProvider {
 						this._newSession();
 						return;
 					case 'restoreCommit':
-						this._handleRestoreCommit(message.commitSha);
+						this._handleRestoreCommit(message.commitSha, !!message.isUndo);
 						return;
 					case 'getConversationList':
 						this._sendConversationList();
@@ -355,6 +407,22 @@ export class ClaudeChatProvider {
 					case 'selectModel':
 						this._setSelectedModel(message.model);
 						return;
+					case 'setModelEffort':
+						await this._modelPreferences.setEffort(String(message.model), String(message.level));
+						this._sendModelConfig();
+						return;
+					case 'setModelHidden':
+						await this._modelPreferences.setHidden(String(message.model), !!message.hidden, this._selectedModel);
+						this._sendModelConfig();
+						return;
+					case 'resetModelConfig':
+						await this._modelPreferences.reset();
+						this._sendModelConfig();
+						return;
+					case 'getModelConfig':
+						// Re-sent when the Config panel opens, so the env override notice is current
+						this._sendModelConfig();
+						return;
 					case 'selectMode':
 						this._handleModeSelection(message.mode);
 						return;
@@ -441,6 +509,10 @@ export class ClaudeChatProvider {
 					case 'deleteGrokApiKey':
 						this._deleteGrokApiKey();
 						return;
+					// Codex Integration (prompt-only, no MCP server)
+					case 'updateCodexIntegration':
+						this._updateCodexIntegration(message.enabled);
+						return;
 				}
 			},
 			null,
@@ -481,6 +553,10 @@ export class ClaudeChatProvider {
 			// Send operation history after ready
 			this._sendOperationHistory();
 
+			// Send per-model effort / visibility before the model, so the model button
+			// label already knows the effort level when it is rendered
+			this._sendModelConfig();
+
 			// Send current model to webview
 			this._panel?.webview.postMessage({
 				type: 'modelSelected',
@@ -498,8 +574,72 @@ export class ClaudeChatProvider {
 			// Send AI Integration configs to webview
 			this._sendGeminiIntegrationConfig();
 			this._sendGrokIntegrationConfig();
+			this._sendCodexIntegrationConfig();
+
+			// Last known 5-hour usage (shared across windows, survives restarts)
+			this._sendRateLimit5h();
 
 		}, 100);
+	}
+
+	/**
+	 * Store the 5-hour usage from a CLI rate_limit_event and push it to the webview.
+	 * CLI 2.1.280 puts the numbers in unifiedWindows.five_hour; a top-level
+	 * utilization/resetsAt only describes the window named by rateLimitType.
+	 * Stored in globalState so every window and restart shows the latest value.
+	 */
+	private async _handleRateLimitInfo(info: any): Promise<void> {
+		try {
+			const isFiveHourEvent = info?.rateLimitType === 'five_hour';
+			const window = info?.unifiedWindows?.five_hour;
+			if (!window && !isFiveHourEvent) {
+				return;
+			}
+
+			const previous = this._context.globalState.get<RateLimit5hState>(ClaudeChatProvider.RATE_LIMIT_5H_KEY);
+			const pickNumber = (...values: any[]) => values.find(v => typeof v === 'number' && isFinite(v));
+			const resetsAt = pickNumber(window?.resetsAt, isFiveHourEvent ? info.resetsAt : undefined, previous?.resetsAt);
+			// Missing utilization: keep the previous percentage (same 5h window only),
+			// only refreshing the timestamp
+			const sameWindow = !!previous && previous.resetsAt === resetsAt;
+			const utilization = pickNumber(
+				window?.utilization,
+				isFiveHourEvent ? info.utilization : undefined,
+				sameWindow ? previous?.utilization : undefined
+			);
+			if (utilization === undefined) {
+				return;
+			}
+			// The top-level status belongs to the window named by rateLimitType
+			const status = isFiveHourEvent && typeof info.status === 'string'
+				? info.status
+				: (sameWindow && previous ? previous.status : 'allowed');
+
+			const state: RateLimit5hState = { utilization, status, resetsAt, updatedAt: Date.now() };
+			await this._context.globalState.update(ClaudeChatProvider.RATE_LIMIT_5H_KEY, state);
+			debugLog('ClaudeChatProvider', 'Stored 5h rate limit', state);
+			this._panel?.webview.postMessage({ type: 'rateLimit5h', data: state });
+		} catch (error) {
+			debugError('ClaudeChatProvider', 'Failed to handle rate limit info', error);
+		}
+	}
+
+	/**
+	 * Push per-model effort levels and hidden models to the webview (model picker + Config panel)
+	 */
+	private _sendModelConfig(): void {
+		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		this._panel?.webview.postMessage({
+			type: 'modelConfig',
+			data: this._modelPreferences.getSnapshot(workspaceRoot)
+		});
+	}
+
+	private _sendRateLimit5h(): void {
+		const state = this._context.globalState.get<RateLimit5hState>(ClaudeChatProvider.RATE_LIMIT_5H_KEY);
+		if (state) {
+			this._panel?.webview.postMessage({ type: 'rateLimit5h', data: state });
+		}
 	}
 
 	/**
@@ -561,12 +701,14 @@ export class ClaudeChatProvider {
 			this._operationTracker.setCurrentSession(this._conversationId);
 		}
 
-		// Prepend mode instructions if enabled
-		let actualMessage = platformEnvironmentInfo + message;
+		// Prepend mode instructions if enabled.
+		// platformEnvironmentInfo is added exactly once after the mode prefixes
+		// (it used to be repeated when Thinking Mode was on).
+		let actualMessage = message;
 		if (planMode) {
 			// Plan First mode: guide Claude to use EnterPlanMode tool to enter planning mode
 			// New prompt explicitly instructs tool usage, not just a message prefix
-			actualMessage = platformEnvironmentInfo + 'ENTER PLAN MODE: Use the EnterPlanMode tool to enter planning mode. Create a detailed implementation plan and wait for my explicit approval before making any changes. Do not implement anything until I confirm by selecting \'Yes\' in the ExitPlanMode dialog. This planning requirement applies ONLY to this current message.\n\n' + message;
+			actualMessage = 'ENTER PLAN MODE: Use the EnterPlanMode tool to enter planning mode. Create a detailed implementation plan and wait for my explicit approval before making any changes. Do not implement anything until I confirm by selecting \'Yes\' in the ExitPlanMode dialog. This planning requirement applies ONLY to this current message.\n\n' + message;
 		}
 		if (thinkingMode) {
 			// Thinking Mode: Claude will show its step-by-step reasoning process
@@ -586,9 +728,6 @@ export class ClaudeChatProvider {
 				case 'ultrathink':
 					thinkingPrompt = 'ULTRATHINK';
 					break;
-				case 'xhigh':
-					thinkingPrompt = 'THINK AT THE HIGHEST LEVEL OF DEPTH AND RIGOR';
-					break;
 				case 'sequential-thinking':
 					// Use MCP Sequential Thinking tool for structured reasoning
 					thinkingPrompt = 'USE THE MCP SEQUENTIAL THINKING TOOL (mcp__sequential-thinking__sequentialthinking) TO';
@@ -596,8 +735,9 @@ export class ClaudeChatProvider {
 				default:
 					thinkingPrompt = 'THINK';
 			}
-			actualMessage = platformEnvironmentInfo + thinkingPrompt + thinkingMessage + actualMessage;
+			actualMessage = thinkingPrompt + thinkingMessage + actualMessage;
 		}
+		actualMessage = platformEnvironmentInfo + actualMessage;
 		
 		// Language Mode: Set language via prompt injection
 		// Prompt-based approach is more reliable than official config since --resume sessions don't re-read settings.json
@@ -648,6 +788,13 @@ export class ClaudeChatProvider {
 			}
 		}
 
+		// Tell Claude about a checkpoint restore that happened since its last turn
+		if (this._pendingRestoreNote && !this._isCompactMode && !internalRetry) {
+			actualMessage = this._pendingRestoreNote + '\n\n' + actualMessage;
+			debugLog('ClaudeChatProvider', 'Prepended restore note to message', { note: this._pendingRestoreNote });
+			this._pendingRestoreNote = undefined;
+		}
+
 		// Don't display user input in compact mode or for internal auto-retries
 		if (!this._isCompactMode && !internalRetry) {
 			this._sendAndSaveMessage({ type: 'userInput', data: message });
@@ -685,6 +832,7 @@ export class ClaudeChatProvider {
 			cwd: cwd,
 			sessionId: this._currentSessionId,
 			model: this._selectedModel,
+			effort: this._modelPreferences.getEffectiveEffort(this._selectedModel),
 			platformEnvironmentInfo: platformEnvironmentInfo
 			// Note: planMode and thinkingMode are handled through message prefixes above,
 			// not passed to ProcessService
@@ -816,6 +964,9 @@ export class ClaudeChatProvider {
 							type: 'setPlanMode',
 							data: isInPlanMode
 						});
+					},
+					onRateLimit: (info: any) => {
+						void this._handleRateLimitInfo(info);
 					}
 				});
 			},
@@ -958,6 +1109,12 @@ export class ClaudeChatProvider {
 
 		// Reset leaked-tool-call auto-retry counter for the new session
 		this._toolCallLeakRetryCount = 0;
+
+		// A fresh session has no history that a restore could contradict
+		// (compaction continues the same work, so keep the note then)
+		if (!isCompacting) {
+			this._pendingRestoreNote = undefined;
+		}
 
 		// Reset operation tracker session
 		this._operationTracker.setCurrentSession('');
@@ -1113,20 +1270,92 @@ export class ClaudeChatProvider {
 		});
 	}
 
-	private async _handleRestoreCommit(commitSha: string): Promise<void> {
+	private async _handleRestoreCommit(commitSha: string, isUndo: boolean = false): Promise<void> {
+		debugLog('ClaudeChatProvider', 'Restore requested', { commitSha, isUndo });
+
+		// Restoring while Claude is editing files would interleave writes
+		if (this._processService.isProcessRunning()) {
+			debugLog('ClaudeChatProvider', 'Restore rejected: Claude process is running');
+			this._panel?.webview.postMessage({
+				type: 'restoreError',
+				data: 'Claude is still working. Stop the current request before restoring files.'
+			});
+			return;
+		}
+
+		// Preview first so the confirmation shows exactly what will change
+		let preview: RestorePreview;
+		try {
+			preview = await this._backupManager.previewRestore(commitSha);
+		} catch (error: any) {
+			debugError('ClaudeChatProvider', 'Restore preview failed', error);
+			this._panel?.webview.postMessage({
+				type: 'restoreError',
+				data: `Cannot restore: ${error.message}`
+			});
+			return;
+		}
+
+		const checkpointLabel = preview.commit.message.replace(/^(Before|Initial backup):\s*/, '');
+		debugLog('ClaudeChatProvider', 'Restore preview', {
+			checkpoint: preview.commit.message,
+			overwriteCount: preview.overwrite.length,
+			removeCount: preview.remove.length,
+			skippedIgnoredCount: preview.skipped.length,
+			// Capped so a large restore does not flood the log
+			overwrite: preview.overwrite.slice(0, 50),
+			remove: preview.remove.slice(0, 50),
+			skippedIgnored: preview.skipped.slice(0, 50)
+		});
+		if (preview.overwrite.length === 0 && preview.remove.length === 0) {
+			vscode.window.showInformationMessage('Workspace files already match this checkpoint. Nothing to restore.');
+			return;
+		}
+
+		const question = isUndo
+			? `Undo the file restore? ${preview.overwrite.length} file(s) will be written back, ` +
+				`${preview.remove.length} file(s) will be deleted.`
+			: `Restore files to before "${checkpointLabel}"? ${preview.overwrite.length} file(s) will be overwritten, ` +
+				`${preview.remove.length} file(s) created later will be deleted. You can undo this.`;
+		const listFiles = (label: string, files: string[]) => files.length === 0 ? '' :
+			`${label}:\n` + files.slice(0, 10).map(f => `  ${f}`).join('\n') +
+			(files.length > 10 ? `\n  ... and ${files.length - 10} more` : '') + '\n';
+		const detail = (listFiles('Overwrite', preview.overwrite) + listFiles('Delete', preview.remove)).trim();
+		const action = isUndo ? 'Undo Restore' : 'Restore';
+		const choice = await vscode.window.showWarningMessage(question, { modal: true, detail }, action);
+		if (choice !== action) {
+			debugLog('ClaudeChatProvider', 'Restore cancelled by user');
+			return;
+		}
+
 		this._panel?.webview.postMessage({
 			type: 'restoreProgress',
-			data: 'Restoring files from backup...'
+			data: isUndo ? 'Undoing file restore...' : 'Restoring files from backup...'
 		});
 
 		const result = await this._backupManager.restoreToCommit(commitSha);
+		debugLog('ClaudeChatProvider', 'Restore result', {
+			success: result.success,
+			message: result.message,
+			undoSha: result.undoSha
+		});
 
 		if (result.success) {
+			this._pendingRestoreNote = isUndo
+				? '[Note: the previous workspace file restore was undone. Files are back to how they were right before that restore.]'
+				: `[Note: workspace files were restored to the state before message "${checkpointLabel}". Changes made after that point no longer exist.]`;
 			this._sendAndSaveMessage({
 				type: 'restoreSuccess',
 				data: {
 					message: result.message,
-					commitSha: commitSha
+					commitSha: commitSha,
+					undoSha: result.undoSha,
+					isUndo,
+					// For the result card (rendered with textContent on the webview side)
+					checkpointLabel,
+					overwritten: result.overwritten,
+					removed: result.removed,
+					restoredAt: new Date().toISOString()
 				}
 			});
 		} else {
@@ -1171,6 +1400,9 @@ export class ClaudeChatProvider {
 	public async loadConversation(filename: string): Promise<void> {
 		// Show the webview first
 		await this.show();
+
+		// A pending restore note belongs to the conversation being switched away from
+		this._pendingRestoreNote = undefined;
 
 		// Load the conversation history
 		await this._loadConversationHistory(filename);
@@ -1690,14 +1922,21 @@ export class ClaudeChatProvider {
 					// Calculate normal input token cost (excluding cache read)
 					const normalInputCost = ((entry.usage.input_tokens || 0) * pricing.input) / 1000000;
 
-					// Calculate cache read token cost (10% of input price)
-					const cacheReadCost = ((entry.usage.cache_read_input_tokens || 0) * pricing.input * 0.1) / 1000000;
+					// Cache reads: model-specific fraction of the input price
+					const cacheReadCost = ((entry.usage.cache_read_input_tokens || 0) * pricing.input *
+						ClaudeChatProvider._getCacheReadMultiplier(entry.model)) / 1000000;
 
 					// Calculate output token cost
 					const outputCost = ((entry.usage.output_tokens || 0) * pricing.output) / 1000000;
 
-					// Calculate cache creation token cost (25% of output price)
-					const cacheCreationCost = ((entry.usage.cache_creation_input_tokens || 0) * pricing.output * 0.25) / 1000000;
+					// Cache writes: 1-hour TTL at 2x input, the rest (5-minute TTL) at 1.25x input.
+					// (Previously output * 0.25, which only equals 1.25x input when output = 5x input.)
+					const cacheWriteTotal = entry.usage.cache_creation_input_tokens || 0;
+					const cacheWrite1h = Math.min(entry.usage.cache_creation_1h_input_tokens || 0, cacheWriteTotal);
+					const cacheCreationCost = (
+						(cacheWriteTotal - cacheWrite1h) * pricing.input * ClaudeChatProvider.CACHE_WRITE_5M_MULTIPLIER +
+						cacheWrite1h * pricing.input * ClaudeChatProvider.CACHE_WRITE_1H_MULTIPLIER
+					) / 1000000;
 
 					cost = normalInputCost + cacheReadCost + outputCost + cacheCreationCost;
 				}
@@ -2324,6 +2563,34 @@ export class ClaudeChatProvider {
 			debugLog('Grok', 'Config sent to webview');
 		} catch (error) {
 			debugError('Grok', 'Failed to get config', error);
+		}
+	}
+
+	// ==================== Codex Integration Methods ====================
+
+	/**
+	 * Turn the Codex prompt on/off. Nothing is installed or configured here:
+	 * when on, Claude is only told how to call the local `codex exec`.
+	 */
+	private async _updateCodexIntegration(enabled: boolean): Promise<void> {
+		try {
+			await this._processService.setCodexIntegrationEnabled(enabled);
+		} catch (error) {
+			debugError('Codex', 'Failed to update Integration status', error);
+			vscode.window.showErrorMessage('Failed to update Codex Integration settings');
+		}
+		this._sendCodexIntegrationConfig();
+	}
+
+	/**
+	 * Send Codex toggle state and CLI detection result to webview
+	 */
+	private async _sendCodexIntegrationConfig(): Promise<void> {
+		try {
+			const status = await this._processService.getCodexIntegrationStatus();
+			this._panel?.webview.postMessage({ type: 'codexIntegrationConfig', data: status });
+		} catch (error) {
+			debugError('Codex', 'Failed to get config', error);
 		}
 	}
 
@@ -3216,6 +3483,10 @@ export class ClaudeChatProvider {
 					displayName = 'Opus 5.5';
 					message = `Claude model switched to: ${displayName} (Latest Opus flagship — matches Fable 5.1 at much lower cost, 1M context)`;
 					break;
+				case 'claude-opus-5':
+					displayName = 'Opus 5';
+					message = `Claude model switched to: ${displayName} (Previous Opus flagship, 1M context, requires CLI 2.1.219+)`;
+					break;
 				case 'claude-opus-4-8':
 					displayName = 'Opus 4.8';
 					message = `Claude model switched to: ${displayName} (Latest flagship with adaptive thinking, 4× better code self-check & 1M context)`;
@@ -3236,6 +3507,10 @@ export class ClaudeChatProvider {
 				case 'opusplan':
 					displayName = 'Opus Plan';
 					message = `Claude model switched to: ${displayName}\n\n💡 Tip: Enable "Plan First" mode to use Opus for planning and Sonnet for execution. Without Plan First, it will use Sonnet for direct execution.`;
+					break;
+				case 'claude-sonnet-5':
+					displayName = 'Sonnet 5';
+					message = `Claude model switched to: ${displayName} (Most agentic Sonnet, 1M context)`;
 					break;
 				case 'claude-sonnet-4-6':
 					displayName = 'Sonnet 4.6';

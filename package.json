@@ -2,7 +2,7 @@
   "name": "claude-code-chatui",
   "displayName": "Claude Code GUI / ChatUI",
   "description": "Full-featured GUI for Claude Code CLI — Windows (no WSL) & macOS. Third-party API support, MCP plugins, Skills & Hooks system, Undo/Redo, real-time token tracking. Actively maintained.",
-  "version": "4.1.7",
+  "version": "4.1.8",
   "publisher": "lkbaba",
   "author": "lkbaba",
   "repository": {
@@ -178,7 +178,6 @@
             "think-hard",
             "think-harder",
             "ultrathink",
-            "xhigh",
             "sequential-thinking"
           ],
           "default": "think",
@@ -320,6 +319,11 @@
           "type": "boolean",
           "default": false,
           "description": "Enable Grok Integration to automatically inject API key into grok-assistant MCP server"
+        },
+        "claudeCodeChatUI.codexIntegrationEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Codex Integration: tell Claude how to delegate tasks to the installed OpenAI Codex CLI (codex exec)"
         },
         "claudeCodeChatUI.gemini.vertexProject": {
           "type": "string",

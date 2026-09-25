@@ -2,6 +2,35 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.1.8] - 2026-09-25
+
+### Added
+- **Model Config panel with per-model effort** — the model picker has a new **Config** button next to ✕. It opens a panel beside the picker (or in place of it when the chat panel is narrower than 880px) with one row per model: a show/hide toggle and effort buttons `Auto · Low · Med · High · xHigh · Max`. Levels are saved per model and shared by all workspaces; the plugin passes `--effort` every turn, and Auto lets the CLI decide. The model button shows the level, e.g. `Opus 5.5 · High`. Unsupported combinations are disabled: Haiku 4.5, Opus 4.5 and Sonnet 4.5 have no effort support, Opus 4.6 / Sonnet 4.6 have no xHigh, and Default follows the CLI's own `/effort`. The model in use and Default cannot be hidden
+- **Effort actually applies even with `CLAUDE_CODE_EFFORT_LEVEL` set** — the CLI lets this variable (including one in a `settings.json` `env` block) override `--effort`, so every level silently ran at the variable's value. For models with an explicit level the plugin now also passes `--settings` with a file that clears it (verified by capturing the API request: `--effort low` went out as `high` before, `low` after). Models on Auto still follow your variable, and the Config panel shows a notice when one is detected
+- **5-hour limit ring** (`5h ◔`, left of Compact) for subscription logins, from the CLI's `rate_limit_event`. The tooltip shows usage and when the window resets, e.g. `5-hour limit: 19% used` / `Resets at 19:10 (in 25 min)`. It appears after the first reply and is remembered across restarts
+- **Opus 5** (`claude-opus-5`, $5/$25, 1M context) and **Opus 4.7** are back in the picker; Opus 4.5 and Sonnet 4.5 are available but hidden by default (turn them on in Config)
+- **Codex switch** in Settings → AI Assistant. When on and the Codex CLI is found on PATH, the system prompt teaches Claude to delegate via Bash `codex exec` (read-only by default, `resume --last` for follow-ups). Off by default
+- **Restore checkpoint upgrade** — the confirmation shows how many files will be written back or deleted, a snapshot is taken before restoring so the restore can be undone (↩ Undo on the result card), and Claude is told the files were restored. Every message now has a restore point, even when nothing changed
+
+### Security
+- **No plaintext keys in MCP config files** — Grok / Gemini keys are written as `${CHATUI_SECRET_*}` placeholders and the real values are passed only in the CLI process environment of that turn
+- **Temporary MCP config folders are cleaned up** — each turn deletes its own `~/.claude/mcp-*` folder, and folders older than 24 hours are removed on start (previously they were never deleted)
+- Debug log masks secrets, and restore snapshots no longer include `debug_log.*`
+- Grok / Gemini key fields show a checkable fragment (first 7 characters + `***` + last 4) instead of all dots
+
+### Changed
+- Thinking Mode drops the xHigh level (effort now lives in Model Config); a saved `xhigh` is migrated to Ultrathink
+- The generic `Opus` and `Sonnet` aliases were removed from the picker; workspaces that used them switch to Default
+- Statistics fallback pricing uses per-model cache rates (Fable 5.1 reads at 2.5%, Opus 5.5 at 5%, others 10%) and counts 1-hour cache writes at 2× input. The statistics cache is rebuilt once
+
+### Removed
+- **Codex MCP template** — Codex CLI 0.154.0 removed `codex mcp-server`, so the template (and its system prompt) could only produce a failing server. **If you added `codex-official` earlier, delete or disable it in MCP settings** to stop the "connection closed" error, then use the new Codex switch instead. The plugin no longer writes a Codex section into CLAUDE.md
+
+### Fixed
+- `[SYSTEM INFO]` was added twice to the first message in Thinking mode
+- Switching to Sonnet 5 showed `Claude-sonnet-5` in the notification
+- Debug log reported `PATH: (missing)` on Windows (the variable is named `Path` there)
+
 ## [4.1.7] - 2026-09-25
 
 ### Added

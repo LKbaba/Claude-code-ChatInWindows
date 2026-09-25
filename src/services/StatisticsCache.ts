@@ -11,6 +11,8 @@ export interface StatisticsEntry {
         output_tokens?: number;
         cache_creation_input_tokens?: number;
         cache_read_input_tokens?: number;
+        // Part of cache_creation_input_tokens written with the 1-hour TTL (billed 2x input)
+        cache_creation_1h_input_tokens?: number;
     };
     costUSD: number;
     model: string;
@@ -68,7 +70,8 @@ export class StatisticsCache {
     private readonly MAX_CACHED_FILES = 1000;
 
     // ---- Disk persistence layer (PRD updatePRDv18 F2.3) ----
-    private static readonly DISK_SCHEMA_VERSION = 1;
+    // v2 (4.1.8): entries carry cache_creation_1h_input_tokens for 1-hour cache write pricing
+    private static readonly DISK_SCHEMA_VERSION = 2;
     private diskCachePath: string | null = null;
     private diskCache: DiskCacheData = { schemaVersion: StatisticsCache.DISK_SCHEMA_VERSION, files: {} };
     private diskCacheDirty = false;

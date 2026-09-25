@@ -2103,6 +2103,401 @@ function getStylesOld(): string {
         flex: 1;
     }
 
+    /* ===== Model picker + Config panel (v4.1.8) =====
+     * Side by side needs picker 400 + gap 12 + config 440 + margins; below
+     * MODEL_CONFIG_SIDE_BY_SIDE_MIN (ui-script.ts) the group gets .stacked and the
+     * Config panel replaces the picker in place. */
+    .model-popover-group {
+        display: flex;
+        align-items: stretch;
+        max-width: calc(100% - 24px);
+        max-height: 80vh;
+    }
+
+    .model-picker-card {
+        width: 400px;
+        max-width: 100%;
+    }
+
+    .model-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .model-config-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background-color: rgba(128, 128, 128, 0.15);
+        color: var(--vscode-foreground);
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 3px 10px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .model-config-btn:hover {
+        background-color: rgba(128, 128, 128, 0.25);
+    }
+
+    .model-config-btn[aria-pressed="true"] {
+        background-color: rgba(0, 120, 212, 0.18);
+        border-color: var(--vscode-focusBorder);
+    }
+
+    .model-config-chev {
+        font-style: normal;
+        font-size: 10px;
+        opacity: 0.7;
+        transition: transform 0.2s ease;
+    }
+
+    .model-config-btn[aria-pressed="true"] .model-config-chev {
+        transform: rotate(180deg);
+    }
+
+    #modelModal .tool-item.model-hidden {
+        display: none;
+    }
+
+    .model-effort-tag {
+        flex-shrink: 0;
+        align-self: flex-start;
+        margin-top: 1px;
+        font-size: 10.5px;
+        padding: 1px 6px;
+        border-radius: 3px;
+        background-color: rgba(0, 120, 212, 0.18);
+        color: #9cc8f5;
+        border: 1px solid rgba(0, 120, 212, 0.35);
+        transition: background-color 0.3s ease;
+    }
+
+    .model-effort-tag.flash {
+        background-color: rgba(0, 120, 212, 0.55);
+        color: #fff;
+    }
+
+    .model-effort-suffix {
+        color: var(--vscode-descriptionForeground);
+        font-weight: 400;
+    }
+
+    .model-picker-footer {
+        border-top: 1px solid var(--vscode-panel-border);
+        padding: 8px 20px;
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .model-picker-footer:empty {
+        display: none;
+    }
+
+    .model-config-link {
+        background: none;
+        border: none;
+        color: var(--vscode-textLink-foreground);
+        cursor: pointer;
+        font-size: 11px;
+        padding: 0;
+    }
+
+    .model-config-link:hover {
+        text-decoration: underline;
+    }
+
+    /* Config panel grows from width 0. Its content is absolutely positioned so the
+       panel always matches the picker's height instead of driving it. */
+    .model-config-card {
+        position: relative;
+        width: 0;
+        margin-left: 0;
+        opacity: 0;
+        overflow: hidden;
+        border-color: transparent;
+        box-shadow: none;
+        transition: width 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), margin-left 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease;
+    }
+
+    .model-config-inner {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 440px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .model-popover-group.config-open .model-config-card {
+        width: 440px;
+        margin-left: 12px;
+        opacity: 1;
+        border-color: var(--vscode-widget-border, var(--vscode-panel-border));
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Stacked mode: Config replaces the picker in place */
+    .model-popover-group.stacked .model-config-card {
+        display: none;
+        transition: none;
+    }
+
+    .model-popover-group.stacked.config-open .model-picker-card {
+        display: none;
+    }
+
+    .model-popover-group.stacked.config-open .model-config-card {
+        display: flex;
+        width: 400px;
+        max-width: 100%;
+        margin-left: 0;
+    }
+
+    .model-popover-group.stacked .model-config-inner {
+        position: static;
+        width: auto;
+        min-height: 0;
+        flex: 1;
+    }
+
+    /* Same vertical padding as the picker header so both divider lines align */
+    .model-config-header {
+        padding: 16px 20px 16px 16px;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .model-config-header span {
+        flex: 1;
+    }
+
+    .model-config-back {
+        display: none;
+        background: none;
+        border: none;
+        color: var(--vscode-foreground);
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    .model-config-back:hover {
+        background-color: rgba(128, 128, 128, 0.15);
+    }
+
+    .model-popover-group.stacked .model-config-back {
+        display: block;
+    }
+
+    .model-config-body {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+        padding: 4px 0;
+    }
+
+    .model-config-footer {
+        flex-shrink: 0;
+        border-top: 1px solid var(--vscode-panel-border);
+        padding: 8px 16px;
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .model-config-footer-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    /* Shown when CLAUDE_CODE_EFFORT_LEVEL is set in settings or the environment */
+    .model-config-env-note {
+        color: var(--vscode-editorWarning-foreground, #cca700);
+    }
+
+    .model-cfg-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        min-height: 48px;
+    }
+
+    .model-cfg-row + .model-cfg-row {
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .model-cfg-row.is-hidden .model-cfg-text {
+        opacity: 0.45;
+    }
+
+    .model-cfg-row.is-hidden .model-effort-seg,
+    .model-cfg-row.is-hidden .model-effort-none {
+        opacity: 0.55;
+    }
+
+    .model-cfg-text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .model-cfg-name {
+        font-weight: 600;
+        color: var(--vscode-foreground);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .model-cfg-badge {
+        font-size: 10px;
+        font-weight: 400;
+        color: var(--vscode-descriptionForeground);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 3px;
+        padding: 0 4px;
+    }
+
+    .model-cfg-sub {
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .model-popover-group.stacked .model-cfg-row {
+        flex-wrap: wrap;
+    }
+
+    /* Controls wrap to their own line, indented past the switch (28px + 12px gap) */
+    .model-popover-group.stacked .model-effort-seg,
+    .model-popover-group.stacked .model-effort-none {
+        flex: 0 0 calc(100% - 40px);
+        width: auto;
+        margin-left: 40px;
+    }
+
+    .model-visibility-switch {
+        position: relative;
+        width: 28px;
+        height: 16px;
+        flex-shrink: 0;
+        border: none;
+        padding: 0;
+        background: none;
+        cursor: pointer;
+    }
+
+    .model-visibility-switch::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 8px;
+        background-color: rgba(128, 128, 128, 0.35);
+        transition: background-color 0.15s ease;
+    }
+
+    .model-visibility-switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: var(--vscode-descriptionForeground);
+        transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    .model-visibility-switch[aria-checked="true"]::before {
+        background-color: var(--vscode-button-background);
+    }
+
+    .model-visibility-switch[aria-checked="true"]::after {
+        transform: translateX(12px);
+        background-color: #fff;
+    }
+
+    .model-visibility-switch:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+
+    .model-effort-seg {
+        display: flex;
+        flex-shrink: 0;
+        width: 228px;
+        border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .model-effort-seg button {
+        flex: 1;
+        height: 24px;
+        border: none;
+        border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+        background: transparent;
+        color: var(--vscode-foreground);
+        font-size: 11px;
+        cursor: pointer;
+        padding: 0 2px;
+        white-space: nowrap;
+    }
+
+    .model-effort-seg button:first-child {
+        border-left: none;
+    }
+
+    .model-effort-seg button:hover:not(:disabled):not(.on) {
+        background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .model-effort-seg button.on {
+        background-color: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        font-weight: 600;
+    }
+
+    .model-effort-seg button.auto.on {
+        background-color: rgba(128, 128, 128, 0.3);
+        color: var(--vscode-foreground);
+    }
+
+    .model-effort-seg button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        text-decoration: line-through;
+    }
+
+    .model-effort-none {
+        flex-shrink: 0;
+        width: 228px;
+        height: 26px;
+        border: 1px dashed var(--vscode-widget-border, var(--vscode-panel-border));
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+    }
+
     /* Advanced settings styles */
     .advanced-settings-divider {
         height: 1px;
@@ -2715,6 +3110,61 @@ function getStylesOld(): string {
         font-size: 10px;
         color: var(--vscode-descriptionForeground);
         opacity: 0.8;
+    }
+
+    /* Transient line while a checkpoint restore runs */
+    .restore-progress {
+        font-size: 12px;
+        font-style: italic;
+        color: var(--vscode-descriptionForeground);
+        padding: 2px 4px 10px;
+    }
+
+    /* One card per restore result: title, counts, Undo button */
+    .restore-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        background-color: var(--vscode-panel-background);
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        border-left: 3px solid #66BB6A;
+        border-radius: 6px;
+        font-size: 12px;
+    }
+
+    .restore-card.undo {
+        border-left-color: var(--vscode-textLink-foreground, #3794ff);
+    }
+
+    .restore-card-icon {
+        font-size: 15px;
+        line-height: 1;
+        color: var(--vscode-descriptionForeground);
+        flex-shrink: 0;
+    }
+
+    .restore-card-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .restore-card-title {
+        color: var(--vscode-foreground);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .restore-card-meta {
+        margin-top: 2px;
+        font-size: 11px;
+        color: var(--vscode-descriptionForeground);
+    }
+
+    .restore-card .restore-btn {
+        flex-shrink: 0;
     }
 
     .conversation-history {
