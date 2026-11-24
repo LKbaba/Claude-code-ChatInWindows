@@ -33,19 +33,29 @@ import { debugLog, debugWarn, debugError } from '../services/DebugLogger';
 interface ComputeModeSettings {
 	mode: 'auto' | 'max';           // Compute mode selection
 	enhanceSubagents: boolean;       // Whether to enhance subagents (independent setting)
-	subagentModel?: string;          // Subagent model when enhancement is enabled (defaults to Sonnet 4.6)
+	subagentModel?: string;          // Subagent model when enhancement is enabled (defaults to Sonnet 5.5)
 }
 
-// Last known 5-hour subscription usage (from CLI rate_limit_event)
-interface RateLimit5hState {
-	utilization: number;            // 0-1 share of the 5-hour limit already used
+// Last known usage of one subscription limit window (5-hour or weekly, from CLI rate_limit_event)
+interface RateLimitWindowState {
+	utilization: number;            // 0-1 share of the window's limit already used
 	status: string;                 // allowed | allowed_warning | rejected
 	resetsAt?: number;              // Unix seconds; past it the webview shows 0%
 	updatedAt: number;              // ms timestamp of the event
 }
 
-// Default subagent model used when enhancement is enabled but no model is specified
-const SUBAGENT_DEFAULT_MODEL = 'claude-sonnet-4-6';
+// Max mode pins background tasks (ANTHROPIC_DEFAULT_HAIKU_MODEL) to this model (requires CLI >= 2.1.284)
+const MAX_MODE_MODEL = 'claude-sonnet-5-5';
+
+// Models offered for enhanced subagents; must match the subagent radios in getBodyContent.ts.
+// Sonnet 4.6 was dropped in v4.2.0 (Sonnet 5.5 is cheaper and stronger); saved values migrate to the default.
+// Opus 5.5 is opt-in only: about 2x the Sonnet 5.5 price per token (requires CLI >= 2.1.280).
+const SUBAGENT_MODELS: readonly string[] = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-sonnet-5'];
+const SUBAGENT_DEFAULT_MODEL = 'claude-sonnet-5-5';
+
+function resolveSubagentModel(model?: string): string {
+	return model && SUBAGENT_MODELS.includes(model) ? model : SUBAGENT_DEFAULT_MODEL;
+}
 
 export class ClaudeChatProvider {
 	private _panel: vscode.WebviewPanel | undefined;
@@ -90,7 +100,9 @@ export class ClaudeChatProvider {
 	// Static model pricing data (using Map for better lookup efficiency)
 	private static readonly MODEL_PRICING = new Map<string, { input: number; output: number }>([
 		// Fable model series pricing (5th-gen flagship, Mythos-class)
-		['claude-fable-5-1', { input: 10.00, output: 50.00 }],            // Fable 5.1 latest flagship, 1M context (requires CLI >= 2.1.257 per docs; 2.1.251 observed in a real error)
+		// NOTE: '-5-x' keys must stay before 'claude-fable-5' — prefix fallback iterates insertion order
+		['claude-fable-5-2', { input: 8.00, output: 40.00 }],             // Fable 5.2 latest flagship, 1M context (requires CLI >= 2.1.321)
+		['claude-fable-5-1', { input: 10.00, output: 50.00 }],            // Fable 5.1 previous flagship, 1M context (requires CLI >= 2.1.257 per docs; 2.1.251 observed in a real error)
 		['claude-fable-5', { input: 10.00, output: 50.00 }],              // Fable 5 flagship, 1M context (requires CLI >= 2.1.170)
 		// Opus model series pricing
 		// NOTE: 'claude-opus-5-5' must stay before 'claude-opus-5' — prefix fallback iterates insertion order
@@ -106,7 +118,9 @@ export class ClaudeChatProvider {
 		// Sonnet model series pricing
 		// Sonnet 5 = $2/$10: the launch price became permanent on 2026-08-10; the planned 9/1 rise to $3/$15 was cancelled.
 		// Note: new tokenizer produces ~30% more tokens for the same content than Sonnet 4.6.
-		['claude-sonnet-5', { input: 2.00, output: 10.00 }],             // Sonnet 5 most agentic Sonnet (requires CLI >= 2.1.197)
+		// NOTE: 'claude-sonnet-5-5' must stay before 'claude-sonnet-5' — prefix fallback iterates insertion order
+		['claude-sonnet-5-5', { input: 2.00, output: 10.00 }],           // Sonnet 5.5 latest Sonnet, 1M context (requires CLI >= 2.1.284)
+		['claude-sonnet-5', { input: 2.00, output: 10.00 }],             // Sonnet 5 previous Sonnet (requires CLI >= 2.1.197)
 		['claude-sonnet-4-6', { input: 3.00, output: 15.00 }],           // Sonnet 4.6 latest intelligent model
 		['claude-sonnet-4-5-20250929', { input: 3.00, output: 15.00 }],  // Sonnet 4.5 previous intelligent model
 		['claude-sonnet-4-20250514', { input: 3.00, output: 15.00 }],    // Sonnet 4
@@ -114,25 +128,46 @@ export class ClaudeChatProvider {
 		['claude-3-5-sonnet-20240620', { input: 3.00, output: 15.00 }],
 		['claude-3-sonnet-20240229', { input: 3.00, output: 15.00 }],    // Claude 3 Sonnet
 		// Haiku model series pricing
+		['claude-haiku-5-5', { input: 0.10, output: 0.50 }],             // Haiku 5.5 latest Haiku, 1M context (requires CLI >= 2.1.293); 5x above 100K prompt, see LONG_PROMPT_PRICING
 		['claude-haiku-4-5-20251001', { input: 1.00, output: 5.00 }],    // Haiku 4.5 cost-effective model
 		['claude-3-haiku-20240307', { input: 0.25, output: 1.25 }],      // Claude 3 Haiku
 	]);
 
-	// globalState key for the last known 5-hour usage (see _handleRateLimitInfo)
+	// globalState keys for the last known 5-hour / weekly usage (see _handleRateLimitInfo)
 	private static readonly RATE_LIMIT_5H_KEY = 'claude.rateLimit5h';
+	private static readonly RATE_LIMIT_7D_KEY = 'claude.rateLimit7d';
 
 	// Prompt cache pricing, as multipliers of the base input price
 	// (docs/md/api/about-claude__pricing.md, 2026-09). Only used when a log
 	// entry has no costUSD. Cache reads are 0.1x except on the models below;
 	// writes are 1.25x for the 5-minute TTL and 2x for the 1-hour TTL.
 	private static readonly CACHE_READ_MULTIPLIERS = new Map<string, number>([
+		['claude-fable-5-2', 0.025],
 		['claude-fable-5-1', 0.025],
 		['claude-mythos-5-1', 0.025],
 		['claude-opus-5-5', 0.05],
+		['claude-sonnet-5-5', 0.05],
 	]);
 	private static readonly DEFAULT_CACHE_READ_MULTIPLIER = 0.1;
 	private static readonly CACHE_WRITE_5M_MULTIPLIER = 1.25;
 	private static readonly CACHE_WRITE_1H_MULTIPLIER = 2;
+
+	// Prompt-length pricing tiers (docs/md/api/about-claude__pricing.md, 2026-10).
+	// A request whose prompt (input + cache reads + cache writes) exceeds the threshold
+	// pays every token category at `multiplier` x the base price.
+	private static readonly LONG_PROMPT_PRICING = new Map<string, { threshold: number; multiplier: number }>([
+		['claude-haiku-5-5', { threshold: 100_000, multiplier: 5 }],     // $0.10/$0.50 -> $0.50/$2.50
+	]);
+
+	private static _getLongPromptMultiplier(modelId: string, promptTokens: number): number {
+		const normalized = normalizeModelId(modelId);
+		for (const [prefix, tier] of ClaudeChatProvider.LONG_PROMPT_PRICING) {
+			if (normalized.startsWith(prefix)) {
+				return promptTokens > tier.threshold ? tier.multiplier : 1;
+			}
+		}
+		return 1;
+	}
 
 	private static _getCacheReadMultiplier(modelId: string): number {
 		const normalized = normalizeModelId(modelId);
@@ -576,52 +611,78 @@ export class ClaudeChatProvider {
 			this._sendGrokIntegrationConfig();
 			this._sendCodexIntegrationConfig();
 
-			// Last known 5-hour usage (shared across windows, survives restarts)
-			this._sendRateLimit5h();
+			// Last known 5-hour / weekly usage (shared across windows, survives restarts)
+			this._sendRateLimits();
 
 		}, 100);
 	}
 
 	/**
-	 * Store the 5-hour usage from a CLI rate_limit_event and push it to the webview.
-	 * CLI 2.1.280 puts the numbers in unifiedWindows.five_hour; a top-level
+	 * Store the 5-hour and weekly usage from a CLI rate_limit_event and push them to the webview.
+	 * CLI 2.1.280 puts the numbers in unifiedWindows.five_hour / seven_day; a top-level
 	 * utilization/resetsAt only describes the window named by rateLimitType.
 	 * Stored in globalState so every window and restart shows the latest value.
 	 */
 	private async _handleRateLimitInfo(info: any): Promise<void> {
 		try {
-			const isFiveHourEvent = info?.rateLimitType === 'five_hour';
-			const window = info?.unifiedWindows?.five_hour;
-			if (!window && !isFiveHourEvent) {
-				return;
-			}
+			await this._storeRateLimitWindow(info, 'five_hour', ClaudeChatProvider.RATE_LIMIT_5H_KEY, 'rateLimit5h');
+			await this._storeRateLimitWindow(info, 'seven_day', ClaudeChatProvider.RATE_LIMIT_7D_KEY, 'rateLimit7d');
 
-			const previous = this._context.globalState.get<RateLimit5hState>(ClaudeChatProvider.RATE_LIMIT_5H_KEY);
-			const pickNumber = (...values: any[]) => values.find(v => typeof v === 'number' && isFinite(v));
-			const resetsAt = pickNumber(window?.resetsAt, isFiveHourEvent ? info.resetsAt : undefined, previous?.resetsAt);
-			// Missing utilization: keep the previous percentage (same 5h window only),
-			// only refreshing the timestamp
-			const sameWindow = !!previous && previous.resetsAt === resetsAt;
-			const utilization = pickNumber(
-				window?.utilization,
-				isFiveHourEvent ? info.utilization : undefined,
-				sameWindow ? previous?.utilization : undefined
-			);
-			if (utilization === undefined) {
-				return;
+			// Verified Ultra accounts have no 5-hour limit, so the CLI stops sending five_hour.
+			// Once the stored 5h window has expired and a per-window snapshot arrives without it,
+			// drop the stale value so the 5h ring hides instead of sitting at 0% forever.
+			const windows = info?.unifiedWindows;
+			if (windows && !windows.five_hour && windows.seven_day && info?.rateLimitType !== 'five_hour') {
+				const previous = this._context.globalState.get<RateLimitWindowState>(ClaudeChatProvider.RATE_LIMIT_5H_KEY);
+				if (previous && (!previous.resetsAt || previous.resetsAt < Date.now() / 1000)) {
+					await this._context.globalState.update(ClaudeChatProvider.RATE_LIMIT_5H_KEY, undefined);
+					debugLog('ClaudeChatProvider', 'Cleared expired 5h rate limit (no five_hour window reported)');
+					this._panel?.webview.postMessage({ type: 'rateLimit5h', data: null });
+				}
 			}
-			// The top-level status belongs to the window named by rateLimitType
-			const status = isFiveHourEvent && typeof info.status === 'string'
-				? info.status
-				: (sameWindow && previous ? previous.status : 'allowed');
-
-			const state: RateLimit5hState = { utilization, status, resetsAt, updatedAt: Date.now() };
-			await this._context.globalState.update(ClaudeChatProvider.RATE_LIMIT_5H_KEY, state);
-			debugLog('ClaudeChatProvider', 'Stored 5h rate limit', state);
-			this._panel?.webview.postMessage({ type: 'rateLimit5h', data: state });
 		} catch (error) {
 			debugError('ClaudeChatProvider', 'Failed to handle rate limit info', error);
 		}
+	}
+
+	/**
+	 * Store one limit window (five_hour or seven_day) from a rate_limit_event, if the event has data for it.
+	 */
+	private async _storeRateLimitWindow(
+		info: any,
+		windowName: 'five_hour' | 'seven_day',
+		stateKey: string,
+		messageType: 'rateLimit5h' | 'rateLimit7d'
+	): Promise<void> {
+		const isNamedEvent = info?.rateLimitType === windowName;
+		const window = info?.unifiedWindows?.[windowName];
+		if (!window && !isNamedEvent) {
+			return;
+		}
+
+		const previous = this._context.globalState.get<RateLimitWindowState>(stateKey);
+		const pickNumber = (...values: any[]) => values.find(v => typeof v === 'number' && isFinite(v));
+		const resetsAt = pickNumber(window?.resetsAt, isNamedEvent ? info.resetsAt : undefined, previous?.resetsAt);
+		// Missing utilization: keep the previous percentage (same window only),
+		// only refreshing the timestamp
+		const sameWindow = !!previous && previous.resetsAt === resetsAt;
+		const utilization = pickNumber(
+			window?.utilization,
+			isNamedEvent ? info.utilization : undefined,
+			sameWindow ? previous?.utilization : undefined
+		);
+		if (utilization === undefined) {
+			return;
+		}
+		// The top-level status belongs to the window named by rateLimitType
+		const status = isNamedEvent && typeof info.status === 'string'
+			? info.status
+			: (sameWindow && previous ? previous.status : 'allowed');
+
+		const state: RateLimitWindowState = { utilization, status, resetsAt, updatedAt: Date.now() };
+		await this._context.globalState.update(stateKey, state);
+		debugLog('ClaudeChatProvider', `Stored ${windowName} rate limit`, state);
+		this._panel?.webview.postMessage({ type: messageType, data: state });
 	}
 
 	/**
@@ -635,10 +696,14 @@ export class ClaudeChatProvider {
 		});
 	}
 
-	private _sendRateLimit5h(): void {
-		const state = this._context.globalState.get<RateLimit5hState>(ClaudeChatProvider.RATE_LIMIT_5H_KEY);
-		if (state) {
-			this._panel?.webview.postMessage({ type: 'rateLimit5h', data: state });
+	private _sendRateLimits(): void {
+		const state5h = this._context.globalState.get<RateLimitWindowState>(ClaudeChatProvider.RATE_LIMIT_5H_KEY);
+		if (state5h) {
+			this._panel?.webview.postMessage({ type: 'rateLimit5h', data: state5h });
+		}
+		const state7d = this._context.globalState.get<RateLimitWindowState>(ClaudeChatProvider.RATE_LIMIT_7D_KEY);
+		if (state7d) {
+			this._panel?.webview.postMessage({ type: 'rateLimit7d', data: state7d });
 		}
 	}
 
@@ -1938,7 +2003,10 @@ export class ClaudeChatProvider {
 						cacheWrite1h * pricing.input * ClaudeChatProvider.CACHE_WRITE_1H_MULTIPLIER
 					) / 1000000;
 
-					cost = normalInputCost + cacheReadCost + outputCost + cacheCreationCost;
+					const promptTokens = (entry.usage.input_tokens || 0) +
+						(entry.usage.cache_read_input_tokens || 0) + cacheWriteTotal;
+					cost = (normalInputCost + cacheReadCost + outputCost + cacheCreationCost) *
+						ClaudeChatProvider._getLongPromptMultiplier(entry.model, promptTokens);
 				}
 			}
 			stats.cost += cost;
@@ -3471,9 +3539,13 @@ export class ClaudeChatProvider {
 			let message: string;
 
 			switch (model) {
+				case 'claude-fable-5-2':
+					displayName = 'Fable 5.2';
+					message = `Claude model switched to: ${displayName} (Latest flagship, Mythos-class — hardest & longest-running tasks, 1M context, requires CLI 2.1.321+)`;
+					break;
 				case 'claude-fable-5-1':
 					displayName = 'Fable 5.1';
-					message = `Claude model switched to: ${displayName} (Latest flagship, Mythos-class — best for agentic coding & research, 1M context)`;
+					message = `Claude model switched to: ${displayName} (Previous flagship, Mythos-class, 1M context)`;
 					break;
 				case 'claude-fable-5':
 					displayName = 'Fable 5';
@@ -3508,9 +3580,13 @@ export class ClaudeChatProvider {
 					displayName = 'Opus Plan';
 					message = `Claude model switched to: ${displayName}\n\n💡 Tip: Enable "Plan First" mode to use Opus for planning and Sonnet for execution. Without Plan First, it will use Sonnet for direct execution.`;
 					break;
+				case 'claude-sonnet-5-5':
+					displayName = 'Sonnet 5.5';
+					message = `Claude model switched to: ${displayName} (Latest Sonnet — fast everyday coding & agents, 1M context, requires CLI 2.1.284+)`;
+					break;
 				case 'claude-sonnet-5':
 					displayName = 'Sonnet 5';
-					message = `Claude model switched to: ${displayName} (Most agentic Sonnet, 1M context)`;
+					message = `Claude model switched to: ${displayName} (Previous Sonnet, 1M context)`;
 					break;
 				case 'claude-sonnet-4-6':
 					displayName = 'Sonnet 4.6';
@@ -3519,6 +3595,10 @@ export class ClaudeChatProvider {
 				case 'claude-sonnet-4-5-20250929':
 					displayName = 'Sonnet 4.5';
 					message = `Claude model switched to: ${displayName}`;
+					break;
+				case 'claude-haiku-5-5':
+					displayName = 'Haiku 5.5';
+					message = `Claude model switched to: ${displayName} (Fastest & cheapest, 1M context — 5x price above 100K prompt, requires CLI 2.1.293+)`;
 					break;
 				case 'claude-haiku-4-5-20251001':
 					displayName = 'Haiku 4.5';
@@ -3542,13 +3622,10 @@ export class ClaudeChatProvider {
 	 * @param mode - 'auto' or 'max'
 	 */
 	private _handleModeSelection(mode: 'auto' | 'max'): void {
-		// Max mode drives background tasks with Sonnet 5 (requires CLI >= 2.1.197)
-		const MAX_MODE_MODEL = 'claude-sonnet-5';
-
 		if (mode === 'max') {
 			// Max mode: set ANTHROPIC_DEFAULT_HAIKU_MODEL
 			process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = MAX_MODE_MODEL;
-			debugLog('ComputeMode', 'Max mode enabled - Using Sonnet 5 for background tasks');
+			debugLog('ComputeMode', `Max mode enabled - Using ${MAX_MODE_MODEL} for background tasks`);
 			vscode.window.showInformationMessage('Max mode enabled - Maximum performance, higher cost');
 		} else {
 			// Auto mode: clear ANTHROPIC_DEFAULT_HAIKU_MODEL
@@ -3575,16 +3652,14 @@ export class ClaudeChatProvider {
 	 */
 	private _handleSubagentEnhancement(enabled: boolean, model?: string): void {
 		// Resolve subagent model, falling back to the default when unset/invalid
-		const subagentModel = model ?? SUBAGENT_DEFAULT_MODEL;
+		const subagentModel = resolveSubagentModel(model);
 
 		if (enabled) {
-			// Enable enhancement: set CLAUDE_CODE_SUBAGENT_MODEL
-			process.env.CLAUDE_CODE_SUBAGENT_MODEL = subagentModel;
+			ClaudeChatProvider._applySubagentModelEnv(subagentModel);
 			debugLog('ComputeMode', `Enhanced subagents enabled - Using ${subagentModel} for all subagent operations`);
 			vscode.window.showInformationMessage('Enhanced subagents enabled - Higher performance, increased cost');
 		} else {
-			// Disable enhancement: clear CLAUDE_CODE_SUBAGENT_MODEL
-			delete process.env.CLAUDE_CODE_SUBAGENT_MODEL;
+			ClaudeChatProvider._applySubagentModelEnv(undefined);
 			debugLog('ComputeMode', 'Standard subagents enabled - Using default model allocation');
 		}
 
@@ -3602,6 +3677,23 @@ export class ClaudeChatProvider {
 	}
 
 	/**
+	 * Set or clear the env vars that pick the subagent model (inherited by every spawned CLI).
+	 * CLAUDE_CODE_SUBAGENT_MODEL alone is only a default: the built-in Explore and Plan
+	 * subagents ignore it, and a per-spawn model or an agent's `model:` field wins over it
+	 * (verified on CLI 2.1.294: Explore ran on the main model). CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1
+	 * applies it to every subagent, teammate and workflow agent (requires CLI >= 2.1.257).
+	 */
+	private static _applySubagentModelEnv(model: string | undefined): void {
+		if (model) {
+			process.env.CLAUDE_CODE_SUBAGENT_MODEL = model;
+			process.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE = '1';
+		} else {
+			delete process.env.CLAUDE_CODE_SUBAGENT_MODEL;
+			delete process.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE;
+		}
+	}
+
+	/**
 	 * Restore compute mode state on initialization
 	 */
 	private _restoreComputeModeState(): void {
@@ -3610,9 +3702,6 @@ export class ClaudeChatProvider {
 
 		if (settings) {
 			// Use new format
-			// Max mode uses Sonnet 5 (requires CLI >= 2.1.197)
-			const MAX_MODE_MODEL = 'claude-sonnet-5';
-
 			// Restore mode settings
 			if (settings.mode === 'max') {
 				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = MAX_MODE_MODEL;
@@ -3621,8 +3710,9 @@ export class ClaudeChatProvider {
 
 			// Restore subagent settings (independent), honoring the saved model choice
 			if (settings.enhanceSubagents) {
-				process.env.CLAUDE_CODE_SUBAGENT_MODEL = settings.subagentModel ?? SUBAGENT_DEFAULT_MODEL;
-				debugLog('ComputeMode', `Restored enhanced subagents - ${settings.subagentModel ?? SUBAGENT_DEFAULT_MODEL}`);
+				const subagentModel = resolveSubagentModel(settings.subagentModel);
+				ClaudeChatProvider._applySubagentModelEnv(subagentModel);
+				debugLog('ComputeMode', `Restored enhanced subagents - ${subagentModel}`);
 			}
 
 			debugLog('ComputeMode', 'Settings restored', settings);
@@ -3630,8 +3720,6 @@ export class ClaudeChatProvider {
 			// Backward compatibility: check old maxModeEnabled config
 			const maxModeEnabled = this._context.workspaceState.get('maxModeEnabled', false);
 			if (maxModeEnabled) {
-				// Max mode uses Sonnet 5 (requires CLI >= 2.1.197)
-				const MAX_MODE_MODEL = 'claude-sonnet-5';
 				process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = MAX_MODE_MODEL;
 				debugLog('ComputeMode', 'Migrated from old Max mode setting');
 

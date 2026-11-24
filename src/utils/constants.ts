@@ -9,7 +9,8 @@ export const VALID_MODELS = [
     // 'opus' / 'sonnet' aliases were removed in v4.1.8; saved selections migrate to 'default'
     'default',
     'opusplan',                       // Opus Plan hybrid mode
-    'claude-fable-5-1',               // Fable 5.1 - Latest flagship (Mythos-class), 1M context; requires CLI >= 2.1.257 per docs (2.1.251 observed in a real error)
+    'claude-fable-5-2',               // Fable 5.2 - Latest flagship (Mythos-class), 1M context; requires CLI >= 2.1.321
+    'claude-fable-5-1',               // Fable 5.1 - Previous flagship (Mythos-class), 1M context; requires CLI >= 2.1.257 per docs (2.1.251 observed in a real error)
     'claude-fable-5',                 // Fable 5 - 5th-gen flagship (Mythos-class), 1M context; requires CLI >= 2.1.170
     'claude-opus-5-5',                // Opus 5.5 - Latest Opus flagship, 1M context; requires CLI >= 2.1.280
     'claude-opus-5',                  // Opus 5 - Legacy Opus flagship, 1M context; requires CLI >= 2.1.219
@@ -17,9 +18,11 @@ export const VALID_MODELS = [
     'claude-opus-4-7',                // Opus 4.7 - Legacy (back in the picker since v4.1.8)
     'claude-opus-4-6',                // Opus 4.6 - Previous flagship with Adaptive Thinking
     'claude-opus-4-5-20251101',       // Opus 4.5 - Legacy (in the picker since v4.1.8, hidden by default)
-    'claude-sonnet-5',                // Sonnet 5 - Most agentic Sonnet, new tokenizer; requires CLI >= 2.1.197
+    'claude-sonnet-5-5',              // Sonnet 5.5 - Latest Sonnet, 1M context; requires CLI >= 2.1.284
+    'claude-sonnet-5',                // Sonnet 5 - Previous Sonnet, new tokenizer; requires CLI >= 2.1.197
     'claude-sonnet-4-6',              // Sonnet 4.6 - Latest intelligent model
     'claude-sonnet-4-5-20250929',     // Sonnet 4.5 - Legacy (in the picker since v4.1.8, hidden by default)
+    'claude-haiku-5-5',               // Haiku 5.5 - Latest Haiku, 1M context, tiered pricing; requires CLI >= 2.1.293
     'claude-haiku-4-5-20251001'       // Haiku 4.5
 ] as const;
 export type ValidModel = typeof VALID_MODELS[number];
@@ -29,6 +32,7 @@ export type ValidModel = typeof VALID_MODELS[number];
  */
 export const MODEL_DISPLAY_NAMES: Record<string, string> = {
     'opus': 'Opus',
+    'claude-fable-5-2': 'Fable 5.2',
     'claude-fable-5-1': 'Fable 5.1',
     'claude-fable-5': 'Fable 5',
     'claude-opus-5-5': 'Opus 5.5',
@@ -41,11 +45,13 @@ export const MODEL_DISPLAY_NAMES: Record<string, string> = {
     'claude-3-opus-20240229': 'Claude 3 Opus',
     'opusplan': 'Opus Plan',
     'sonnet': 'Sonnet',
+    'claude-sonnet-5-5': 'Sonnet 5.5',
     'claude-sonnet-5': 'Sonnet 5',
     'claude-sonnet-4-6': 'Sonnet 4.6',
     'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
     'claude-sonnet-4-20250514': 'Sonnet 4',
     'claude-3-5-sonnet-20241022': 'Sonnet 3.5',
+    'claude-haiku-5-5': 'Haiku 5.5',
     'claude-haiku-4-5-20251001': 'Haiku 4.5',
     'default': 'Default'
 };
@@ -76,11 +82,13 @@ export interface PickerModelInfo {
 
 /**
  * Models offered in the model picker, in display order. Must match the radio list in
- * getBodyContent.ts. Opus 5.5 defaults to medium, Opus 4.7 to xhigh, every other effort-capable model to high.
+ * getBodyContent.ts. Fable 5.2, Opus 5.5, Sonnet 5.5 and Haiku 5.5 default to medium, Opus 4.7 to xhigh,
+ * every other effort-capable model to high.
  */
 export const PICKER_MODELS: readonly PickerModelInfo[] = [
+    { id: 'claude-fable-5-2', effort: 'all', defaultEffort: 'medium' },
     { id: 'claude-fable-5-1', effort: 'all', defaultEffort: 'high' },
-    { id: 'claude-fable-5', effort: 'all', defaultEffort: 'high' },
+    { id: 'claude-fable-5', effort: 'all', defaultEffort: 'high', defaultHidden: true },
     { id: 'claude-opus-5-5', effort: 'all', defaultEffort: 'medium' },
     { id: 'claude-opus-5', effort: 'all', defaultEffort: 'high' },
     { id: 'claude-opus-4-8', effort: 'all', defaultEffort: 'high' },
@@ -88,9 +96,11 @@ export const PICKER_MODELS: readonly PickerModelInfo[] = [
     { id: 'claude-opus-4-6', effort: 'no-xhigh', defaultEffort: 'high' },
     { id: 'claude-opus-4-5-20251101', effort: 'none', defaultEffort: null, defaultHidden: true },
     { id: 'opusplan', effort: 'all', defaultEffort: null },            // Opus + Sonnet phases share one level
+    { id: 'claude-sonnet-5-5', effort: 'all', defaultEffort: 'medium' },
     { id: 'claude-sonnet-5', effort: 'all', defaultEffort: 'high' },
     { id: 'claude-sonnet-4-6', effort: 'no-xhigh', defaultEffort: 'high' },
     { id: 'claude-sonnet-4-5-20250929', effort: 'none', defaultEffort: null, defaultHidden: true },
+    { id: 'claude-haiku-5-5', effort: 'all', defaultEffort: 'medium' },
     { id: 'claude-haiku-4-5-20251001', effort: 'none', defaultEffort: null },
     { id: 'default', effort: 'cli', defaultEffort: null }
 ];
@@ -203,9 +213,13 @@ export const FILE_SIZE_LIMITS = {
  */
 export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
     // 1M-context models
+    'claude-fable-5-2': 1_000_000,
     'claude-fable-5-1': 1_000_000,
     'claude-fable-5': 1_000_000,
+    // NOTE: '-5-5' keys must stay before their '-5' siblings — prefix fallback iterates insertion order
+    'claude-sonnet-5-5': 1_000_000,
     'claude-sonnet-5': 1_000_000,
+    'claude-haiku-5-5': 1_000_000,
     'claude-opus-5-5': 1_000_000,
     'claude-opus-5': 1_000_000,
     'claude-opus-4-8': 1_000_000,

@@ -38,6 +38,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **v4.2.0** | 2026-11-24 | **Fable 5.2** ($8/$40, needs CLI 2.1.321+), **Sonnet 5.5** and **Haiku 5.5**; **Week ring** for the weekly limit next to the 5h ring; the 5h ring hides for verified Ultra accounts (no 5-hour limit); Max mode and Enhance Subagents move to Sonnet 5.5, Opus 5.5 selectable for subagents, and Explore/Plan subagents now follow the chosen model |
 | **v4.1.8** | 2026-09-25 | **Model Config**: show/hide models and set effort per model (Auto/Low/Med/High/xHigh/Max), works even when `CLAUDE_CODE_EFFORT_LEVEL` is set; 5h limit ring with reset time; Opus 5 / Opus 4.7 back; Codex switch (`codex exec`) replaces the broken Codex MCP template — delete old `codex-official` servers; MCP keys no longer written in plaintext; temp MCP folders cleaned up; restore checkpoint with Undo |
 | **v4.1.7** | 2026-09-25 | Opus 5.5 model (1M context); **fixed appended system prompt never reaching the model on Windows** (runtime constraints + MCP prompts were dropped since v4.1.5); Todo checklist restored on new models + Task Tracking prompt; icons for new CLI tools (PowerShell, LSP, Monitor, Workflow, Task*); removed DEP0190 warning; Sonnet 5 price $2/$10 |
 | **v4.1.6** | 2026-09-23 | Fable 5.1 model (1M context, `[1m]` injection); **fixed global MCP servers dropping to project level** when toggling API endpoint / changing settings; API Key Clear button + masked preview & plaintext toggle; hid Opus 4.7 from selector; removed dead MCP config-target mechanism |

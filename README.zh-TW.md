@@ -38,6 +38,7 @@
 
 | 版本 | 日期 | 亮點 |
 |------|------|------|
+| **v4.2.0** | 2026-11-24 | 新增 **Fable 5.2**（$8/$40，需 CLI 2.1.321+）、**Sonnet 5.5**、**Haiku 5.5**；5h 圓圈左邊新增 **Week 週額度圓圈**；已驗證的 Ultra 帳號沒有 5 小時限制，5h 圓圈會自動隱藏；Max 模式和增強子代理改用 Sonnet 5.5，子代理可選 Opus 5.5，內建 Explore/Plan 子代理也會使用所選模型 |
 | **v4.1.8** | 2026-09-25 | **模型設定**：可隱藏模型、按模型設定 effort（Auto/Low/Med/High/xHigh/Max），設了 `CLAUDE_CODE_EFFORT_LEVEL` 也能生效；5h 額度圓圈顯示重置時間；加回 Opus 5、Opus 4.7；新增 Codex 開關（`codex exec`），取代已失效的 Codex MCP 範本，請刪除舊的 `codex-official`；MCP 設定不再寫入明文金鑰；清理暫存 MCP 目錄；還原檢查點可復原 |
 | **v4.1.7** | 2026-09-25 | 新增 Opus 5.5 模型（1M 上下文）；**修復 Windows 上附加系統提示詞從未送達模型**（v4.1.5 起的執行約束和 MCP 說明一直遺失）；新模型恢復 Todo 清單並加入任務清單提示；識別 CLI 新工具圖示（PowerShell、LSP、Monitor、Workflow、Task 系列）；消除 DEP0190 警告；Sonnet 5 價格改為 $2/$10 |
 | **v4.1.6** | 2026-09-23 | 新增 Fable 5.1 模型（1M 上下文，`[1m]` 注入）；**修復切換 API 端點/改設定時全域 MCP 伺服器掉到專案級**的嚴重缺陷；新增 API Key 清除按鈕 + 遮罩預覽與明文切換；從選擇器隱藏 Opus 4.7；移除失效的 MCP 設定目標機制 |

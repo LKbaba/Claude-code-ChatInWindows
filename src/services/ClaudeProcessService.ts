@@ -207,6 +207,9 @@ export class ClaudeProcessService {
                 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
                 'CLAUDE_CODE_ENABLE_TODO_TOOLS', 'CLAUDE_CODE_ENABLE_TASKS',
                 'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
+                // Compute mode (Max / Enhance Subagents) is applied through these
+                'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+                'CLAUDE_CODE_SUBAGENT_MODEL', 'CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
             ];
             const summary: Record<string, string> = {};
             // Windows env names are case-insensitive (PATH is usually stored as "Path"),

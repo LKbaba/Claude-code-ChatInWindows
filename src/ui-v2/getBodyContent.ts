@@ -6,7 +6,7 @@ export function getBodyContent(): string {
 	<div class="header">
 		<div style="display: flex; align-items: center;">
 			<h2>Claude Code Chat</h2>
-			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.1.8</span>
+			<span id="versionDisplay" style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-left: 8px; opacity: 0.7; align-self: flex-end; margin-bottom: 2px;">v4.2.0</span>
 			<!-- <div id="sessionInfo" class="session-badge" style="display: none;">
 				<span class="session-icon">💬</span>
 				<span id="sessionId">-</span>
@@ -646,12 +646,21 @@ export function getBodyContent(): string {
 				This overrides your default model setting for this conversation only.
 			</div>
 			<div class="tools-list">
+				<div class="tool-item" data-model="claude-fable-5-2" onclick="selectModel('claude-fable-5-2')">
+					<input type="radio" name="model" id="model-fable-5-2" value="claude-fable-5-2">
+					<label for="model-fable-5-2">
+						<div class="model-title">Fable 5.2 - Latest flagship (Mythos-class)</div>
+						<div class="model-description">
+							$8/$40 · hardest & longest-running tasks · 1M context · requires CLI 2.1.321+
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" data-model="claude-fable-5-1" onclick="selectModel('claude-fable-5-1')">
 					<input type="radio" name="model" id="model-fable-5-1" value="claude-fable-5-1">
 					<label for="model-fable-5-1">
-						<div class="model-title">Fable 5.1 - Latest flagship (Mythos-class)</div>
+						<div class="model-title">Fable 5.1 - Previous flagship</div>
 						<div class="model-description">
-							Best for agentic coding & research · 1M context · cheap cache reads
+							$10/$50 · agentic coding & research · 1M context
 						</div>
 					</label>
 				</div>
@@ -727,10 +736,19 @@ export function getBodyContent(): string {
 						</div>
 					</label>
 				</div>
+				<div class="tool-item" data-model="claude-sonnet-5-5" onclick="selectModel('claude-sonnet-5-5')">
+					<input type="radio" name="model" id="model-sonnet-5-5" value="claude-sonnet-5-5">
+					<label for="model-sonnet-5-5">
+						<div class="model-title">Sonnet 5.5 - Latest Sonnet</div>
+						<div class="model-description">
+							$2/$10 · fast everyday coding & agents · 1M context · requires CLI 2.1.284+
+						</div>
+					</label>
+				</div>
 				<div class="tool-item" data-model="claude-sonnet-5" onclick="selectModel('claude-sonnet-5')">
 					<input type="radio" name="model" id="model-sonnet-5" value="claude-sonnet-5">
 					<label for="model-sonnet-5">
-						<div class="model-title">Sonnet 5 - Most agentic Sonnet</div>
+						<div class="model-title">Sonnet 5 - Previous Sonnet</div>
 						<div class="model-description">
 							Best for agentic coding · higher token cost (new tokenizer)
 						</div>
@@ -751,6 +769,15 @@ export function getBodyContent(): string {
 						<div class="model-title">Sonnet 4.5 - Legacy Sonnet model</div>
 						<div class="model-description">
 							200K context · no effort control
+						</div>
+					</label>
+				</div>
+				<div class="tool-item" data-model="claude-haiku-5-5" onclick="selectModel('claude-haiku-5-5')">
+					<input type="radio" name="model" id="model-haiku-5-5" value="claude-haiku-5-5">
+					<label for="model-haiku-5-5">
+						<div class="model-title">Haiku 5.5 - Fastest & cheapest</div>
+						<div class="model-description">
+							$0.10/$0.50 (5x above 100K prompt) · 1M context · requires CLI 2.1.293+
 						</div>
 					</label>
 				</div>
@@ -823,7 +850,7 @@ export function getBodyContent(): string {
 					<label for="mode-max">
 						<div class="model-title">Max - Maximum performance</div>
 						<div class="model-description">
-							Prevents system from auto-switching to Haiku, enforces Sonnet 5
+							Prevents system from auto-switching to Haiku, enforces Sonnet 5.5
 						</div>
 					</label>
 				</div>
@@ -844,17 +871,24 @@ export function getBodyContent(): string {
 					<!-- Subagent model picker (only active when Enhance Subagents is checked) -->
 					<div id="subagent-model-options" class="subagent-model-options" style="display: none;">
 						<div class="tool-item">
-							<input type="radio" name="subagent-model" id="subagent-model-46" value="claude-sonnet-4-6" checked onchange="selectSubagentModel('claude-sonnet-4-6')">
-							<label for="subagent-model-46">
-								<div class="model-title">Sonnet 4.6</div>
-								<div class="model-description">Default subagent model</div>
+							<input type="radio" name="subagent-model" id="subagent-model-opus55" value="claude-opus-5-5" onchange="selectSubagentModel('claude-opus-5-5')">
+							<label for="subagent-model-opus55">
+								<div class="model-title">Opus 5.5</div>
+								<div class="model-description">Strongest subagents · about 2x Sonnet 5.5 cost, burns usage faster</div>
+							</label>
+						</div>
+						<div class="tool-item">
+							<input type="radio" name="subagent-model" id="subagent-model-55" value="claude-sonnet-5-5" checked onchange="selectSubagentModel('claude-sonnet-5-5')">
+							<label for="subagent-model-55">
+								<div class="model-title">Sonnet 5.5</div>
+								<div class="model-description">Default subagent model (needs CLI 2.1.284+)</div>
 							</label>
 						</div>
 						<div class="tool-item">
 							<input type="radio" name="subagent-model" id="subagent-model-5" value="claude-sonnet-5" onchange="selectSubagentModel('claude-sonnet-5')">
 							<label for="subagent-model-5">
 								<div class="model-title">Sonnet 5</div>
-								<div class="model-description">Most agentic Sonnet (needs CLI 2.1.197+)</div>
+								<div class="model-description">Previous Sonnet (needs CLI 2.1.197+)</div>
 							</label>
 						</div>
 					</div>

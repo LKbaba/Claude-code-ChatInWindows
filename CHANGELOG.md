@@ -2,6 +2,22 @@
 
 All notable changes to the Claude Code ChatUI extension will be documented in this file.
 
+## [4.2.0] - 2026-11-24
+
+### Added
+- **Fable 5.2** (`claude-fable-5-2`, $8/$40, cache reads $0.20, 1M context) — the new top model. All effort levels; defaults to Medium like the CLI. **Requires Claude Code CLI 2.1.321+** (run `claude update`). Fable 5.1 is now listed as the previous flagship, and Fable 5 is hidden by default (turn it on in Config)
+- **Sonnet 5.5** (`claude-sonnet-5-5`, $2/$10, 1M context, requires CLI 2.1.284+) and **Haiku 5.5** (`claude-haiku-5-5`, $0.10/$0.50, 1M context, requires CLI 2.1.293+). Both default to Medium effort. Haiku 5.5 costs 5× for requests whose prompt is over 100K tokens, and the statistics fallback pricing follows that tier
+- **Weekly limit ring** (`Week ◔`, left of `5h ◔`) for subscription logins, from the `seven_day` window of the CLI's `rate_limit_event`. The tooltip shows usage and when the week resets, e.g. `Weekly limit: 42% used` / `Resets at Sun 04:04 (in 3d 4h)`. It is remembered across restarts like the 5h ring
+
+### Changed
+- **Max mode** now pins background tasks to Sonnet 5.5 (was Sonnet 5)
+- **Enhance Subagents** offers Opus 5.5 / Sonnet 5.5 (default) / Sonnet 5. Sonnet 4.6 was removed; a saved Sonnet 4.6 choice switches to Sonnet 5.5. The plugin now also sets `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`, so the built-in Explore and Plan subagents follow the chosen model too (on CLI 2.1.294 Explore had kept running on the main model)
+- Sonnet 5 is labelled as the previous Sonnet
+- Debug log lists the compute-mode variables (`ANTHROPIC_DEFAULT_HAIKU_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`) passed to the CLI
+
+### Fixed
+- **5h ring stuck at 0%** — Max 20x is now called Ultra, and verified Ultra accounts have no 5-hour limit, so the CLI stops reporting it. Once the stored 5-hour window has expired and the CLI reports usage without it, the 5h ring now hides instead of showing 0% forever. Team, Pro and Max accounts keep the ring
+
 ## [4.1.8] - 2026-09-25
 
 ### Added

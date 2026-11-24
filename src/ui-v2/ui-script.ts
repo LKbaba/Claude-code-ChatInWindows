@@ -888,6 +888,7 @@ export const uiScript = `
 		let lastContextTokens = 0; // Latest real context occupancy from backend (0 = unknown)
 		let contextLimit = 0; // Indicator denominator from backend = min(configured window, model window); 0 = unknown
 		let rateLimit5h = null; // { utilization, status, resetsAt, updatedAt } from backend; null = never received (e.g. API key login)
+		let rateLimit7d = null; // Same shape, for the weekly (seven_day) limit
 		
 		// Tool execution tracking
 		let currentToolExecution = null;
@@ -945,16 +946,16 @@ export const uiScript = `
 		// is correct information (PRD updatePRDv18 F1.4). Before the backend sends
 		// any data (contextLimit === 0) it shows a full bar (100% remaining) —
 		// the tooltip still marks the value as unknown until real usage arrives.
-		// "5h ◔" ring for the subscription's 5-hour limit, left of Compact.
-		// Empty string (hidden) until the first rate_limit_event arrives.
-		function buildRateLimit5hHtml() {
-			if (!rateLimit5h || typeof rateLimit5h.utilization !== 'number') {
+		// "Week ◔" and "5h ◔" rings for the subscription's weekly and 5-hour limits, left of Compact.
+		// Each is an empty string (hidden) until its first rate_limit_event data arrives.
+		function buildRateLimitRingHtml(state, label, title) {
+			if (!state || typeof state.utilization !== 'number') {
 				return '';
 			}
 			// Past the reset time the window has started over
-			const expired = rateLimit5h.resetsAt && Date.now() / 1000 > rateLimit5h.resetsAt;
-			let percent = expired ? 0 : Math.max(0, Math.min(100, Math.round(rateLimit5h.utilization * 100)));
-			const status = expired ? 'allowed' : rateLimit5h.status;
+			const expired = state.resetsAt && Date.now() / 1000 > state.resetsAt;
+			let percent = expired ? 0 : Math.max(0, Math.min(100, Math.round(state.utilization * 100)));
+			const status = expired ? 'allowed' : state.status;
 
 			let color = '#66BB6A'; // Green
 			if (percent >= 90) {
@@ -974,23 +975,33 @@ export const uiScript = `
 			const filled = (circumference * percent / 100).toFixed(2);
 
 			// Two lines like the Context Window tooltip: usage, then when the window resets
-			let tooltip = '5-hour limit: ' + percent + '% used';
-			if (rateLimit5h.resetsAt) {
-				const resetDate = new Date(rateLimit5h.resetsAt * 1000);
-				const resetClock = String(resetDate.getHours()).padStart(2, '0') + ':' + String(resetDate.getMinutes()).padStart(2, '0');
+			let tooltip = title + ': ' + percent + '% used';
+			if (state.resetsAt) {
+				const resetDate = new Date(state.resetsAt * 1000);
+				let resetClock = String(resetDate.getHours()).padStart(2, '0') + ':' + String(resetDate.getMinutes()).padStart(2, '0');
+				// Weekly resets are usually on another day: prefix the weekday
+				if (resetDate.toDateString() !== new Date().toDateString()) {
+					resetClock = resetDate.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + resetClock;
+				}
 				if (expired) {
 					tooltip += '\\nReset at ' + resetClock;
 				} else {
 					const minutesLeft = Math.max(1, Math.ceil((resetDate.getTime() - Date.now()) / 60000));
-					const leftText = minutesLeft < 60 ? minutesLeft + ' min'
-						: Math.floor(minutesLeft / 60) + 'h ' + (minutesLeft % 60) + 'm';
+					let leftText;
+					if (minutesLeft < 60) {
+						leftText = minutesLeft + ' min';
+					} else if (minutesLeft < 1440) {
+						leftText = Math.floor(minutesLeft / 60) + 'h ' + (minutesLeft % 60) + 'm';
+					} else {
+						leftText = Math.floor(minutesLeft / 1440) + 'd ' + Math.floor((minutesLeft % 1440) / 60) + 'h';
+					}
 					tooltip += '\\nResets at ' + resetClock + ' (in ' + leftText + ')';
 				}
 			}
 
 			return \`
-				<div class="rate-limit-5h" style="display: flex; align-items: center; gap: 5px;" title="\${escapeHtml(tooltip)}">
-					<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">5h</span>
+				<div class="rate-limit-ring" style="display: flex; align-items: center; gap: 5px;" title="\${escapeHtml(tooltip)}">
+					<span class="usage-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">\${label}</span>
 					<svg width="14" height="14" viewBox="0 0 16 16" style="transform: rotate(-90deg); display: block;">
 						<circle cx="8" cy="8" r="\${radius}" fill="none" stroke="rgba(255, 255, 255, 0.15)" stroke-width="2.5"></circle>
 						<circle cx="8" cy="8" r="\${radius}" fill="none" stroke="\${color}" stroke-width="2.5"
@@ -1002,7 +1013,7 @@ export const uiScript = `
 
 		// Keep the reset countdown and the post-reset 0% current without new events
 		setInterval(() => {
-			if (rateLimit5h) {
+			if (rateLimit5h || rateLimit7d) {
 				updateContextIndicator();
 			}
 		}, 60000);
@@ -1047,7 +1058,8 @@ export const uiScript = `
 			// Update indicator content
 			indicatorContainer.innerHTML = \`
 				<div class="usage-display" style="display: inline-flex; align-items: center; gap: 12px;">
-					\${buildRateLimit5hHtml()}
+					\${buildRateLimitRingHtml(rateLimit7d, 'Week', 'Weekly limit')}
+					\${buildRateLimitRingHtml(rateLimit5h, '5h', '5-hour limit')}
 					<div style="display: flex; align-items: center; gap: 6px;">
 						<span class="compact-label" style="color: var(--vscode-descriptionForeground); opacity: 0.8;">Compact</span>
 						<div class="mode-switch" id="compactButton" onclick="compactConversation()" title="Compact context"></div>
@@ -2319,13 +2331,17 @@ export const uiScript = `
 			hideModeModal();
 		}
 
-		// Read the currently selected subagent model (fallback to Sonnet 4.6)
+		// Read the currently selected subagent model (fallback to Sonnet 5.5)
 		function getSelectedSubagentModel() {
+			const radioOpus55 = document.getElementById('subagent-model-opus55');
+			if (radioOpus55 && radioOpus55.checked) {
+				return 'claude-opus-5-5';
+			}
 			const radio5 = document.getElementById('subagent-model-5');
 			if (radio5 && radio5.checked) {
 				return 'claude-sonnet-5';
 			}
-			return 'claude-sonnet-4-6';
+			return 'claude-sonnet-5-5';
 		}
 
 		// Show/hide the subagent model picker based on checkbox state
@@ -2751,6 +2767,7 @@ export const uiScript = `
 		// Model display names (single definition for the entire UI)
 		const modelDisplayNames = {
 			'opus': 'Opus',
+			'claude-fable-5-2': 'Fable 5.2',
 			'claude-fable-5-1': 'Fable 5.1',
 			'claude-fable-5': 'Fable 5',
 			'claude-opus-5-5': 'Opus 5.5',
@@ -2761,9 +2778,11 @@ export const uiScript = `
 			'claude-opus-4-5-20251101': 'Opus 4.5',           // Kept for historical sessions
 			'opusplan': 'Opus Plan',
 			'sonnet': 'Sonnet',
+			'claude-sonnet-5-5': 'Sonnet 5.5',
 			'claude-sonnet-5': 'Sonnet 5',
 			'claude-sonnet-4-6': 'Sonnet 4.6',
 			'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+			'claude-haiku-5-5': 'Haiku 5.5',
 			'claude-haiku-4-5-20251001': 'Haiku 4.5',
 			'default': 'Default'
 		};
@@ -2791,7 +2810,9 @@ export const uiScript = `
 			// If modal is open, update radio button state
 			// Handle long model names with special processing
 			let radioId = 'model-' + model;
-			if (model === 'claude-fable-5-1') {
+			if (model === 'claude-fable-5-2') {
+				radioId = 'model-fable-5-2';
+			} else if (model === 'claude-fable-5-1') {
 				radioId = 'model-fable-5-1';
 			} else if (model === 'claude-fable-5') {
 				radioId = 'model-fable-5';
@@ -2807,12 +2828,16 @@ export const uiScript = `
 				radioId = 'model-opus-4-6';
 			} else if (model === 'claude-opus-4-5-20251101') {
 				radioId = 'model-opus-4-5';
+			} else if (model === 'claude-sonnet-5-5') {
+				radioId = 'model-sonnet-5-5';
 			} else if (model === 'claude-sonnet-5') {
 				radioId = 'model-sonnet-5';
 			} else if (model === 'claude-sonnet-4-6') {
 				radioId = 'model-sonnet-4-6';
 			} else if (model === 'claude-sonnet-4-5-20250929') {
 				radioId = 'model-sonnet-4-5';
+			} else if (model === 'claude-haiku-5-5') {
+				radioId = 'model-haiku-5-5';
 			} else if (model === 'claude-haiku-4-5-20251001') {
 				radioId = 'model-haiku-4-5';
 			}
@@ -3475,6 +3500,11 @@ export const uiScript = `
 
 				case 'rateLimit5h':
 					rateLimit5h = message.data || null;
+					updateContextIndicator();
+					break;
+
+				case 'rateLimit7d':
+					rateLimit7d = message.data || null;
 					updateContextIndicator();
 					break;
 
@@ -6707,19 +6737,26 @@ export const uiScript = `
 			enhanceCheckbox.checked = enhanceSubagents;
 		}
 
-		// Restore subagent model selection (fallback to Sonnet 4.6)
-		const savedSubagentModel = localStorage.getItem('subagentModel') || 'claude-sonnet-4-6';
-		const subagentRadio5 = document.getElementById('subagent-model-5');
-		const subagentRadio46 = document.getElementById('subagent-model-46');
-		if (savedSubagentModel === 'claude-sonnet-5' && subagentRadio5) {
-			subagentRadio5.checked = true;
-		} else if (subagentRadio46) {
-			subagentRadio46.checked = true;
+		// Restore subagent model selection. Since v4.2.0 the options are Opus 5.5 / Sonnet 5.5 / Sonnet 5;
+		// any other saved value (e.g. the removed Sonnet 4.6) migrates to Sonnet 5.5.
+		const subagentRadioIds = {
+			'claude-opus-5-5': 'subagent-model-opus55',
+			'claude-sonnet-5-5': 'subagent-model-55',
+			'claude-sonnet-5': 'subagent-model-5'
+		};
+		const storedSubagentModel = localStorage.getItem('subagentModel');
+		const savedSubagentModel = subagentRadioIds.hasOwnProperty(storedSubagentModel)
+			? storedSubagentModel
+			: 'claude-sonnet-5-5';
+		localStorage.setItem('subagentModel', savedSubagentModel);
+		const savedSubagentRadio = document.getElementById(subagentRadioIds[savedSubagentModel]);
+		if (savedSubagentRadio) {
+			savedSubagentRadio.checked = true;
 		}
 		// Reflect checkbox state on the model picker visibility
 		updateSubagentModelOptionsVisibility(enhanceSubagents);
 
-		// If Max mode, notify backend to restore environment variable settings (uses Sonnet 5)
+		// If Max mode, notify backend to restore environment variable settings (uses Sonnet 5.5)
 		if (savedMode === 'max') {
 			vscode.postMessage({
 				type: 'selectMode',
